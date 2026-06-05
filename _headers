@@ -1,0 +1,6 @@
+/soma-guide.js
+  Access-Control-Allow-Origin: *
+  Cache-Control: public, max-age=300
+/soma-guide.css
+  Access-Control-Allow-Origin: *
+  Cache-Control: public, max-age=300
