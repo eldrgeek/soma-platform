@@ -1,32 +1,37 @@
 /**
  * Background service worker — handles toolbar click.
  *
- * On click: inject Ariadne's config, then the CSS and JS engine
- * into the active tab. All injection happens in the MAIN world so
- * window.SomaGuideConfig is readable by the engine.
+ * On click:
+ *   1. perceive.js (MAIN world) — runs perceive() on the live page, builds a
+ *      site-aware SomaGuideConfig (dynamic greeting + walkthrough), and sets
+ *      window.SomaGuideConfig. If the widget is already running, perceive.js
+ *      handles the toggle (open ↔ minimize) and returns early.
+ *   2. vendor/soma-guide.css — injected once (idempotent; browser deduplicates).
+ *   3. vendor/soma-guide.js (MAIN world) — auto-inits from window.SomaGuideConfig
+ *      only if window.somaGuide doesn't already exist (engine's own guard).
  *
- * Idempotent: re-clicking while Ariadne is visible toggles her off
- * (the engine checks for an existing #soma-guide root and removes it).
+ * The config sets autoStartWalkthrough so the engine opens straight into the
+ * generated tour and speaks the first narration, giving audio on first open.
  */
 
 chrome.action.onClicked.addListener(async (tab) => {
   if (!tab.id) return;
 
   try {
-    // 1. Set the persona config in MAIN world before the engine loads.
+    // 1. Perceive page + set dynamic config (or toggle widget if already running).
     await chrome.scripting.executeScript({
       target: { tabId: tab.id },
       world: 'MAIN',
-      files: ['ariadne-config.js'],
+      files: ['perceive.js'],
     });
 
-    // 2. Inject CSS (no world concept for CSS — applies globally).
+    // 2. Inject CSS (idempotent; no world concept for CSS).
     await chrome.scripting.insertCSS({
       target: { tabId: tab.id },
       files: ['vendor/soma-guide.css'],
     });
 
-    // 3. Inject the engine in MAIN world so it can access window.SomaGuideConfig.
+    // 3. Inject engine — creates window.somaGuide if not already present.
     await chrome.scripting.executeScript({
       target: { tabId: tab.id },
       world: 'MAIN',

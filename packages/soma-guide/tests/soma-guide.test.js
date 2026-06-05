@@ -16,7 +16,7 @@ const path   = require('node:path');
 const { JSDOM } = require('jsdom');
 
 const ROOT    = path.join(__dirname, '..');
-const GUIDE_SRC = fs.readFileSync(path.join(ROOT, 'js', 'soma-guide.js'), 'utf8');
+const GUIDE_SRC = fs.readFileSync(path.join(ROOT, 'soma-guide.js'), 'utf8');
 
 /* ── Helpers ── */
 
@@ -935,7 +935,7 @@ function makeWindowOnPage(pagePath) {
   });
   const win = dom.window;
   win.eval('window.__importStub = function(url) { return Promise.resolve({ Conversation: { startSession: function() { return Promise.resolve({ endSession: function(){}, sendUserMessage: function(){} }); } } }); };');
-  win.eval(fs.readFileSync(path.join(ROOT, 'js', 'soma-guide.js'), 'utf8'));
+  win.eval(fs.readFileSync(path.join(ROOT, 'soma-guide.js'), 'utf8'));
   return win;
 }
 
@@ -1881,7 +1881,7 @@ describe('SOMA Guide — preconditions per sub-step', function () {
     );
     const win = dom.window;
     win.eval('window.__importStub = function(url) { return Promise.resolve({ Conversation: { startSession: function() { return Promise.resolve({ endSession: function(){}, sendUserMessage: function(){} }); } } }); };');
-    win.eval(fs.readFileSync(path.join(ROOT, 'js', 'soma-guide.js'), 'utf8'));
+    win.eval(fs.readFileSync(path.join(ROOT, 'soma-guide.js'), 'utf8'));
     return win;
   }
 
@@ -2076,7 +2076,7 @@ describe('SOMA Guide — navigator panel', function () {
     );
     const win2 = dom.window;
     win2.eval('window.__importStub = function(url) { return Promise.resolve({ Conversation: { startSession: function() { return Promise.resolve({ endSession: function(){}, sendUserMessage: function(){} }); } } }); };');
-    win2.eval(fs.readFileSync(path.join(ROOT, 'js', 'soma-guide.js'), 'utf8'));
+    win2.eval(fs.readFileSync(path.join(ROOT, 'soma-guide.js'), 'utf8'));
 
     const dropConfig = {
       persona: { name: 'D', id: 'd', avatar: '🤖', greeting: 'Hi', shortGreeting: 'Back', walkthroughDone: 'Done' },
@@ -2139,7 +2139,7 @@ describe('SOMA Guide — root-absolute page resolution', function () {
     });
     const win2 = dom.window;
     win2.eval('window.__importStub = function(url) { return Promise.resolve({ Conversation: { startSession: function() { return Promise.resolve({ endSession: function(){}, sendUserMessage: function(){} }); } } }); };');
-    win2.eval(fs.readFileSync(path.join(ROOT, 'js', 'soma-guide.js'), 'utf8'));
+    win2.eval(fs.readFileSync(path.join(ROOT, 'soma-guide.js'), 'utf8'));
 
     const cfg = {
       persona: { name: 'T', id: 'tbot', avatar: '🤖', greeting: 'Hi', shortGreeting: 'Back', walkthroughDone: 'Done' },
@@ -2165,7 +2165,7 @@ describe('SOMA Guide — root-absolute page resolution', function () {
     });
     const win3 = dom.window;
     win3.eval('window.__importStub = function(url) { return Promise.resolve({ Conversation: { startSession: function() { return Promise.resolve({ endSession: function(){}, sendUserMessage: function(){} }); } } }); };');
-    win3.eval(fs.readFileSync(path.join(ROOT, 'js', 'soma-guide.js'), 'utf8'));
+    win3.eval(fs.readFileSync(path.join(ROOT, 'soma-guide.js'), 'utf8'));
 
     const cfg = {
       persona: { name: 'T', id: 'tbot2', avatar: '🤖', greeting: 'Hi', shortGreeting: 'Back', walkthroughDone: 'Done' },
@@ -2193,7 +2193,7 @@ describe('SOMA Guide — ensure-page gate on jump/resume', function () {
     });
     const win4 = dom.window;
     win4.eval('window.__importStub = function(url) { return Promise.resolve({ Conversation: { startSession: function() { return Promise.resolve({ endSession: function(){}, sendUserMessage: function(){} }); } } }); };');
-    win4.eval(fs.readFileSync(path.join(ROOT, 'js', 'soma-guide.js'), 'utf8'));
+    win4.eval(fs.readFileSync(path.join(ROOT, 'soma-guide.js'), 'utf8'));
 
     const cfg = {
       persona: { name: 'T', id: 'tbot3', avatar: '🤖', greeting: 'Hi', shortGreeting: 'Back', walkthroughDone: 'Done' },

@@ -113,7 +113,17 @@
       this.pendingResume = { id: prId, stepIndex: parseInt(prStep, 10) || 0, subStepIndex: subR };
     }
 
-    if (!this.introduced) {
+    var autoWt = this.cfg.autoStartWalkthrough;
+    if (autoWt) {
+      /* autoStartWalkthrough: always open into the named walkthrough on fresh
+       * injection (Ariadne extension pattern). Guarded so Bill/Proteus, which
+       * don't set this field, follow the unchanged introduced-once path below. */
+      setTimeout(function () {
+        self._lsSet('introduced', '1');
+        self.introduced = true;
+        self._wtStart(autoWt, 0, -1);
+      }, 500);
+    } else if (!this.introduced) {
       setTimeout(function () { self._openIdle(true); }, 500);
     }
   };
