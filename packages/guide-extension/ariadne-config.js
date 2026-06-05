@@ -17,7 +17,7 @@ window.SomaGuideConfig = {
 
   // Reusing bill-talk agent for now.
   // TODO: provision a dedicated Ariadne voice via ElevenLabs and update this.
-  voiceAgentId: 'agent_01jwdqzd3rfynvfhhe7bskkywm',
+  voiceAgentId: 'agent_2401ks53q6t8e2drt1h7va3f2c52',
   ttsProxyUrl: 'https://bill-talk.netlify.app/.netlify/functions/el-proxy',
 
   // No pre-mapped site walkthrough for the universal case.
