@@ -58,6 +58,9 @@
     this._ttsPrefetchCache = null;
     this._ttsPrefetchUrl   = null;
 
+    /* Inference (Ask) state */
+    this._webSearchEnabled = false;
+
     var lsBase = 'soma-guide:' + (cfg.persona.id || cfg.persona.name);
     this._lsGet = function (k) { try { return localStorage.getItem(lsBase + ':' + k); } catch(e) { return null; } };
     this._lsSet = function (k, v) { try { localStorage.setItem(lsBase + ':' + k, v); } catch(e) {} };
@@ -174,6 +177,7 @@
       '      <div class="sg-messages" role="log" aria-live="polite"></div>',
       '      <div class="sg-input-bar">',
       '        <input class="sg-input" type="text" placeholder="Ask me anything…" aria-label="Message">',
+      '        <button class="sg-web-toggle" title="Search the web (off)" aria-label="Toggle web search" aria-pressed="false">🔎</button>',
       '        <button class="sg-send" aria-label="Send">↑</button>',
       '      </div>',
       '    </div>',
@@ -290,6 +294,16 @@
     input.addEventListener('keydown', function (e) {
       if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); self._sendText(input.value); }
     });
+
+    var webToggle = this._$('.sg-web-toggle');
+    if (webToggle) {
+      webToggle.addEventListener('click', function () {
+        self._webSearchEnabled = !self._webSearchEnabled;
+        webToggle.setAttribute('aria-pressed', String(self._webSearchEnabled));
+        webToggle.classList.toggle('sg-web-toggle--on', self._webSearchEnabled);
+        webToggle.title = self._webSearchEnabled ? 'Search the web (on)' : 'Search the web (off)';
+      });
+    }
 
     this._renderTopicList();
   };
@@ -1044,6 +1058,11 @@
       return;
     }
 
+    if (this.cfg.inferenceUrl && this._classifyQuestion(text) === 'factual') {
+      this._askInference(text);
+      return;
+    }
+
     var self = this;
     var send = function () {
       if (self.conversation) {
@@ -1072,6 +1091,118 @@
     return (this.cfg.walkthroughs || []).filter(function (wt) {
       return (wt.keywords || []).some(function (kw) { return lower.indexOf(kw) !== -1; });
     })[0] || null;
+  };
+
+  /* Classify a user message as 'factual', 'howto', or 'other'.
+   * howto  → walkthrough/navigation intent ("how do I…", "where do I…")
+   * factual → answer-from-context intent ("who is…", "what is…", "is there…")
+   * other  → falls through to ElevenLabs conversation */
+  SomaGuide.prototype._classifyQuestion = function (text) {
+    var lower = text.trim().toLowerCase();
+
+    var howTo = ['how do i', 'how do you', 'how to ', 'how can i', 'how would i', 'how should i',
+                 'where do i', 'where can i', 'where should i', 'show me how'];
+    for (var i = 0; i < howTo.length; i++) {
+      if (lower.slice(0, howTo[i].length) === howTo[i]) return 'howto';
+    }
+
+    var factual = ['who ', "who's ", "who are ", 'what ', "what's ", "what are ",
+                   'when ', "when's ", 'why ', 'which ', 'where ',
+                   'is ', 'are ', 'was ', 'were ', 'does ', 'do ', 'did ',
+                   'has ', 'have ', 'can ', 'could ', 'would ', 'should ',
+                   'tell me ', 'explain ', 'describe '];
+    for (var j = 0; j < factual.length; j++) {
+      if (lower.slice(0, factual[j].length) === factual[j]) return 'factual';
+    }
+
+    if (lower.charAt(lower.length - 1) === '?') return 'factual';
+
+    return 'other';
+  };
+
+  /* POST to cfg.inferenceUrl, render the grounded answer in the chat. */
+  SomaGuide.prototype._askInference = function (text) {
+    var self = this;
+
+    /* Show typing indicator */
+    var msgs = this._$('.sg-messages');
+    var thinkingDiv = null;
+    if (msgs) {
+      thinkingDiv = document.createElement('div');
+      thinkingDiv.className = 'sg-msg sg-msg--agent sg-msg--thinking';
+      thinkingDiv.textContent = '…';
+      msgs.appendChild(thinkingDiv);
+      msgs.scrollTop = msgs.scrollHeight;
+    }
+
+    /* Gather page context */
+    var pageText = '';
+    try {
+      var mainEl = document.querySelector('main') || document.body;
+      pageText = ((mainEl.innerText || mainEl.textContent) || '').replace(/\s+/g, ' ').trim().slice(0, 4000);
+    } catch (_) {}
+
+    var navText = (this.cfg.siteMap || []).map(function (s) {
+      return s.label + ': ' + s.description;
+    }).join('\n');
+
+    var knowledge = typeof this.cfg.knowledge === 'string' ? this.cfg.knowledge : '';
+    var context   = [knowledge, navText, pageText].filter(Boolean).join('\n\n').slice(0, 8000);
+
+    var persona  = this.cfg.persona.name || 'Assistant';
+    var url      = this.cfg.inferenceUrl;
+
+    fetch(url, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({
+        question: text,
+        context:  context,
+        persona:  persona,
+        allowWeb: self._webSearchEnabled
+      })
+    }).then(function (res) {
+      return res.json();
+    }).then(function (data) {
+      if (thinkingDiv && thinkingDiv.parentNode) thinkingDiv.parentNode.removeChild(thinkingDiv);
+
+      var answer = (data && typeof data.answer === 'string' && data.answer)
+        ? data.answer
+        : "I don't see that in the site content. Try asking me to show you around!";
+
+      self._appendMessage('agent', answer);
+
+      if (self._ttsEnabled()) self._ttsSpeak(answer);
+
+      /* Offer "show me" if a related walkthrough exists */
+      var related = self._matchWalkthrough(text);
+      if (related) self._appendShowMeBtn(related);
+
+    }).catch(function (err) {
+      if (thinkingDiv && thinkingDiv.parentNode) thinkingDiv.parentNode.removeChild(thinkingDiv);
+      self._appendMessage('agent',
+        "I couldn't reach my knowledge base right now. Try voice chat, or ask me to show you around the site.");
+      console.warn('[SomaGuide] inference error', err);
+    });
+  };
+
+  /* Append a "Want me to show you where?" button after an inferred answer. */
+  SomaGuide.prototype._appendShowMeBtn = function (wt) {
+    var self = this;
+    var msgs = this._$('.sg-messages');
+    if (!msgs) return;
+    var div = document.createElement('div');
+    div.className = 'sg-msg sg-msg--action';
+    var btn = document.createElement('button');
+    btn.className = 'sg-show-me-btn';
+    btn.textContent = 'Want me to show you where?';
+    btn.addEventListener('click', function () {
+      if (div.parentNode) div.parentNode.removeChild(div);
+      self._wtStart(wt.id, 0, -1);
+    });
+    div.appendChild(btn);
+    msgs.appendChild(div);
+    msgs.scrollTop = msgs.scrollHeight;
   };
 
   SomaGuide.prototype._appendMessage = function (role, text) {

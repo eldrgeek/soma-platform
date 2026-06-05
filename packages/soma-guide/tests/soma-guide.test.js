@@ -2543,3 +2543,293 @@ describe('SOMA Guide — close button (×)', function () {
     assert.equal(el.style.bottom, (800  - 560) + 'px', 'bottom should align chip to panel bottom-right');
   });
 });
+
+/* ── Question classifier ── */
+
+describe('SOMA Guide — question classifier', function () {
+  test('_classifyQuestion returns factual for "who is the chairman"', function () {
+    const win = makeWindow();
+    const g = new win.SomaGuide(TEST_CONFIG);
+    assert.equal(g._classifyQuestion('who is the chairman?'), 'factual');
+  });
+
+  test('_classifyQuestion returns factual for "what is this site"', function () {
+    const win = makeWindow();
+    const g = new win.SomaGuide(TEST_CONFIG);
+    assert.equal(g._classifyQuestion('what is this site about'), 'factual');
+  });
+
+  test('_classifyQuestion returns factual for "when was the last meeting"', function () {
+    const win = makeWindow();
+    const g = new win.SomaGuide(TEST_CONFIG);
+    assert.equal(g._classifyQuestion('when was the last meeting'), 'factual');
+  });
+
+  test('_classifyQuestion returns factual for "is greg foster the chairman"', function () {
+    const win = makeWindow();
+    const g = new win.SomaGuide(TEST_CONFIG);
+    assert.equal(g._classifyQuestion('is greg foster the chairman'), 'factual');
+  });
+
+  test('_classifyQuestion returns factual for question ending with ?', function () {
+    const win = makeWindow();
+    const g = new win.SomaGuide(TEST_CONFIG);
+    assert.equal(g._classifyQuestion('chairman?'), 'factual');
+  });
+
+  test('_classifyQuestion returns howto for "how do I find a member"', function () {
+    const win = makeWindow();
+    const g = new win.SomaGuide(TEST_CONFIG);
+    assert.equal(g._classifyQuestion('how do I find a member'), 'howto');
+  });
+
+  test('_classifyQuestion returns howto for "how to navigate the site"', function () {
+    const win = makeWindow();
+    const g = new win.SomaGuide(TEST_CONFIG);
+    assert.equal(g._classifyQuestion('how to navigate the site'), 'howto');
+  });
+
+  test('_classifyQuestion returns howto for "where do I submit a feature"', function () {
+    const win = makeWindow();
+    const g = new win.SomaGuide(TEST_CONFIG);
+    assert.equal(g._classifyQuestion('where do I submit a feature'), 'howto');
+  });
+
+  test('_classifyQuestion is case-insensitive', function () {
+    const win = makeWindow();
+    const g = new win.SomaGuide(TEST_CONFIG);
+    assert.equal(g._classifyQuestion('WHO is the chairman'), 'factual');
+    assert.equal(g._classifyQuestion('HOW DO I find something'), 'howto');
+  });
+
+  test('_classifyQuestion returns other for plain noun phrase', function () {
+    const win = makeWindow();
+    const g = new win.SomaGuide(TEST_CONFIG);
+    assert.equal(g._classifyQuestion('basketball committee'), 'other');
+  });
+
+  test('_classifyQuestion factual prefix "tell me" works', function () {
+    const win = makeWindow();
+    const g = new win.SomaGuide(TEST_CONFIG);
+    assert.equal(g._classifyQuestion('tell me about the committee'), 'factual');
+  });
+});
+
+/* ── Inference (Ask) path ── */
+
+const INFER_CONFIG = {
+  persona: { name: 'InferBot', id: 'infer-bot', avatar: '🤖', greeting: 'Hi!', shortGreeting: 'Back!', walkthroughDone: 'Done!' },
+  voiceAgentId: 'infer-agent',
+  inferenceUrl: 'http://localhost:8131/ask',
+  knowledge: 'The chairman is Greg Foster.',
+  siteMap: [],
+  walkthroughs: [
+    {
+      id: 'find-chair',
+      label: 'Find the chairman',
+      keywords: ['find the chairman', 'show chairman'],
+      steps: [
+        { target: 'body', label: 'Step 1', narration: 'Here is the chairman', instruction: 'Look here' }
+      ]
+    }
+  ]
+};
+
+/** Build a window with a controllable fetch mock for inference tests. */
+function makeWindowWithInfer(answerOverride) {
+  const win = makeWindow();
+  const answer = answerOverride !== undefined ? answerOverride : 'Greg Foster is the chairman.';
+  win.eval(`
+    window._inferRequests = [];
+    window._inferAnswer   = ${JSON.stringify(answer)};
+    window.fetch = function(url, opts) {
+      window._inferRequests.push({ url: url, body: JSON.parse(opts.body) });
+      return Promise.resolve({
+        ok: true,
+        json: function() { return Promise.resolve({ answer: window._inferAnswer }); }
+      });
+    };
+  `);
+  return win;
+}
+
+describe('SOMA Guide — inference Ask path', function () {
+  test('web-search toggle button is present in text UI', function () {
+    const win = makeWindow();
+    new win.SomaGuide(TEST_CONFIG);
+    const btn = win.document.querySelector('.sg-web-toggle');
+    assert.ok(btn, '.sg-web-toggle should exist');
+  });
+
+  test('web-search toggle starts with aria-pressed="false"', function () {
+    const win = makeWindow();
+    new win.SomaGuide(TEST_CONFIG);
+    const btn = win.document.querySelector('.sg-web-toggle');
+    assert.equal(btn.getAttribute('aria-pressed'), 'false');
+  });
+
+  test('clicking web-search toggle sets _webSearchEnabled to true', function () {
+    const win = makeWindow();
+    const g = new win.SomaGuide(TEST_CONFIG);
+    win.document.querySelector('.sg-web-toggle').click();
+    assert.equal(g._webSearchEnabled, true);
+  });
+
+  test('clicking web-search toggle twice resets _webSearchEnabled to false', function () {
+    const win = makeWindow();
+    const g = new win.SomaGuide(TEST_CONFIG);
+    win.document.querySelector('.sg-web-toggle').click();
+    win.document.querySelector('.sg-web-toggle').click();
+    assert.equal(g._webSearchEnabled, false);
+  });
+
+  test('_webSearchEnabled starts false', function () {
+    const win = makeWindow();
+    const g = new win.SomaGuide(TEST_CONFIG);
+    assert.equal(g._webSearchEnabled, false);
+  });
+
+  test('factual question calls fetch when inferenceUrl configured', function (_, done) {
+    const win = makeWindowWithInfer();
+    const g = new win.SomaGuide(INFER_CONFIG);
+    g._openText();
+    g._sendText('who is the chairman?');
+    setTimeout(function () {
+      assert.ok(win._inferRequests.length > 0, 'fetch should be called for factual question');
+      assert.equal(win._inferRequests[0].url, INFER_CONFIG.inferenceUrl);
+      done();
+    }, 20);
+  });
+
+  test('fetch body includes question, context, and persona', function (_, done) {
+    const win = makeWindowWithInfer();
+    const g = new win.SomaGuide(INFER_CONFIG);
+    g._openText();
+    g._sendText('who is the chairman?');
+    setTimeout(function () {
+      const body = win._inferRequests[0] && win._inferRequests[0].body;
+      assert.ok(body, 'request body should exist');
+      assert.equal(body.question, 'who is the chairman?');
+      assert.ok(typeof body.context === 'string', 'context should be a string');
+      assert.equal(body.persona, INFER_CONFIG.persona.name);
+      done();
+    }, 20);
+  });
+
+  test('context includes cfg.knowledge', function (_, done) {
+    const win = makeWindowWithInfer();
+    const g = new win.SomaGuide(INFER_CONFIG);
+    g._openText();
+    g._sendText('who is the chairman?');
+    setTimeout(function () {
+      const body = win._inferRequests[0] && win._inferRequests[0].body;
+      assert.ok(body.context.includes('Greg Foster'), 'context should include knowledge pack content');
+      done();
+    }, 20);
+  });
+
+  test('allowWeb is false by default in request body', function (_, done) {
+    const win = makeWindowWithInfer();
+    const g = new win.SomaGuide(INFER_CONFIG);
+    g._openText();
+    g._sendText('who is the chairman?');
+    setTimeout(function () {
+      const body = win._inferRequests[0] && win._inferRequests[0].body;
+      assert.equal(body.allowWeb, false);
+      done();
+    }, 20);
+  });
+
+  test('allowWeb is true when web-search toggle is on', function (_, done) {
+    const win = makeWindowWithInfer();
+    const g = new win.SomaGuide(INFER_CONFIG);
+    win.document.querySelector('.sg-web-toggle').click();
+    g._openText();
+    g._sendText('who is the chairman?');
+    setTimeout(function () {
+      const body = win._inferRequests[0] && win._inferRequests[0].body;
+      assert.equal(body.allowWeb, true);
+      done();
+    }, 20);
+  });
+
+  test('answer is appended as agent message', function (_, done) {
+    const win = makeWindowWithInfer('Greg Foster is the chairman.');
+    const g = new win.SomaGuide(INFER_CONFIG);
+    g._openText();
+    g._sendText('who is the chairman?');
+    setTimeout(function () {
+      const msgs = win.document.querySelectorAll('.sg-msg--agent');
+      const texts = Array.from(msgs).map(function (m) { return m.textContent; });
+      assert.ok(texts.some(function (t) { return t.includes('Greg Foster'); }), 'answer should appear in messages');
+      done();
+    }, 40);
+  });
+
+  test('thinking indicator is removed after answer', function (_, done) {
+    const win = makeWindowWithInfer();
+    const g = new win.SomaGuide(INFER_CONFIG);
+    g._openText();
+    g._sendText('who is the chairman?');
+    setTimeout(function () {
+      const thinking = win.document.querySelector('.sg-msg--thinking');
+      assert.equal(thinking, null, 'thinking indicator should be removed after answer arrives');
+      done();
+    }, 40);
+  });
+
+  test('show-me button appears when related walkthrough exists', function (_, done) {
+    const win = makeWindowWithInfer();
+    const g = new win.SomaGuide(INFER_CONFIG);
+    g._openText();
+    g._sendText('find the chairman');
+    /* "find the chairman" matches the walkthrough keyword, so this goes to _wtStart, not inference.
+     * Use a question that doesn't match the walkthrough but there IS a related one. */
+    /* Actually need to test _appendShowMeBtn directly since the walkthrough keyword would trigger. */
+    const fakeWt = INFER_CONFIG.walkthroughs[0];
+    g._appendShowMeBtn(fakeWt);
+    setTimeout(function () {
+      const btn = win.document.querySelector('.sg-show-me-btn');
+      assert.ok(btn, '.sg-show-me-btn should exist after _appendShowMeBtn');
+      done();
+    }, 10);
+  });
+
+  test('show-me button click starts the walkthrough', function (_, done) {
+    const win = makeWindowWithInfer();
+    const g = new win.SomaGuide(INFER_CONFIG);
+    g._openText();
+    const fakeWt = INFER_CONFIG.walkthroughs[0];
+    g._appendShowMeBtn(fakeWt);
+    setTimeout(function () {
+      const btn = win.document.querySelector('.sg-show-me-btn');
+      btn.click();
+      assert.equal(g.mode, 'walkthrough', 'show-me click should start the walkthrough');
+      assert.equal(g.wt.id, fakeWt.id);
+      done();
+    }, 10);
+  });
+
+  test('howto question does NOT call inference even with inferenceUrl', function (_, done) {
+    const win = makeWindowWithInfer();
+    const g = new win.SomaGuide(INFER_CONFIG);
+    g._openText();
+    g._sendText('how do I find a member');
+    setTimeout(function () {
+      assert.equal(win._inferRequests.length, 0, 'howto question must not call inference');
+      done();
+    }, 20);
+  });
+
+  test('factual question does NOT call inference when inferenceUrl absent', function (_, done) {
+    const win = makeWindowWithInfer();
+    /* Use TEST_CONFIG which has no inferenceUrl */
+    const g = new win.SomaGuide(TEST_CONFIG);
+    g._openText();
+    g._sendText('who is the chairman?');
+    setTimeout(function () {
+      assert.equal(win._inferRequests.length, 0, 'no inference without inferenceUrl');
+      done();
+    }, 20);
+  });
+});

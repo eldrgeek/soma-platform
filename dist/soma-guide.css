@@ -288,6 +288,57 @@
 }
 .sg-send:hover { background: #b8963e; }
 
+/* ── Web-search toggle ── */
+.sg-web-toggle {
+  background: none;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 6px 8px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  opacity: 0.45;
+  transition: opacity 0.15s, background 0.15s, border-color 0.15s;
+  flex-shrink: 0;
+}
+.sg-web-toggle:hover { opacity: 0.75; }
+.sg-web-toggle--on {
+  opacity: 1;
+  background: #fff8e7;
+  border-color: #c9a84c;
+}
+
+/* ── Inference thinking indicator ── */
+.sg-msg--thinking {
+  opacity: 0.55;
+  font-style: italic;
+  letter-spacing: 0.2em;
+  animation: sg-pulse 1.2s ease-in-out infinite;
+}
+@keyframes sg-pulse {
+  0%, 100% { opacity: 0.35; }
+  50%       { opacity: 0.75; }
+}
+
+/* ── "Show me where" action bubble ── */
+.sg-msg--action {
+  align-self: flex-start;
+  background: none;
+  padding: 0;
+  max-width: 100%;
+}
+.sg-show-me-btn {
+  background: none;
+  border: 1px solid #c9a84c;
+  border-radius: 16px;
+  padding: 5px 14px;
+  font-size: 0.82rem;
+  color: #7a5e1a;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s;
+}
+.sg-show-me-btn:hover { background: #fff8e7; }
+
 /* ── Walkthrough UI ── */
 .sg-wt-ui {
   display: flex;
