@@ -1,0 +1,9 @@
+{
+  "name": "@soma/guide-extension",
+  "version": "1.0.0",
+  "description": "Chrome MV3 extension: inject the SOMA guide widget (Ariadne) into any page.",
+  "private": true,
+  "scripts": {
+    "sync-engine": "cp ../soma-guide/soma-guide.js vendor/soma-guide.js && cp ../soma-guide/soma-guide.css vendor/soma-guide.css && echo 'Engine synced from packages/soma-guide'"
+  }
+}
