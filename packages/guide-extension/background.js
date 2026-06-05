@@ -14,6 +14,26 @@
  * generated tour and speaks the first narration, giving audio on first open.
  */
 
+/* ── Dev hot-reload ──────────────────────────────────────────────────────────
+ * Polls watch.mjs (:27183) every 2s; reloads the extension when version bumps.
+ * Fails silently when the watcher isn't running — safe in production.
+ * Run `npm run dev` in packages/guide-extension to enable auto-reload.
+ */
+(function startDevReload() {
+  let lastVersion = null;
+  function poll() {
+    fetch('http://localhost:27183/')
+      .then(r => r.json())
+      .then(({ version }) => {
+        if (lastVersion === null) { lastVersion = version; return; }
+        if (version !== lastVersion) { chrome.runtime.reload(); return; }
+      })
+      .catch(() => { /* watcher not running — no-op */ })
+      .finally(() => { setTimeout(poll, 2000); });
+  }
+  poll();
+})();
+
 chrome.action.onClicked.addListener(async (tab) => {
   if (!tab.id) return;
 

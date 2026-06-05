@@ -2514,4 +2514,32 @@ describe('SOMA Guide — close button (×)', function () {
     win.document.querySelector('.sg-btn-min').click();
     assert.equal(g.mode, 'minimized', 'original − button should still minimize');
   });
+
+  test('chip anchors to bottom-right of where the panel was when dragged', function () {
+    const win = makeWindow();
+    const g = new win.SomaGuide(TEST_CONFIG);
+    g._openIdle(false);
+
+    /* Simulate dragged position: panel top-left at (120, 80), size 320×480 */
+    const el = win.document.getElementById('soma-guide');
+    el.style.left   = '120px';
+    el.style.top    = '80px';
+    el.style.right  = 'auto';
+    el.style.bottom = 'auto';
+
+    /* Stub getBoundingClientRect to return a known panel rect */
+    el.getBoundingClientRect = function () {
+      return { left: 120, top: 80, right: 440, bottom: 560, width: 320, height: 480 };
+    };
+
+    win.innerWidth  = 1280;
+    win.innerHeight = 800;
+
+    g._minimize();
+
+    assert.equal(el.style.left,   'auto', 'left should be auto after minimize');
+    assert.equal(el.style.top,    'auto', 'top should be auto after minimize');
+    assert.equal(el.style.right,  (1280 - 440) + 'px', 'right should align chip to panel bottom-right');
+    assert.equal(el.style.bottom, (800  - 560) + 'px', 'bottom should align chip to panel bottom-right');
+  });
 });

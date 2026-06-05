@@ -5,7 +5,8 @@
   "private": true,
   "scripts": {
     "test": "node --test tests/perceive.test.js",
-    "sync-engine": "cp ../soma-guide/soma-guide.js vendor/soma-guide.js && cp ../soma-guide/soma-guide.css vendor/soma-guide.css && echo 'Engine synced from packages/soma-guide'"
+    "sync-engine": "cp ../soma-guide/soma-guide.js vendor/soma-guide.js && cp ../soma-guide/soma-guide.css vendor/soma-guide.css && echo 'Engine synced from packages/soma-guide'",
+    "dev": "node watch.mjs"
   },
   "devDependencies": {
     "jsdom": "^26.0.0"

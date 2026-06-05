@@ -306,6 +306,9 @@
   /* ── Mode transitions ────────────────────────────────────────────────────── */
 
   SomaGuide.prototype._minimize = function () {
+    /* Capture panel's bottom-right before hiding it so the chip lands there. */
+    var panelRect = this.el.getBoundingClientRect();
+
     this._ttsStop();
     this._stopConversation();
     this._autoClear();
@@ -323,6 +326,16 @@
     this.mode = 'minimized';
     this.el.className = 'sg sg--min';
     this._$('.sg-panel').setAttribute('aria-hidden', 'true');
+
+    /* Anchor chip's bottom-right corner to where the panel's bottom-right was. */
+    if (typeof window !== 'undefined' && panelRect.right > 0) {
+      var vw = window.innerWidth  || (document.documentElement && document.documentElement.clientWidth)  || 0;
+      var vh = window.innerHeight || (document.documentElement && document.documentElement.clientHeight) || 0;
+      this.el.style.right  = Math.max(0, vw - panelRect.right)  + 'px';
+      this.el.style.bottom = Math.max(0, vh - panelRect.bottom) + 'px';
+      this.el.style.left   = 'auto';
+      this.el.style.top    = 'auto';
+    }
   };
 
   SomaGuide.prototype._openIdle = function (isFirst) {
