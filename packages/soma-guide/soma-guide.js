@@ -115,13 +115,16 @@
 
     var autoWt = this.cfg.autoStartWalkthrough;
     if (autoWt) {
-      /* autoStartWalkthrough: always open into the named walkthrough on fresh
-       * injection (Ariadne extension pattern). Guarded so Bill/Proteus, which
-       * don't set this field, follow the unchanged introduced-once path below. */
+      /* autoStartWalkthrough (Ariadne extension pattern): open the widget to
+       * the greeting panel so the user sees the "▶ Start tour" button. Their
+       * click provides the browser gesture that unlocks audio — calling
+       * _wtStart() here (before any gesture) would trigger audio.play() and
+       * get silently blocked by the autoplay policy.
+       * Bill/Proteus don't set this field, so they follow the unchanged path. */
       setTimeout(function () {
         self._lsSet('introduced', '1');
         self.introduced = true;
-        self._wtStart(autoWt, 0, -1);
+        self._openIdle(true);
       }, 500);
     } else if (!this.introduced) {
       setTimeout(function () { self._openIdle(true); }, 500);
@@ -517,6 +520,18 @@
       var targetEl = null;
       if (step.target) {
         targetEl = document.querySelector(step.target);
+        if (targetEl) {
+          /* Skip highlight when the element has no layout (hidden/invisible).
+           * docHasLayout guard keeps jsdom-based tests unaffected (doc is 0-wide). */
+          var docHasLayout = typeof document !== 'undefined' &&
+            document.documentElement.getBoundingClientRect().width > 0;
+          if (docHasLayout) {
+            var tRect = targetEl.getBoundingClientRect();
+            if (tRect.width === 0 && tRect.height === 0) {
+              targetEl = null; /* not visible — narrate without highlight */
+            }
+          }
+        }
         if (targetEl) {
           var dispVal = (typeof window !== 'undefined' && window.getComputedStyle)
             ? window.getComputedStyle(targetEl).display : '';

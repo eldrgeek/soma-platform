@@ -64,9 +64,25 @@
       .filter(function (t) { return t.length > 0; })
       .slice(0, 10);
 
-    /* Nav links — look in <nav>, <header>, role=navigation */
-    var navEls   = Array.from(doc.querySelectorAll('nav a, header a, [role="navigation"] a'));
-    var navLinks = navEls
+    /* Nav links — look in <nav>, <header>, role=navigation.
+     * Filter to VISIBLE top-level links; dedupe by text+href to skip
+     * Squarespace-style double-renders (desktop + mobile) and hidden dropdowns.
+     * docHasLayout gate: offsetParent/getBoundingClientRect are unreliable in
+     * jsdom (always 0), so layout checks only run when the document has real size. */
+    var docHasLayout = typeof window !== 'undefined' &&
+      doc.documentElement.getBoundingClientRect().width > 0;
+    var navSeen  = {};
+    var navLinks = Array.from(doc.querySelectorAll('nav a, header a, [role="navigation"] a'))
+      .filter(function (a) {
+        /* Structural hidden — works in jsdom and browser */
+        if (a.closest('[hidden]') || a.closest('[aria-hidden="true"]')) return false;
+        /* Layout visibility — browser only (skipped when layout isn't available) */
+        if (docHasLayout) {
+          var rect = a.getBoundingClientRect();
+          if (a.offsetParent === null || rect.width === 0 || rect.height === 0) return false;
+        }
+        return true;
+      })
       .map(function (a) {
         return {
           text:        a.textContent.trim(),
@@ -74,7 +90,13 @@
           cssSelector: getSel(a),
         };
       })
-      .filter(function (l) { return l.text.length > 0 && l.text.length < 60; })
+      .filter(function (l) {
+        if (!l.text || l.text.length === 0 || l.text.length >= 60) return false;
+        var key = l.text + '|' + l.href;
+        if (navSeen[key]) return false;
+        navSeen[key] = true;
+        return true;
+      })
       .slice(0, 8);
 
     /* Primary CTAs — prominent buttons/links in main content */
@@ -135,15 +157,29 @@
           : '')
       + ' Want a quick tour, or ask me where something is?';
 
-    /* Walkthrough: one step per top nav link, plus a CTA step if found */
+    /* Walkthrough: one step per visible top-level nav link, plus a CTA step if
+     * found. All steps are IN-PAGE — we highlight the nav item and invite the
+     * user to click it. We do NOT set step.page because the extension has no
+     * persistence across page loads: navigating would reload the page and the
+     * injected widget would disappear.
+     *
+     * TODO (v2.2): True cross-page guided tours need the extension to
+     * auto-inject on every page of the active site AND resume tour state from
+     * sessionStorage. Until then the tour stays in-page. */
     var steps = [];
+    /* First-step preamble uses the site's own text for context. */
+    var introPreamble = map.shortTextSummary
+      ? map.shortTextSummary + ' Let me walk you through the site.'
+      : '';
     map.navLinks.slice(0, 5).forEach(function (link, i) {
+      var narration = (i === 0 && introPreamble ? introPreamble + ' ' : '')
+        + '”' + link.text + '” — click here to explore the '
+        + link.text + ' section.';
       steps.push({
         id:          'nav-' + i,
         label:       link.text,
         target:      link.cssSelector,
-        narration:   'This is the “' + link.text + '” section.'
-          + (link.href && link.href !== '#' ? ' Click to go there.' : ''),
+        narration:   narration,
         instruction: 'Click to visit ' + link.text,
         demo:        'hover',
       });

@@ -163,6 +163,55 @@ describe('buildConfig — dynamic SomaGuideConfig', () => {
   });
 });
 
+describe('perceive — visible-nav filter (BUG 2)', () => {
+  /* Fixture that mimics Squarespace's double-render pattern:
+   * - desktop nav: 3 visible top-level links
+   * - hidden dropdown child inside the desktop nav
+   * - mobile nav duplicate marked aria-hidden="true" */
+  const HIDDEN_NAV_FIXTURE = `<!DOCTYPE html>
+<html>
+<head><title>Dupe Nav Test</title></head>
+<body>
+  <nav>
+    <a href="/about">About Us</a>
+    <a href="/services">Services</a>
+    <a href="/resources">Resources</a>
+    <div hidden>
+      <a href="/services/detail">Service Detail</a>
+    </div>
+  </nav>
+  <nav aria-hidden="true">
+    <a href="/about">About Us</a>
+    <a href="/services">Services</a>
+    <a href="/resources">Resources</a>
+  </nav>
+</body>
+</html>`;
+
+  test('excludes links inside [hidden] containers', () => {
+    const { map } = runPerceive(HIDDEN_NAV_FIXTURE);
+    const hrefs = map.navLinks.map(l => l.href);
+    assert.ok(!hrefs.includes('/services/detail'), 'hidden dropdown child excluded');
+  });
+
+  test('excludes links inside [aria-hidden="true"] nav (mobile duplicate)', () => {
+    const { map } = runPerceive(HIDDEN_NAV_FIXTURE);
+    assert.ok(map.navLinks.length <= 3, 'mobile nav duplicates excluded; expected ≤3 links');
+  });
+
+  test('deduplication keeps only one copy per text+href pair', () => {
+    const { map } = runPerceive(HIDDEN_NAV_FIXTURE);
+    const keys = map.navLinks.map(l => l.text + '|' + l.href);
+    const unique = [...new Set(keys)];
+    assert.equal(keys.length, unique.length, 'no duplicate text+href pairs');
+  });
+
+  test('retained links have non-empty text', () => {
+    const { map } = runPerceive(HIDDEN_NAV_FIXTURE);
+    map.navLinks.forEach(l => assert.ok(l.text.length > 0, 'text is non-empty'));
+  });
+});
+
 describe('toggle guard', () => {
   test('calls open() on existing minimized widget and skips config generation', () => {
     const dom = new JSDOM(FIXTURE_HTML, {
