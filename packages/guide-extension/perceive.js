@@ -52,6 +52,123 @@
     return getSel(parent) + ' > ' + tag + ':nth-of-type(' + (siblings.indexOf(el) + 1) + ')';
   }
 
+  /* ── Visibility helpers ─────────────────────────────────────────────────── */
+  /* docHasLayout: layout APIs (getBoundingClientRect, offsetParent) are only
+   * reliable in a real browser with a rendered layout. In jsdom they return 0,
+   * so we gate all layout checks behind this flag. */
+  var docHasLayout = typeof window !== 'undefined' &&
+    typeof document !== 'undefined' &&
+    document.documentElement.getBoundingClientRect().width > 0;
+
+  function isStructurallyHidden(el) {
+    return !!(el.closest('[hidden]') || el.closest('[aria-hidden="true"]'));
+  }
+
+  function isVisible(el) {
+    if (isStructurallyHidden(el)) return false;
+    if (docHasLayout) {
+      var rect = el.getBoundingClientRect();
+      if (el.offsetParent === null || rect.width === 0 || rect.height === 0) return false;
+    }
+    return true;
+  }
+
+  /* ── Skip-link detector ─────────────────────────────────────────────────── */
+  /* Matches a11y "skip to content" links that are navigation junk, not real
+   * sections. Both text-pattern and href-pattern heuristics are used. */
+  function isSkipLink(text, href) {
+    if (/^skip\b/i.test(text)) return true;
+    if (href && /^#(content|main|skip|navigation|nav|wrapper|primary)\b/i.test(href)) return true;
+    return false;
+  }
+
+  /* ── buildNavTree(doc) — hierarchical nav model ─────────────────────────── */
+  /* Returns an array of top-level sections, each with a children array.
+   * Handles Squarespace's folder/dropdown pattern: top-level <li> elements
+   * that contain nested <ul> children.
+   * Junk filtered: skip-links, "Folder:" prefix entries, aria-hidden dupes. */
+  function buildNavTree(doc) {
+    var navContainers = Array.from(
+      doc.querySelectorAll('nav, header, [role="navigation"]')
+    ).filter(function (el) {
+      return !el.closest('[aria-hidden="true"]') && !el.closest('[hidden]');
+    });
+
+    var seenSections = {};
+    var navTree = [];
+
+    navContainers.forEach(function (navEl) {
+      /* Top-level li: any <li> with no <li> ancestor within this nav container */
+      var allLi = Array.from(navEl.querySelectorAll('li'));
+      var topItems = allLi.filter(function (li) {
+        var p = li.parentElement;
+        while (p && p !== navEl) {
+          if (p.tagName === 'LI') return false;
+          p = p.parentElement;
+        }
+        return true;
+      });
+
+      if (topItems.length === 0) return;
+
+      topItems.forEach(function (li) {
+        /* Section label: first direct <a>, <button>, or <span> child of the li.
+         * One level of wrapping div/span is allowed (some themes add one). */
+        var labelEl = null;
+        for (var i = 0; i < li.children.length; i++) {
+          var child = li.children[i];
+          var tag = child.tagName;
+          if (tag === 'A' || tag === 'BUTTON' || tag === 'SPAN') {
+            labelEl = child;
+            break;
+          }
+          if (tag === 'DIV' || tag === 'SPAN') {
+            var inner = child.querySelector('a, button, span');
+            if (inner) { labelEl = inner; break; }
+          }
+        }
+        if (!labelEl) return;
+
+        var rawText = labelEl.textContent.trim();
+        /* Strip Squarespace mobile-nav "Folder: " prefix before any other check */
+        var text = rawText.replace(/^Folder:\s*/i, '');
+        var href = labelEl.getAttribute ? (labelEl.getAttribute('href') || '') : '';
+
+        if (!text || text.length === 0 || text.length >= 60) return;
+        if (isSkipLink(text, href)) return;
+        if (!isVisible(labelEl)) return;
+
+        /* Deduplicate by normalized section name */
+        var sectionKey = text.toLowerCase();
+        if (seenSections[sectionKey]) return;
+
+        /* Children: links nested inside a <ul>/<ol> within this <li> */
+        var children = [];
+        var childList = li.querySelector('ul, ol');
+        if (childList) {
+          Array.from(childList.querySelectorAll('a')).forEach(function (a) {
+            var ct = a.textContent.trim();
+            var ch = a.getAttribute('href') || '';
+            if (!ct || ct.length === 0 || ct.length >= 60) return;
+            if (isSkipLink(ct, ch)) return;
+            if (!isVisible(a)) return;
+            children.push({ text: ct, href: ch, cssSelector: getSel(a) });
+          });
+        }
+
+        seenSections[sectionKey] = true;
+        navTree.push({
+          section:     text,
+          href:        href,
+          cssSelector: getSel(labelEl),
+          children:    children,
+        });
+      });
+    });
+
+    return navTree;
+  }
+
   /* ── perceive(document) — structured page map ───────────────────────────── */
   function perceive(doc) {
     var title    = doc.title || '';
@@ -64,19 +181,16 @@
       .filter(function (t) { return t.length > 0; })
       .slice(0, 10);
 
-    /* Nav links — look in <nav>, <header>, role=navigation.
-     * Filter to VISIBLE top-level links; dedupe by text+href to skip
-     * Squarespace-style double-renders (desktop + mobile) and hidden dropdowns.
-     * docHasLayout gate: offsetParent/getBoundingClientRect are unreliable in
-     * jsdom (always 0), so layout checks only run when the document has real size. */
-    var docHasLayout = typeof window !== 'undefined' &&
-      doc.documentElement.getBoundingClientRect().width > 0;
+    /* Hierarchical nav tree (Squarespace folders + fallback for flat navs) */
+    var navTree = buildNavTree(doc);
+
+    /* Flat nav links — kept for fallback when no list structure is detected,
+     * and for backward-compat callers that read map.navLinks.
+     * Skip-links (href^="#", "Skip to …" text) are filtered here too. */
     var navSeen  = {};
     var navLinks = Array.from(doc.querySelectorAll('nav a, header a, [role="navigation"] a'))
       .filter(function (a) {
-        /* Structural hidden — works in jsdom and browser */
-        if (a.closest('[hidden]') || a.closest('[aria-hidden="true"]')) return false;
-        /* Layout visibility — browser only (skipped when layout isn't available) */
+        if (isStructurallyHidden(a)) return false;
         if (docHasLayout) {
           var rect = a.getBoundingClientRect();
           if (a.offsetParent === null || rect.width === 0 || rect.height === 0) return false;
@@ -92,6 +206,7 @@
       })
       .filter(function (l) {
         if (!l.text || l.text.length === 0 || l.text.length >= 60) return false;
+        if (isSkipLink(l.text, l.href)) return false;
         var key = l.text + '|' + l.href;
         if (navSeen[key]) return false;
         navSeen[key] = true;
@@ -138,6 +253,7 @@
       title:            title,
       metaDescription:  metaDesc,
       headingOutline:   headingOutline,
+      navTree:          navTree,
       navLinks:         navLinks,
       primaryCTAs:      primaryCTAs,
       forms:            forms,
@@ -147,55 +263,92 @@
 
   /* ── buildConfig(map) — dynamic SomaGuideConfig ─────────────────────────── */
   function buildConfig(map) {
-    var title       = map.title || 'this page';
-    var topNavNames = map.navLinks.slice(0, 3).map(function (l) { return l.text; });
+    var title    = map.title || 'this page';
+    var navTree  = map.navTree || [];
+    var hasTree  = navTree.length > 0;
+
+    var topNames = hasTree
+      ? navTree.slice(0, 3).map(function (s) { return s.section; })
+      : (map.navLinks || []).slice(0, 3).map(function (l) { return l.text; });
 
     var greeting = 'Hi! I’m ' + PERSONA_NAME
       + ' — looks like you’re on “' + title + '”.'
-      + (topNavNames.length > 0
-          ? ' I can help you navigate to ' + topNavNames.join(', ') + '.'
+      + (topNames.length > 0
+          ? ' I can guide you through ' + topNames.join(', ') + '.'
           : '')
-      + ' Want a quick tour, or ask me where something is?';
+      + ' Want a quick tour?';
 
-    /* Walkthrough: one step per visible top-level nav link, plus a CTA step if
-     * found. All steps are IN-PAGE — we highlight the nav item and invite the
-     * user to click it. We do NOT set step.page because the extension has no
-     * persistence across page loads: navigating would reload the page and the
-     * injected widget would disappear.
-     *
-     * TODO (v2.2): True cross-page guided tours need the extension to
-     * auto-inject on every page of the active site AND resume tour state from
-     * sessionStorage. Until then the tour stays in-page. */
-    var steps = [];
-    /* First-step preamble uses the site's own text for context. */
     var introPreamble = map.shortTextSummary
-      ? map.shortTextSummary + ' Let me walk you through the site.'
+      ? map.shortTextSummary + ' Let me walk you through what’s here.'
       : '';
-    map.navLinks.slice(0, 5).forEach(function (link, i) {
-      var narration = (i === 0 && introPreamble ? introPreamble + ' ' : '')
-        + '”' + link.text + '” — click here to explore the '
-        + link.text + ' section.';
-      steps.push({
-        id:          'nav-' + i,
-        label:       link.text,
-        target:      link.cssSelector,
-        narration:   narration,
-        instruction: 'Click to visit ' + link.text,
-        demo:        'hover',
+
+    var steps = [];
+
+    if (hasTree) {
+      /* Hierarchical tour: one step per top-level section.
+       * Narration names the section's dropdown children so the user knows
+       * what to expect before clicking. */
+      navTree.forEach(function (section, i) {
+        var childNames = section.children.map(function (c) { return c.text; });
+        var narration;
+        if (childNames.length > 0) {
+          narration = (i === 0 && introPreamble ? introPreamble + ' ' : '')
+            + '“' + section.section + '” — there you’ll find '
+            + childNames.join(', ') + '.';
+        } else {
+          narration = (i === 0 && introPreamble ? introPreamble + ' ' : '')
+            + '“' + section.section + '” — click to explore.';
+        }
+        steps.push({
+          id:          'nav-' + i,
+          label:       section.section,
+          target:      section.cssSelector,
+          narration:   narration,
+          instruction: 'Click to visit ' + section.section,
+          demo:        'hover',
+        });
       });
-    });
-    if (map.primaryCTAs.length > 0 && steps.length < 6) {
-      var cta = map.primaryCTAs[0];
+
+      /* Closing step: invite the user to dive in */
       steps.push({
-        id:          'cta-0',
-        label:       cta.text,
-        target:      cta.cssSelector,
-        narration:   'And here’s the main call to action: ' + cta.text + '.',
-        instruction: cta.text,
-        demo:        'hover',
+        id:          'nav-close',
+        label:       'Explore',
+        target:      null,
+        narration:   'If you’d like to dive into any of these, click it in the menu.',
+        instruction: 'Click any section to explore.',
       });
+
+    } else {
+      /* Flat fallback: one step per visible top-level nav link, plus a CTA
+       * step if found. Used when the site has no detectable dropdown/folder
+       * structure (e.g. a plain single-level nav). */
+      (map.navLinks || []).slice(0, 5).forEach(function (link, i) {
+        var narration = (i === 0 && introPreamble ? introPreamble + ' ' : '')
+          + '“' + link.text + '” — click here to explore the '
+          + link.text + ' section.';
+        steps.push({
+          id:          'nav-' + i,
+          label:       link.text,
+          target:      link.cssSelector,
+          narration:   narration,
+          instruction: 'Click to visit ' + link.text,
+          demo:        'hover',
+        });
+      });
+      if (map.primaryCTAs.length > 0 && steps.length < 6) {
+        var cta = map.primaryCTAs[0];
+        steps.push({
+          id:          'cta-0',
+          label:       cta.text,
+          target:      cta.cssSelector,
+          narration:   'And here’s the main call to action: ' + cta.text + '.',
+          instruction: cta.text,
+          demo:        'hover',
+        });
+      }
     }
-    /* Fallback when no detectable nav/CTA */
+
+    /* Ultimate fallback when no detectable nav/CTA */
     if (steps.length === 0) {
       steps.push({
         id:          'greet',
