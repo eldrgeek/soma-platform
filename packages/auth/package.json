@@ -1,0 +1,24 @@
+{
+  "name": "@soma/auth",
+  "version": "1.0.0",
+  "description": "SOMA Auth — thin Supabase wrapper for shared identity across SOMA apps",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./iife": "./soma-auth.iife.js",
+    "./config": "./soma-auth-config.js"
+  },
+  "files": [
+    "index.js",
+    "soma-auth.iife.js",
+    "soma-auth-config.js",
+    "schema.sql"
+  ],
+  "peerDependencies": {
+    "@supabase/supabase-js": "^2.0.0"
+  },
+  "devDependencies": {
+    "@supabase/supabase-js": "^2.0.0"
+  }
+}
