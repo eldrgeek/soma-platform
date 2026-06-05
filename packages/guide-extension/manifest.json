@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "description": "Inject the SOMA guide widget (Ariadne) into any web page on demand.",
   "permissions": ["activeTab", "scripting"],
+  "optional_host_permissions": ["https://*/*", "http://*/*"],
   "action": {
     "default_title": "Summon Ariadne",
     "default_icon": {
