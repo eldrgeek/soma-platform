@@ -11,23 +11,26 @@ window.SomaGuideConfig = {
   persona: {
     name: PERSONA_NAME,
     avatar: '🧵',
-    greeting: `I'm ${PERSONA_NAME} — I'll give you the thread through this site.`,
+    greeting: `I'm ${PERSONA_NAME} — ask me anything about this page, or take a tour.`,
+    askGreeting: `Ask me anything about this page! I'll answer from what I see here. Or click "Take a tour" to explore the navigation.`,
+    shortGreeting: `Hi! I'm ${PERSONA_NAME}. Need help?`,
     tagline: 'Your guide through any unfamiliar page.',
   },
 
-  // Reusing bill-talk agent for now.
-  // TODO: provision a dedicated Ariadne voice via ElevenLabs and update this.
   voiceAgentId: 'agent_2401ks53q6t8e2drt1h7va3f2c52',
   ttsProxyUrl: 'https://bill-talk.netlify.app/.netlify/functions/el-proxy',
 
-  // No pre-mapped site walkthrough for the universal case.
-  // Ariadne greets and offers to help; the richer auto-mapper
-  // (porting Yeshie's perceive engine) is a separate follow-up.
+  // soma-infer server (Chrome/Firefox: use localhost; Safari needs a workaround)
+  inferenceUrl: 'http://localhost:8131/ask',
+
+  // askFirst: open into conversational ask mode on first load
+  askFirst: true,
+
   siteMap: null,
   walkthroughs: [
     {
       id: 'universal-greeting',
-      label: `Meet ${PERSONA_NAME}`,
+      label: 'Take a tour',
       steps: [
         {
           id: 'greet',

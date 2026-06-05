@@ -187,16 +187,16 @@ describe('perceive — page map extraction', () => {
 });
 
 describe('buildConfig — dynamic SomaGuideConfig', () => {
-  test('greeting references page title and top nav', () => {
+  test('askFirst mode is enabled with inferenceUrl', () => {
     const { cfg } = runPerceive();
-    assert.ok(cfg.persona.greeting.includes('Wolf Educational Consulting'));
-    assert.ok(cfg.persona.greeting.includes('About'));
+    assert.equal(cfg.askFirst, true);
+    assert.ok(cfg.inferenceUrl && cfg.inferenceUrl.length > 0, 'inferenceUrl is set');
   });
 
-  test('autoStartWalkthrough is set to site-tour', () => {
+  test('walkthrough id is site-tour and label is Take a tour', () => {
     const { cfg } = runPerceive();
-    assert.equal(cfg.autoStartWalkthrough, 'site-tour');
     assert.equal(cfg.walkthroughs[0].id, 'site-tour');
+    assert.equal(cfg.walkthroughs[0].label, 'Take a tour');
   });
 
   test('walkthrough steps reference real nav elements', () => {
@@ -375,9 +375,10 @@ describe('perceive — Squarespace hierarchical nav (WEC pattern)', () => {
     assert.equal(steps.length, 5, '4 section steps + 1 closing step');
   });
 
-  test('greeting references first section name', () => {
+  test('askFirst and inferenceUrl set for Squarespace fixture', () => {
     const { cfg } = runPerceive(SQUARESPACE_FIXTURE);
-    assert.ok(cfg.persona.greeting.includes('About Us'), 'greeting includes About Us');
+    assert.equal(cfg.askFirst, true);
+    assert.ok(cfg.inferenceUrl && cfg.inferenceUrl.length > 0, 'inferenceUrl is set');
   });
 });
 

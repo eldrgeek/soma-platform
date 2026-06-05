@@ -17,6 +17,7 @@
   var PERSONA_NAME   = 'Ariadne';
   var VOICE_AGENT_ID = 'agent_2401ks53q6t8e2drt1h7va3f2c52';
   var TTS_PROXY_URL  = 'https://bill-talk.netlify.app/.netlify/functions/el-proxy';
+  var INFERENCE_URL  = 'http://localhost:8131/ask';
 
   /* ── Toggle if widget already running ──────────────────────────────────── */
   if (global.somaGuide) {
@@ -271,12 +272,8 @@
       ? navTree.slice(0, 3).map(function (s) { return s.section; })
       : (map.navLinks || []).slice(0, 3).map(function (l) { return l.text; });
 
-    var greeting = 'Hi! I’m ' + PERSONA_NAME
-      + ' — looks like you’re on “' + title + '”.'
-      + (topNames.length > 0
-          ? ' I can guide you through ' + topNames.join(', ') + '.'
-          : '')
-      + ' Want a quick tour?';
+    var greeting = "Hi! I’m " + PERSONA_NAME
+      + ' — ask me anything about this page, or I can take you on a quick tour.';
 
     var introPreamble = map.shortTextSummary
       ? map.shortTextSummary + ' Let me walk you through what’s here.'
@@ -364,16 +361,18 @@
         name:          PERSONA_NAME,
         avatar:        '🧵',   /* 🧵 */
         greeting:      greeting,
-        shortGreeting: 'Hi! I’m ' + PERSONA_NAME + '. Need help finding something?',
+        askGreeting:   'Ask me anything about this page! Or click "Take a tour" below to explore the navigation.',
+        shortGreeting: "Hi! I'm " + PERSONA_NAME + '. Need help finding something?',
         tagline:       'Your guide through any unfamiliar page.',
       },
-      voiceAgentId:        VOICE_AGENT_ID,
-      ttsProxyUrl:         TTS_PROXY_URL,
-      /* Triggers engine to open directly into the walkthrough (audio on open). */
-      autoStartWalkthrough: 'site-tour',
+      voiceAgentId:  VOICE_AGENT_ID,
+      ttsProxyUrl:   TTS_PROXY_URL,
+      inferenceUrl:  INFERENCE_URL,
+      /* askFirst: open into conversational ask mode instead of auto-tour */
+      askFirst:      true,
       walkthroughs: [{
         id:    'site-tour',
-        label: 'Site Tour',
+        label: 'Take a tour',
         steps: steps,
       }],
     };

@@ -1008,10 +1008,12 @@ describe('SOMA Guide — cross-page sessionStorage bridge', function () {
   test('_onReady reads pendingResume from sessionStorage', function () {
     const win = makeWindow();
     const g = new win.SomaGuide(XPAGE_CONFIG);
-    /* Use the widget's own _ssSet helper (same JS context) to seed resume state,
-     * then call _onReady to simulate arriving on a fresh page load. */
-    g._ssSet('resume-id', 'xp-tour');
-    g._ssSet('resume-step', '2');
+    /* Seed resume state via the proper _wtExit path so state-ver and state-cfg
+     * are written correctly, then call _onReady to simulate a fresh page load. */
+    g._navigate = function () {};
+    g._wtStart('xp-tour', 2);
+    g._wtExit();
+    g.pendingResume = null; /* reset so _onReady re-reads from storage */
     g._onReady();
     assert.ok(g.pendingResume, 'pendingResume should be restored from sessionStorage');
     assert.equal(g.pendingResume.id, 'xp-tour');
@@ -2831,5 +2833,214 @@ describe('SOMA Guide — inference Ask path', function () {
       assert.equal(win._inferRequests.length, 0, 'no inference without inferenceUrl');
       done();
     }, 20);
+  });
+});
+
+/* ── Version marker ── */
+
+describe('SOMA Guide — version marker', function () {
+  test('.sg-version element exists in header after mount', function () {
+    const win = makeWindow();
+    new win.SomaGuide(TEST_CONFIG);
+    const el = win.document.querySelector('.sg-version');
+    assert.ok(el, '.sg-version element should exist in the header');
+  });
+
+  test('.sg-version text starts with "v"', function () {
+    const win = makeWindow();
+    new win.SomaGuide(TEST_CONFIG);
+    const el = win.document.querySelector('.sg-version');
+    assert.ok(el.textContent.startsWith('v'), 'version text should start with v');
+    assert.ok(el.textContent.length > 1, 'version text should not be empty');
+  });
+
+  test('version is logged to console on init', function () {
+    const win = makeWindow();
+    const logs = [];
+    /* Override console so we can capture the log call */
+    win.eval('window.__testLogs = [];');
+    win.eval('var _origLog = console.log; console.log = function() { window.__testLogs.push(Array.from(arguments).join(" ")); _origLog.apply(console, arguments); };');
+    new win.SomaGuide(TEST_CONFIG);
+    const testLogs = win.__testLogs || [];
+    const found = testLogs.some(function (l) {
+      return l.includes('[SomaGuide]') && l.includes('v');
+    });
+    assert.ok(found, 'version should be logged to console on init');
+  });
+});
+
+/* ── State version guard ── */
+
+describe('SOMA Guide — state version guard', function () {
+  test('_computeConfigHash returns 8-char hex string', function () {
+    const win = makeWindow();
+    const g = new win.SomaGuide(TEST_CONFIG);
+    const hash = g._computeConfigHash();
+    assert.ok(typeof hash === 'string', 'hash should be a string');
+    assert.equal(hash.length, 8, 'hash should be 8 characters');
+    assert.ok(/^[0-9a-f]{8}$/.test(hash), 'hash should be lowercase hex');
+  });
+
+  test('_computeConfigHash is stable for same config', function () {
+    const win = makeWindow();
+    const g = new win.SomaGuide(TEST_CONFIG);
+    assert.equal(g._computeConfigHash(), g._computeConfigHash(), 'hash must be deterministic');
+  });
+
+  test('_wtExit writes state-ver and state-cfg to sessionStorage', function () {
+    const win = makeWindow();
+    const g = new win.SomaGuide(TEST_CONFIG);
+    g._navigate = function () {};
+    g._wtStart('wt-alpha', 2);
+    g._wtExit();
+    assert.ok(g._ssGet('state-ver') && g._ssGet('state-ver').length > 0, 'state-ver written by _wtExit');
+    assert.ok(g._ssGet('state-cfg') && g._ssGet('state-cfg').length > 0, 'state-cfg written by _wtExit');
+  });
+
+  test('stale resume state (wrong state-ver) is discarded by _onReady', function () {
+    const win = makeWindow();
+    const g = new win.SomaGuide(TEST_CONFIG);
+    g._navigate = function () {};
+    /* Seed resume state with an old version string */
+    g._ssSet('resume-id',   'wt-alpha');
+    g._ssSet('resume-step', '2');
+    g._ssSet('resume-substep', '-1');
+    g._ssSet('state-ver',   'old-build-2020');
+    g._ssSet('state-cfg',   g._computeConfigHash()); /* correct cfg but wrong ver */
+    g.pendingResume = null;
+    g._onReady();
+    assert.equal(g.pendingResume, null, 'stale state-ver must cause pendingResume to stay null');
+  });
+
+  test('stale resume state (wrong state-cfg) is discarded by _onReady', function () {
+    const win = makeWindow();
+    const g = new win.SomaGuide(TEST_CONFIG);
+    g._navigate = function () {};
+    /* Write valid state via _wtExit, then corrupt the cfg hash */
+    g._wtStart('wt-alpha', 1);
+    g._wtExit();
+    g._ssSet('state-cfg', 'badhash1'); /* corrupt cfg hash */
+    g.pendingResume = null;
+    g._onReady();
+    assert.equal(g.pendingResume, null, 'corrupted state-cfg must cause pendingResume to stay null');
+  });
+
+  test('valid resume state (matching ver + cfg) is restored by _onReady', function () {
+    const win = makeWindow();
+    const g = new win.SomaGuide(TEST_CONFIG);
+    g._navigate = function () {};
+    /* Write valid state via _wtExit */
+    g._wtStart('wt-alpha', 1);
+    g._wtExit();
+    /* Reset pendingResume and re-invoke _onReady to simulate a fresh page load */
+    g.pendingResume = null;
+    g._onReady();
+    assert.ok(g.pendingResume !== null, 'valid state should be restored by _onReady');
+    assert.equal(g.pendingResume.stepIndex, 1, 'should resume at the saved step');
+  });
+
+  test('_wtStart clears state-ver and state-cfg from sessionStorage', function () {
+    const win = makeWindow();
+    const g = new win.SomaGuide(TEST_CONFIG);
+    g._navigate = function () {};
+    g._ssSet('state-ver', 'v-test');
+    g._ssSet('state-cfg', 'aabbccdd');
+    g._wtStart('wt-alpha', 0);
+    assert.equal(g._ssGet('state-ver'), null, 'state-ver should be cleared by _wtStart');
+    assert.equal(g._ssGet('state-cfg'), null, 'state-cfg should be cleared by _wtStart');
+  });
+});
+
+/* ── askFirst mode ── */
+
+const ASK_CONFIG = {
+  persona: {
+    name: 'AskBot', id: 'ask-bot', avatar: '🧵',
+    greeting: 'Hi! Ask me about this page.',
+    askGreeting: 'Ask me anything about this page!',
+    shortGreeting: 'Need help?',
+    walkthroughDone: 'Done!'
+  },
+  voiceAgentId: 'ask-agent',
+  inferenceUrl: 'http://localhost:8131/ask',
+  askFirst: true,
+  siteMap: [],
+  walkthroughs: [
+    {
+      id: 'site-tour', label: 'Take a tour', keywords: ['tour'],
+      steps: [
+        { target: 'body', label: 'Step 1', narration: 'First step', instruction: 'Step 1' }
+      ]
+    }
+  ]
+};
+
+describe('SOMA Guide — askFirst mode', function () {
+  test('_openAsk sets mode to text', function () {
+    const win = makeWindow();
+    const g = new win.SomaGuide(ASK_CONFIG);
+    g._openAsk();
+    assert.equal(g.mode, 'text', '_openAsk should set mode to text');
+  });
+
+  test('_openAsk inserts askGreeting as agent message', function () {
+    const win = makeWindow();
+    const g = new win.SomaGuide(ASK_CONFIG);
+    g._openAsk();
+    const msgs = win.document.querySelectorAll('.sg-msg--agent');
+    assert.ok(msgs.length > 0, 'greeting should appear as agent message in chat');
+    const texts = Array.from(msgs).map(function (m) { return m.textContent; });
+    assert.ok(
+      texts.some(function (t) { return t.includes('Ask me anything about this page!'); }),
+      'askGreeting text should be in chat messages'
+    );
+  });
+
+  test('_openAsk falls back to persona.greeting when askGreeting absent', function () {
+    const win = makeWindow();
+    const cfgNoAskGreeting = Object.assign({}, ASK_CONFIG, {
+      persona: Object.assign({}, ASK_CONFIG.persona, { askGreeting: undefined })
+    });
+    const g = new win.SomaGuide(cfgNoAskGreeting);
+    g._openAsk();
+    const msgs = win.document.querySelectorAll('.sg-msg--agent');
+    const texts = Array.from(msgs).map(function (m) { return m.textContent; });
+    assert.ok(
+      texts.some(function (t) { return t.includes('Hi! Ask me about this page.'); }),
+      'should fall back to persona.greeting when askGreeting is absent'
+    );
+  });
+
+  test('_openAsk does NOT start ElevenLabs conversation', function () {
+    const win = makeWindow();
+    const g = new win.SomaGuide(ASK_CONFIG);
+    g._openAsk();
+    assert.equal(g.conversation, null, '_openAsk must not eagerly start ElevenLabs session');
+  });
+
+  test('_onReady calls _openAsk when askFirst and inferenceUrl are set', function (_, done) {
+    const win = makeWindow();
+    const g = new win.SomaGuide(ASK_CONFIG);
+    let openAskCalled = false;
+    const orig = g._openAsk.bind(g);
+    g._openAsk = function () { openAskCalled = true; orig(); };
+    g._onReady();
+    setTimeout(function () {
+      assert.equal(openAskCalled, true, '_onReady should call _openAsk when askFirst is set');
+      done();
+    }, 800);
+  });
+
+  test('askFirst does NOT trigger when no inferenceUrl configured', function (_, done) {
+    const win = makeWindow();
+    const cfgNoInfer = Object.assign({}, ASK_CONFIG, { inferenceUrl: undefined });
+    const g = new win.SomaGuide(cfgNoInfer);
+    let openAskCalled = false;
+    g._openAsk = function () { openAskCalled = true; };
+    g._onReady();
+    setTimeout(function () {
+      assert.equal(openAskCalled, false, '_openAsk should not be called without inferenceUrl');
+      done();
+    }, 800);
   });
 });

@@ -26,6 +26,7 @@
   const TTS_MS_PER_CHAR  = 85;     /* generous estimate; used for fallback timer */
   const TTS_FLOOR_MS     = 6000;   /* minimum fallback when TTS enabled */
   const TTS_BUFFER_MS    = 3500;   /* extra buffer added to known audio duration */
+  const SOMA_GUIDE_VERSION = '2026-0605'; /* bump each build; used for stale-state guard */
 
   /* ── SomaGuide class ────────────────────────────────────────────────────── */
   function SomaGuide(cfg) {
@@ -77,6 +78,7 @@
     this._build();
     this._enableDrag();
     this._bindEvents();
+    console.log('[SomaGuide] v' + SOMA_GUIDE_VERSION);
 
     var self = this;
     if (typeof document !== 'undefined' && document.readyState !== 'loading') {
@@ -91,8 +93,32 @@
     if (typeof location !== 'undefined') location.href = page;
   };
 
+  /* djb2-xor hash of all walkthrough/step ids → 8-char hex, used for the
+   * state version guard (if config changes, stale sessionStorage is discarded). */
+  SomaGuide.prototype._computeConfigHash = function () {
+    var s = (this.cfg.walkthroughs || []).map(function (wt) {
+      return wt.id + ':' + (wt.steps || []).map(function (step) {
+        return (step.id || '') + '+' + (step.substeps || []).map(function (sub) {
+          return sub.id || '';
+        }).join(',');
+      }).join(';');
+    }).join('|');
+    var h = 0;
+    for (var i = 0; i < s.length; i++) {
+      h = (((h << 5) + h) ^ s.charCodeAt(i)) | 0;
+    }
+    return ('0000000' + (h >>> 0).toString(16)).slice(-8);
+  };
+
   SomaGuide.prototype._onReady = function () {
     var self = this;
+
+    /* State version guard: discard any persisted walkthrough/resume state saved
+     * by a different build or config — prevents dead steps from replaying. */
+    var storedVer  = this._ssGet('state-ver');
+    var storedCfg  = this._ssGet('state-cfg');
+    var currentCfg = this._computeConfigHash();
+    var stateValid = storedVer === SOMA_GUIDE_VERSION && storedCfg === currentCfg;
 
     var xpId      = this._ssGet('wt-id');
     var xpStep    = this._ssGet('wt-step');
@@ -101,33 +127,55 @@
       this._ssDel('wt-id');
       this._ssDel('wt-step');
       this._ssDel('wt-substep');
-      var subSt = (xpSubStep !== null && xpSubStep !== '') ? parseInt(xpSubStep, 10) : -1;
-      setTimeout(function () {
-        self._wtStart(xpId, parseInt(xpStep, 10) || 0, subSt);
-      }, 100);
-      return;
+      if (stateValid) {
+        var subSt = (xpSubStep !== null && xpSubStep !== '') ? parseInt(xpSubStep, 10) : -1;
+        setTimeout(function () {
+          self._wtStart(xpId, parseInt(xpStep, 10) || 0, subSt);
+        }, 100);
+        return;
+      }
+      /* Stale state — clear remaining keys and fall through to fresh start */
+      this._ssDel('resume-id');
+      this._ssDel('resume-step');
+      this._ssDel('resume-substep');
+      this._ssDel('state-ver');
+      this._ssDel('state-cfg');
     }
 
     var prId      = this._ssGet('resume-id');
     var prStep    = this._ssGet('resume-step');
     var prSubStep = this._ssGet('resume-substep');
     if (prId) {
-      var subR = (prSubStep !== null && prSubStep !== '') ? parseInt(prSubStep, 10) : -1;
-      this.pendingResume = { id: prId, stepIndex: parseInt(prStep, 10) || 0, subStepIndex: subR };
+      if (stateValid) {
+        var subR = (prSubStep !== null && prSubStep !== '') ? parseInt(prSubStep, 10) : -1;
+        this.pendingResume = { id: prId, stepIndex: parseInt(prStep, 10) || 0, subStepIndex: subR };
+      } else {
+        /* Stale resume state — discard */
+        this._ssDel('resume-id');
+        this._ssDel('resume-step');
+        this._ssDel('resume-substep');
+        this._ssDel('state-ver');
+        this._ssDel('state-cfg');
+      }
     }
 
     var autoWt = this.cfg.autoStartWalkthrough;
     if (autoWt) {
-      /* autoStartWalkthrough (Ariadne extension pattern): open the widget to
-       * the greeting panel so the user sees the "▶ Start tour" button. Their
-       * click provides the browser gesture that unlocks audio — calling
-       * _wtStart() here (before any gesture) would trigger audio.play() and
-       * get silently blocked by the autoplay policy.
-       * Bill/Proteus don't set this field, so they follow the unchanged path. */
+      /* autoStartWalkthrough (Bill/Proteus): open the widget to the greeting
+       * panel so the user sees the "▶ Start tour" button. Their click provides
+       * the browser gesture that unlocks audio. */
       setTimeout(function () {
         self._lsSet('introduced', '1');
         self.introduced = true;
         self._openIdle(true);
+      }, 500);
+    } else if (self.cfg.askFirst && self.cfg.inferenceUrl) {
+      /* askFirst (Ariadne): open directly into conversational Ask mode.
+       * Inference answers from page content; no auto-tour. */
+      setTimeout(function () {
+        self._lsSet('introduced', '1');
+        self.introduced = true;
+        self._openAsk();
       }, 500);
     } else if (!this.introduced) {
       setTimeout(function () { self._openIdle(true); }, 500);
@@ -155,6 +203,7 @@
       '    <div class="sg-persona">',
       '      <span class="sg-persona-avatar">' + avatar + '</span>',
       '      <span class="sg-persona-name">' + name + '</span>',
+      '      <span class="sg-version">v' + SOMA_GUIDE_VERSION + '</span>',
       '    </div>',
       '    <div class="sg-header-btns">',
       '      <button class="sg-btn-text" title="Text chat" aria-label="Text mode">💬</button>',
@@ -337,6 +386,8 @@
       this._ssSet('resume-id',      this.wt.id);
       this._ssSet('resume-step',    String(this.wt.stepIndex));
       this._ssSet('resume-substep', String(si));
+      this._ssSet('state-ver',      SOMA_GUIDE_VERSION);
+      this._ssSet('state-cfg',      this._computeConfigHash());
       this.wt = null;
     }
     this._clearHighlight();
@@ -400,6 +451,17 @@
       console.warn('[SomaGuide] voice error', e);
       self._$('.sg-voice-status').textContent = 'Mic unavailable — try text chat instead.';
     });
+  };
+
+  /* Open directly into the conversational ask UI (text mode) with a greeting
+   * message but WITHOUT eagerly starting the ElevenLabs session. Used by the
+   * askFirst flow (Ariadne) so the first page-load opens into "ask me anything"
+   * rather than an auto-generated tour. */
+  SomaGuide.prototype._openAsk = function () {
+    this._setMode('text');
+    var greeting = this.cfg.persona.askGreeting || this.cfg.persona.greeting || '';
+    if (greeting) this._appendMessage('agent', greeting);
+    this._$('.sg-input').focus();
   };
 
   SomaGuide.prototype._setMode = function (mode) {
@@ -474,6 +536,8 @@
     this._ssDel('resume-id');
     this._ssDel('resume-step');
     this._ssDel('resume-substep');
+    this._ssDel('state-ver');
+    this._ssDel('state-cfg');
     this._ttsPrefetchCache = null;
     this._ttsPrefetchUrl   = null;
     this._setMode('walkthrough');
@@ -503,6 +567,8 @@
         this._ssSet('wt-id',      this.wt.id);
         this._ssSet('wt-step',    String(this.wt.stepIndex));
         this._ssSet('wt-substep', String(this.wt.subStepIndex != null ? this.wt.subStepIndex : -1));
+        this._ssSet('state-ver',  SOMA_GUIDE_VERSION);
+        this._ssSet('state-cfg',  this._computeConfigHash());
         this._navigate(navTarget);
         return;
       }
@@ -630,6 +696,8 @@
     this._ssDel('resume-id');
     this._ssDel('resume-step');
     this._ssDel('resume-substep');
+    this._ssDel('state-ver');
+    this._ssDel('state-cfg');
     var done = this.cfg.persona.walkthroughDone || 'All done! Ask me anything.';
     this.wt = null;
     this.pendingResume = null;
@@ -647,6 +715,8 @@
       this._ssSet('resume-id',      this.wt.id);
       this._ssSet('resume-step',    String(this.wt.stepIndex));
       this._ssSet('resume-substep', String(si));
+      this._ssSet('state-ver',      SOMA_GUIDE_VERSION);
+      this._ssSet('state-cfg',      this._computeConfigHash());
     }
     this._clearHighlight();
     this.wt = null;
@@ -897,6 +967,8 @@
     this._ssDel('resume-id');
     this._ssDel('resume-step');
     this._ssDel('resume-substep');
+    this._ssDel('state-ver');
+    this._ssDel('state-cfg');
     this._openIdle(false);
   };
 

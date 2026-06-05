@@ -109,6 +109,15 @@
   letter-spacing: 0.04em;
   color: #c9a84c;
 }
+.sg-version {
+  font-size: 0.6rem;
+  font-family: monospace;
+  opacity: 0.38;
+  color: #c9a84c;
+  align-self: flex-end;
+  padding-bottom: 1px;
+  letter-spacing: 0.02em;
+}
 
 .sg-header-btns {
   display: flex;
