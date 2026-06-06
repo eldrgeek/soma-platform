@@ -17,7 +17,8 @@
   var PERSONA_NAME   = 'Ariadne';
   var VOICE_AGENT_ID = 'agent_2401ks53q6t8e2drt1h7va3f2c52';
   var TTS_PROXY_URL  = 'https://bill-talk.netlify.app/.netlify/functions/el-proxy';
-  var INFERENCE_URL  = 'http://localhost:8131/ask';
+  // Public VPS endpoint — works for all users. Dev: override in console to http://localhost:8131/ask
+  var INFERENCE_URL  = 'https://vpsmikewolf.duckdns.org/infer/ask';
 
   /* ── Toggle if widget already running ──────────────────────────────────── */
   if (global.somaGuide) {

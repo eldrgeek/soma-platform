@@ -20,8 +20,9 @@ window.SomaGuideConfig = {
   voiceAgentId: 'agent_2401ks53q6t8e2drt1h7va3f2c52',
   ttsProxyUrl: 'https://bill-talk.netlify.app/.netlify/functions/el-proxy',
 
-  // soma-infer server (Chrome/Firefox: use localhost; Safari needs a workaround)
-  inferenceUrl: 'http://localhost:8131/ask',
+  // Public VPS endpoint — works for all users without local soma-infer running.
+  // Dev override: set inferenceUrl = 'http://localhost:8131/ask' in console.
+  inferenceUrl: 'https://vpsmikewolf.duckdns.org/infer/ask',
 
   // askFirst: open into conversational ask mode on first load
   askFirst: true,
