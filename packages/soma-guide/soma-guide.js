@@ -1226,6 +1226,8 @@
     var persona  = this.cfg.persona.name || 'Assistant';
     var url      = this.cfg.inferenceUrl;
 
+    var appId = self.cfg.tenantId || self.cfg.persona.id || self.cfg.persona.name || 'unknown';
+
     fetch(url, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1233,7 +1235,8 @@
         question: text,
         context:  context,
         persona:  persona,
-        allowWeb: self._webSearchEnabled
+        allowWeb: self._webSearchEnabled,
+        app_id:   appId
       })
     }).then(function (res) {
       return res.json();
@@ -1399,10 +1402,12 @@
       return;
     }
 
+    var ttsAppId = this.cfg.tenantId || this.cfg.persona.id || this.cfg.persona.name || 'unknown';
     var liveUrl = this.cfg.ttsProxyUrl +
       '?action=tts' +
       '&text=' + encodeURIComponent(text) +
-      '&agent_id=' + encodeURIComponent(this.cfg.voiceAgentId);
+      '&agent_id=' + encodeURIComponent(this.cfg.voiceAgentId) +
+      '&app_id=' + encodeURIComponent(ttsAppId);
 
     /* Snapshot prefetch cache before _ttsPrefetchNext may clear it. */
     var cached = (self._ttsPrefetchCache && self._ttsPrefetchCache.url === liveUrl)
@@ -1518,10 +1523,12 @@
 
     if (!nextStep || !nextStep.narration || nextStep.page) return; /* skip if navigates */
 
+    var prefetchAppId = this.cfg.tenantId || this.cfg.persona.id || this.cfg.persona.name || 'unknown';
     var url = this.cfg.ttsProxyUrl +
       '?action=tts' +
       '&text=' + encodeURIComponent(nextStep.narration) +
-      '&agent_id=' + encodeURIComponent(this.cfg.voiceAgentId);
+      '&agent_id=' + encodeURIComponent(this.cfg.voiceAgentId) +
+      '&app_id=' + encodeURIComponent(prefetchAppId);
 
     if (self._ttsPrefetchUrl === url) return;           /* in-flight dedup */
     if (self._ttsPrefetchCache && self._ttsPrefetchCache.url === url) return; /* already cached */

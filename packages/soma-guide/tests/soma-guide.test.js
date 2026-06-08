@@ -751,9 +751,11 @@ describe('SOMA Guide — TTS narration', function () {
     g.wt = { id: 'wt-alpha', stepIndex: 0, subStepIndex: null };
 
     // Simulate prefetch already completed for step 1
+    const step1AppId = TTS_CONFIG.persona.id || TTS_CONFIG.persona.name || 'unknown';
     const step1Url = TTS_CONFIG.ttsProxyUrl +
       '?action=tts&text=' + encodeURIComponent('Step two narration') +
-      '&agent_id=' + encodeURIComponent(TTS_CONFIG.voiceAgentId);
+      '&agent_id=' + encodeURIComponent(TTS_CONFIG.voiceAgentId) +
+      '&app_id=' + encodeURIComponent(step1AppId);
     g._ttsPrefetchCache = { url: step1Url, blobUrl: 'blob:prefetched' };
 
     win._ttsRequests.length = 0;
@@ -771,9 +773,11 @@ describe('SOMA Guide — TTS narration', function () {
     const g = new win.SomaGuide(TTS_CONFIG);
     g.wt = { id: 'wt-alpha', stepIndex: 0, subStepIndex: null };
 
+    const cacheAppId = TTS_CONFIG.persona.id || TTS_CONFIG.persona.name || 'unknown';
     const step1Url = TTS_CONFIG.ttsProxyUrl +
       '?action=tts&text=' + encodeURIComponent('Step two narration') +
-      '&agent_id=' + encodeURIComponent(TTS_CONFIG.voiceAgentId);
+      '&agent_id=' + encodeURIComponent(TTS_CONFIG.voiceAgentId) +
+      '&app_id=' + encodeURIComponent(cacheAppId);
     g._ttsPrefetchCache = { url: step1Url, blobUrl: 'blob:cached' };
 
     win._ttsRequests.length = 0;
