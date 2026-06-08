@@ -1,0 +1,14 @@
+[build]
+  publish = "dist"
+
+[[headers]]
+  for = "/soma-guide.js"
+  [headers.values]
+    Access-Control-Allow-Origin = "*"
+    Cache-Control = "public, max-age=300"
+
+[[headers]]
+  for = "/soma-guide.css"
+  [headers.values]
+    Access-Control-Allow-Origin = "*"
+    Cache-Control = "public, max-age=300"
