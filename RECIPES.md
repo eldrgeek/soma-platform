@@ -61,6 +61,6 @@ curl -X POST https://vpsmikewolf.duckdns.org/infer/ask \
 
 **Fix:** SSH to VPS and update the Anthropic API key env var used by the inference service.
 ```bash
-sshpass -p 'magicalaisystem' ssh root@217.77.6.197
+sshpass -p '[REDACTED — see password manager]' ssh root@217.77.6.197
 # find and update the key in the inference service config / pm2 env
 ```
