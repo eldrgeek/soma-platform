@@ -26,7 +26,7 @@
   const TTS_MS_PER_CHAR  = 85;     /* generous estimate; used for fallback timer */
   const TTS_FLOOR_MS     = 6000;   /* minimum fallback when TTS enabled */
   const TTS_BUFFER_MS    = 3500;   /* extra buffer added to known audio duration */
-  const SOMA_GUIDE_VERSION = '2026-0605'; /* bump each build; used for stale-state guard */
+  const SOMA_GUIDE_VERSION = '2026-0608'; /* bump each build; used for stale-state guard */
 
   /* ── SomaGuide class ────────────────────────────────────────────────────── */
   function SomaGuide(cfg) {
@@ -449,7 +449,8 @@
       self._$('.sg-voice-status').textContent = 'Listening…';
     }).catch(function (e) {
       console.warn('[SomaGuide] voice error', e);
-      self._$('.sg-voice-status').textContent = 'Mic unavailable — try text chat instead.';
+      var name = self.cfg.persona.name || 'I';
+      self._$('.sg-voice-status').textContent = name + " can't connect — try text chat instead.";
     });
   };
 
@@ -1154,7 +1155,8 @@
 
     send().catch(function (e) {
       console.warn('[SomaGuide] send error', e);
-      self._appendMessage('agent', 'Sorry, I had trouble connecting — please try again.');
+      var name = self.cfg.persona.name || 'I';
+      self._appendMessage('agent', name + " can't reach the server right now — please try again.");
     });
   };
 
@@ -1238,9 +1240,10 @@
     }).then(function (data) {
       if (thinkingDiv && thinkingDiv.parentNode) thinkingDiv.parentNode.removeChild(thinkingDiv);
 
+      var pName  = self.cfg.persona.name || 'I';
       var answer = (data && typeof data.answer === 'string' && data.answer)
         ? data.answer
-        : "I don't see that in the site content. Try asking me to show you around!";
+        : pName + " doesn't see that in the site content. Try asking me to show you around!";
 
       self._appendMessage('agent', answer);
 
@@ -1252,8 +1255,9 @@
 
     }).catch(function (err) {
       if (thinkingDiv && thinkingDiv.parentNode) thinkingDiv.parentNode.removeChild(thinkingDiv);
+      var name = self.cfg.persona.name || 'I';
       self._appendMessage('agent',
-        "I couldn't reach my knowledge base right now. Try voice chat, or ask me to show you around the site.");
+        name + " can't reach the knowledge base right now. Try voice chat, or ask me to show you around the site.");
       console.warn('[SomaGuide] inference error', err);
     });
   };
