@@ -266,6 +266,41 @@
   color: #060e18;
   align-self: flex-start;
   border-radius: 10px 10px 10px 2px;
+  user-select: text;
+  -webkit-user-select: text;
+  position: relative;
+}
+
+/* Copy button — appears on hover/focus-within */
+.sg-msg--agent .sg-copy-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: rgba(255,255,255,0.85);
+  border: 1px solid rgba(201,168,76,0.4);
+  border-radius: 5px;
+  padding: 2px 7px;
+  font-size: 0.7rem;
+  color: #7a5e1a;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, background 0.15s;
+  line-height: 1.5;
+  font-family: inherit;
+  pointer-events: none;
+}
+.sg-msg--agent:hover .sg-copy-btn,
+.sg-msg--agent:focus-within .sg-copy-btn {
+  opacity: 1;
+  pointer-events: auto;
+}
+.sg-msg--agent .sg-copy-btn:hover {
+  background: #fff8e7;
+  border-color: #c9a84c;
+}
+.sg-msg--agent .sg-copy-btn--copied {
+  color: #2a7a3a;
+  border-color: rgba(42,122,58,0.4);
 }
 .sg-input-bar {
   display: flex;

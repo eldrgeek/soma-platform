@@ -1286,7 +1286,51 @@
     if (!msgs) return;
     var div = document.createElement('div');
     div.className = 'sg-msg sg-msg--' + role;
-    div.textContent = text;
+    var span = document.createElement('span');
+    span.className = 'sg-msg-text';
+    span.textContent = text;
+    div.appendChild(span);
+    if (role === 'agent') {
+      var btn = document.createElement('button');
+      btn.className = 'sg-copy-btn';
+      btn.textContent = 'Copy';
+      btn.setAttribute('aria-label', 'Copy message');
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(function () {
+            btn.textContent = 'Copied!';
+            btn.classList.add('sg-copy-btn--copied');
+            setTimeout(function () {
+              btn.textContent = 'Copy';
+              btn.classList.remove('sg-copy-btn--copied');
+            }, 1800);
+          }).catch(function () {
+            btn.textContent = '✗';
+            setTimeout(function () { btn.textContent = 'Copy'; }, 1500);
+          });
+        } else {
+          /* Fallback for older browsers */
+          try {
+            var ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+            btn.textContent = 'Copied!';
+            btn.classList.add('sg-copy-btn--copied');
+            setTimeout(function () {
+              btn.textContent = 'Copy';
+              btn.classList.remove('sg-copy-btn--copied');
+            }, 1800);
+          } catch (_) {}
+        }
+      });
+      div.appendChild(btn);
+    }
     msgs.appendChild(div);
     msgs.scrollTop = msgs.scrollHeight;
   };
