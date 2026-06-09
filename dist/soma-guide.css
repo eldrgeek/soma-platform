@@ -332,6 +332,29 @@
 }
 .sg-send:hover { background: #b8963e; }
 
+/* ── Mic (voice input) button ── */
+.sg-mic {
+  background: none;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 6px 8px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  opacity: 0.55;
+  transition: opacity 0.15s, background 0.15s, border-color 0.15s;
+}
+.sg-mic:hover { opacity: 0.9; background: #fff8e7; border-color: #c9a84c; }
+.sg-mic--listening {
+  opacity: 1;
+  background: #fff0f0;
+  border-color: #d9534f;
+  animation: sg-mic-pulse 0.9s ease-in-out infinite;
+}
+@keyframes sg-mic-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(217,83,79,0.35); }
+  50%       { box-shadow: 0 0 0 5px rgba(217,83,79,0); }
+}
+
 /* ── Web-search toggle ── */
 .sg-web-toggle {
   background: none;

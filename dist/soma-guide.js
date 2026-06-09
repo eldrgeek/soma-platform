@@ -26,7 +26,7 @@
   const TTS_MS_PER_CHAR  = 85;     /* generous estimate; used for fallback timer */
   const TTS_FLOOR_MS     = 6000;   /* minimum fallback when TTS enabled */
   const TTS_BUFFER_MS    = 3500;   /* extra buffer added to known audio duration */
-  const SOMA_GUIDE_VERSION = '2026-0608'; /* bump each build; used for stale-state guard */
+  const SOMA_GUIDE_VERSION = '2026-0609'; /* bump each build; used for stale-state guard */
 
   /* ── SomaGuide class ────────────────────────────────────────────────────── */
   function SomaGuide(cfg) {
@@ -226,6 +226,7 @@
       '      <div class="sg-messages" role="log" aria-live="polite"></div>',
       '      <div class="sg-input-bar">',
       '        <input class="sg-input" type="text" placeholder="Ask me anything…" aria-label="Message">',
+      '        <button class="sg-mic sg-btn-icon" title="Voice input" aria-label="Voice input" hidden>🎤</button>',
       '        <button class="sg-web-toggle" title="Search the web (off)" aria-label="Toggle web search" aria-pressed="false">🔎</button>',
       '        <button class="sg-send" aria-label="Send">↑</button>',
       '      </div>',
@@ -241,7 +242,7 @@
       '    </div>',
       '  </div>',
       '  <div class="sg-wt-bar" hidden>',
-      '    <button class="sg-wt-menu" title="Back to walkthrough menu">← Menu</button>',
+      '    <button class="sg-wt-menu" title="Stop tour and return to menu">■ Stop tour</button>',
       '    <button class="sg-wt-exit" title="Pause tour and save your progress">⏸ Pause</button>',
       '    <span class="sg-wt-prog"></span>',
       '    <button class="sg-wt-playpause sg-btn-icon" title="Pause auto-play" aria-label="Pause auto-play">⏸</button>',
@@ -355,6 +356,63 @@
     }
 
     this._renderTopicList();
+    this._initMic();
+  };
+
+  /* Set up Web Speech API mic button in the text chat input bar.
+   * Button stays hidden if SpeechRecognition is not supported by the browser. */
+  SomaGuide.prototype._initMic = function () {
+    var self = this;
+    var micBtn = this._$('.sg-mic');
+    if (!micBtn) return;
+
+    var SR = (typeof window !== 'undefined') &&
+      (window.SpeechRecognition || window.webkitSpeechRecognition);
+    if (!SR) return; /* no support — button stays hidden */
+
+    micBtn.hidden = false;
+    var recognition = new SR();
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.lang = 'en-US';
+    var isListening = false;
+    var finalText = '';
+
+    recognition.onstart = function () {
+      isListening = true;
+      micBtn.classList.add('sg-mic--listening');
+      micBtn.title = 'Listening… (click to stop)';
+      var input = self._$('.sg-input');
+      if (input) { input.placeholder = 'Listening…'; input.value = ''; }
+      finalText = '';
+    };
+    recognition.onresult = function (e) {
+      var interim = '';
+      finalText = '';
+      for (var i = e.resultIndex; i < e.results.length; i++) {
+        if (e.results[i].isFinal) { finalText += e.results[i][0].transcript; }
+        else { interim += e.results[i][0].transcript; }
+      }
+      var input = self._$('.sg-input');
+      if (input) input.value = finalText + interim;
+    };
+    recognition.onend = function () {
+      isListening = false;
+      micBtn.classList.remove('sg-mic--listening');
+      micBtn.title = 'Voice input';
+      var input = self._$('.sg-input');
+      if (input) input.placeholder = 'Ask me anything…';
+      if (finalText.trim()) self._sendText(finalText.trim());
+    };
+    recognition.onerror = function (e) {
+      if (e.error === 'no-speech' || e.error === 'aborted') return;
+      console.warn('[SomaGuide] mic error', e.error);
+    };
+
+    micBtn.addEventListener('click', function () {
+      if (isListening) { recognition.stop(); return; }
+      try { recognition.start(); } catch (e) { console.warn('[SomaGuide] mic start error', e); }
+    });
   };
 
   SomaGuide.prototype._renderTopicList = function () {
@@ -381,14 +439,25 @@
     this._demoStop();
     this._wtCloseDropdowns();
     if (this.mode === 'walkthrough' && this.wt) {
-      var si = this.wt.subStepIndex != null ? this.wt.subStepIndex : -1;
-      this.pendingResume = { id: this.wt.id, stepIndex: this.wt.stepIndex, subStepIndex: si };
-      this._ssSet('resume-id',      this.wt.id);
-      this._ssSet('resume-step',    String(this.wt.stepIndex));
-      this._ssSet('resume-substep', String(si));
-      this._ssSet('state-ver',      SOMA_GUIDE_VERSION);
-      this._ssSet('state-cfg',      this._computeConfigHash());
-      this.wt = null;
+      if (this.cfg.cleanOnClose) {
+        /* cleanOnClose: discard tour state so re-opening starts fresh */
+        this.wt = null;
+        this.pendingResume = null;
+        this._ssDel('resume-id');
+        this._ssDel('resume-step');
+        this._ssDel('resume-substep');
+        this._ssDel('state-ver');
+        this._ssDel('state-cfg');
+      } else {
+        var si = this.wt.subStepIndex != null ? this.wt.subStepIndex : -1;
+        this.pendingResume = { id: this.wt.id, stepIndex: this.wt.stepIndex, subStepIndex: si };
+        this._ssSet('resume-id',      this.wt.id);
+        this._ssSet('resume-step',    String(this.wt.stepIndex));
+        this._ssSet('resume-substep', String(si));
+        this._ssSet('state-ver',      SOMA_GUIDE_VERSION);
+        this._ssSet('state-cfg',      this._computeConfigHash());
+        this.wt = null;
+      }
     }
     this._clearHighlight();
     this.mode = 'minimized';
@@ -1388,16 +1457,15 @@
 
     if (!this._ttsEnabled() || !text) {
       if (onEnded) self._autoTimer = setTimeout(onEnded, fallbackMs);
-      /* Arm cursor lead-in for the muted / no-TTS path */
+      /* Arm cursor immediately for the muted / no-TTS path — no audio to lead into */
       if (self._pendingCursorTarget && self._pendingCursorDemo) {
         var pt0 = self._pendingCursorTarget;
         var pd0 = self._pendingCursorDemo;
-        var li0 = (self.cfg.cursorLeadIn !== undefined) ? self.cfg.cursorLeadIn : CURSOR_LEAD_IN;
         if (self._cursorLeadTimer) clearTimeout(self._cursorLeadTimer);
         self._cursorLeadTimer = setTimeout(function () {
           self._cursorLeadTimer = null;
           self._demoMoveTo(pt0, pd0);
-        }, li0);
+        }, 0);
       }
       return;
     }
