@@ -3048,3 +3048,197 @@ describe('SOMA Guide — askFirst mode', function () {
     }, 800);
   });
 });
+
+/* ── Bill regression cases — caught by Mike 2026-06-10 ────────────────────────────────
+ * These tests guard against the three bugs found on legends-membership.netlify.app:
+ *  1. find-member walkthrough's broad keywords ("legend", "player", "member") matched
+ *     almost every question → every answer showed the committee-member canned line.
+ *  2. _classifyFeedback was never reached because (1) intercepted first.
+ *  3. Stop-tour appeared to do nothing because re-typing anything re-triggered the tour.
+ */
+
+const BILL_CONFIG = {
+  persona: {
+    name: 'Bill',
+    id: 'legends-bill',
+    avatar: '🏀',
+    greeting: 'Hi! How can I help?',
+    shortGreeting: 'Welcome back!',
+    walkthroughDone: 'Done!'
+  },
+  voiceAgentId: 'test-agent-id',
+  feedbackUrl: '/.netlify/functions/submit-feedback',
+  scopeGuard: {
+    deflect: "That's outside my lane.",
+    offTopicPatterns: [/\bweather\b/i, /write (me )?(a |an )?(poem|story)/i],
+    contextNote: 'Stay on topic.'
+  },
+  siteMap: [],
+  walkthroughs: [
+    {
+      id: 'find-member',
+      label: 'How to find a member',
+      keywords: [
+        'find a member', 'find a committee member', 'committee member profile',
+        'member profile', 'member list', 'member directory', 'member bio',
+        'browse the committee', 'browse members', 'show me the committee',
+        'members page', 'committee members page', 'contact a member',
+        'how do i find a member', 'where can i find a member',
+        'player profile', 'player bio',
+      ],
+      steps: [
+        { target: null, label: 'Go to Committee',
+          narration: 'To find a committee member, head to the Committee page.',
+          instruction: 'Heading to the Committee page…' }
+      ]
+    }
+  ]
+};
+
+describe('Bill regression — keyword matching does not over-fire', function () {
+  test('broad question about Legends does NOT trigger find-member tour', function () {
+    const win = makeWindow();
+    const g = new win.SomaGuide(BILL_CONFIG);
+    assert.equal(g._matchWalkthrough('What is the Legends of Basketball?'), null);
+  });
+
+  test('question about a player does NOT trigger find-member tour', function () {
+    const win = makeWindow();
+    const g = new win.SomaGuide(BILL_CONFIG);
+    assert.equal(g._matchWalkthrough('Tell me about Greg Foster the player'), null);
+  });
+
+  test('question with "member" alone does NOT trigger find-member tour', function () {
+    const win = makeWindow();
+    const g = new win.SomaGuide(BILL_CONFIG);
+    assert.equal(g._matchWalkthrough("I'm a member and I need help logging in"), null);
+  });
+
+  test('question with "legend" alone does NOT trigger find-member tour', function () {
+    const win = makeWindow();
+    const g = new win.SomaGuide(BILL_CONFIG);
+    assert.equal(g._matchWalkthrough('What benefits do legends receive?'), null);
+  });
+
+  test('"find a member" DOES trigger find-member tour', function () {
+    const win = makeWindow();
+    const g = new win.SomaGuide(BILL_CONFIG);
+    const match = g._matchWalkthrough('How do I find a member?');
+    assert.ok(match);
+    assert.equal(match.id, 'find-member');
+  });
+
+  test('"show me the committee" DOES trigger find-member tour', function () {
+    const win = makeWindow();
+    const g = new win.SomaGuide(BILL_CONFIG);
+    const match = g._matchWalkthrough('Can you show me the committee?');
+    assert.ok(match);
+    assert.equal(match.id, 'find-member');
+  });
+
+  test('"member list" DOES trigger find-member tour', function () {
+    const win = makeWindow();
+    const g = new win.SomaGuide(BILL_CONFIG);
+    const match = g._matchWalkthrough('Where is the member list?');
+    assert.ok(match);
+    assert.equal(match.id, 'find-member');
+  });
+});
+
+describe('Bill regression — _classifyFeedback', function () {
+  test('returns "bug" for "bug report"', function () {
+    const win = makeWindow();
+    const g = new win.SomaGuide(BILL_CONFIG);
+    assert.equal(g._classifyFeedback('bug report: the login page is broken'), 'bug');
+  });
+
+  test('returns "bug" for "file a bug"', function () {
+    const win = makeWindow();
+    const g = new win.SomaGuide(BILL_CONFIG);
+    assert.equal(g._classifyFeedback('I want to file a bug about the nav'), 'bug');
+  });
+
+  test('returns "bug" for "file an issue"', function () {
+    const win = makeWindow();
+    const g = new win.SomaGuide(BILL_CONFIG);
+    assert.equal(g._classifyFeedback('Can you file an issue about the broken link?'), 'bug');
+  });
+
+  test('returns "feature" for "feature request"', function () {
+    const win = makeWindow();
+    const g = new win.SomaGuide(BILL_CONFIG);
+    assert.equal(g._classifyFeedback('feature request: change the favicon'), 'feature');
+  });
+
+  test('returns "feature" for "file a feature"', function () {
+    const win = makeWindow();
+    const g = new win.SomaGuide(BILL_CONFIG);
+    assert.equal(g._classifyFeedback('Please file a feature request for the favicon'), 'feature');
+  });
+
+  test('returns "feature" for "please add"', function () {
+    const win = makeWindow();
+    const g = new win.SomaGuide(BILL_CONFIG);
+    assert.equal(g._classifyFeedback('please add a favicon to the site'), 'feature');
+  });
+
+  test('returns null for unrelated text', function () {
+    const win = makeWindow();
+    const g = new win.SomaGuide(BILL_CONFIG);
+    assert.equal(g._classifyFeedback('What are the player benefits?'), null);
+  });
+
+  test('returns null for general question about Legends', function () {
+    const win = makeWindow();
+    const g = new win.SomaGuide(BILL_CONFIG);
+    assert.equal(g._classifyFeedback('Tell me about the Legends of Basketball organization'), null);
+  });
+});
+
+describe('Bill regression — stop-tour control', function () {
+  test('_wtGoToNeutral clears wt state and returns to idle', function () {
+    const win = makeWindow();
+    const g = new win.SomaGuide(BILL_CONFIG);
+    g._wtStart('find-member', 0, -1);
+    assert.equal(g.mode, 'walkthrough');
+    g._wtGoToNeutral();
+    assert.equal(g.mode, 'idle');
+    assert.equal(g.wt, null);
+    assert.equal(g.pendingResume, null);
+  });
+
+  test('Stop-tour button click returns to idle mode', function () {
+    const win = makeWindow();
+    const g = new win.SomaGuide(BILL_CONFIG);
+    g._wtStart('find-member', 0, -1);
+    assert.equal(g.mode, 'walkthrough');
+    win.document.querySelector('.sg-wt-menu').click();
+    assert.equal(g.mode, 'idle');
+  });
+
+  test('wt-bar is visible during walkthrough', function () {
+    const win = makeWindow();
+    const g = new win.SomaGuide(BILL_CONFIG);
+    g._wtStart('find-member', 0, -1);
+    assert.equal(win.document.querySelector('.sg-wt-bar').hidden, false);
+  });
+
+  test('wt-bar is hidden after stop-tour', function () {
+    const win = makeWindow();
+    const g = new win.SomaGuide(BILL_CONFIG);
+    g._wtStart('find-member', 0, -1);
+    g._wtGoToNeutral();
+    assert.equal(win.document.querySelector('.sg-wt-bar').hidden, true);
+  });
+
+  test('typing a broad question after stop-tour does NOT restart the tour', function () {
+    const win = makeWindow();
+    const g = new win.SomaGuide(BILL_CONFIG);
+    // Trigger walkthrough, then stop it
+    g._wtStart('find-member', 0, -1);
+    g._wtGoToNeutral();
+    // Broad question should not re-match find-member keywords
+    const match = g._matchWalkthrough('What are the Legends player benefits?');
+    assert.equal(match, null, 'broad question should not re-trigger the find-member tour');
+  });
+});

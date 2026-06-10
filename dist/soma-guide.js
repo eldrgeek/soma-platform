@@ -1287,12 +1287,16 @@
     var bugIntents = ['bug report', 'report a bug', 'submit a bug', 'i found a bug',
       "there's a bug", 'there is a bug', 'something is broken', 'page is broken',
       "isn't working", 'is not working', 'not loading', "won't load", 'broken on',
-      'bug:', 'issue:', 'i want to report an issue', 'i need to report a bug'];
+      'bug:', 'issue:', 'i want to report an issue', 'i need to report a bug',
+      'file a bug', 'file an issue', 'log a bug', 'log an issue', 'submit an issue'];
     var featureIntents = ['feature request', 'feature idea', 'suggest a feature',
       'submit a feature', 'i have an idea for', 'i have a suggestion',
       'it would be great if', 'it would be nice if', 'can you add', 'wish the site',
       'feature:', 'idea:', 'suggestion:', "i'd like to suggest", 'want to suggest',
-      'want to request a feature', 'submit an idea'];
+      'want to request a feature', 'submit an idea',
+      'file a feature', 'log a feature', 'please add', 'i want to suggest',
+      'can you change the', 'change the favicon', 'can you make the site',
+      'make the site', 'i want to request a feature'];
     for (var i = 0; i < bugIntents.length; i++) {
       if (lower.indexOf(bugIntents[i]) !== -1) return 'bug';
     }
