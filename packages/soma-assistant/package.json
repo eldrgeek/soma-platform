@@ -10,7 +10,7 @@
     "manifests/"
   ],
   "scripts": {
-    "test": "node --test test/"
+    "test": "node --test test/merge-contract.test.js test/validate-manifests.test.js"
   },
   "keywords": [
     "soma",

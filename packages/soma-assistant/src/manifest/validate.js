@@ -64,5 +64,13 @@ export function validateSubscriberOverride(override, appManifest) {
       }
     }
   }
+  // retentionDays must be a positive integer — Math.min(appDays, null/0/negative) would
+  // silently produce an invalid merged value without this check.
+  if (override.transcripts?.retentionDays !== undefined) {
+    const days = override.transcripts.retentionDays;
+    if (typeof days !== 'number' || !Number.isInteger(days) || days < 1) {
+      throw new Error(`override: transcripts.retentionDays must be a positive integer (got: ${JSON.stringify(days)})`);
+    }
+  }
   return override;
 }
