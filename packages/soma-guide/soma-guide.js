@@ -218,7 +218,7 @@
       '      <div class="sg-topic-list"></div>',
       '    </div>',
       '    <div class="sg-voice-ui" hidden>',
-      '      <div class="sg-orb"></div>',
+      '      <div class="sg-orb" role="button" tabindex="0" aria-label="Tap to speak with Bill"></div>',
       '      <p class="sg-voice-status">Tap to speak</p>',
       '      <p class="sg-voice-transcript"></p>',
       '    </div>',
@@ -316,6 +316,22 @@
     this._$('.sg-btn-close').addEventListener('click', function () { self._minimize(); });
     this._$('.sg-btn-text').addEventListener('click', function () { self._openText(); });
     this._$('.sg-btn-voice').addEventListener('click', function () { self._openVoice(); });
+
+    /* Orb is the visual tap-to-speak target in voice mode.
+     * Tapping it starts (or restarts) the ElevenLabs voice session. */
+    var orbEl = this._$('.sg-orb');
+    if (orbEl) {
+      var orbAction = function () {
+        if (self.mode === 'voice') {
+          self._stopConversation();
+          self._openVoice();
+        }
+      };
+      orbEl.addEventListener('click', orbAction);
+      orbEl.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); orbAction(); }
+      });
+    }
 
     this._$('.sg-wt-menu').addEventListener('click', function () { self._wtGoToNeutral(); });
     this._$('.sg-wt-next').addEventListener('click', function () { self._wtNext(); });
