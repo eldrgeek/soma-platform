@@ -33,17 +33,25 @@ export function onAuthStateChange(handler) {
   return _client.auth.onAuthStateChange(handler);
 }
 
-export async function getRole(user) {
+/**
+ * Get effective role for user at a specific app_id (site-scoped roles).
+ * Resolves as: roles[appId] ?? default_role ?? 'subscriber'
+ * Pass appId=null to get default_role only (e.g. for platform-level checks).
+ */
+export async function getRole(user, appId = null) {
   if (!user) return null;
   try {
     const { data, error } = await _client
       .from('profiles')
-      .select('role')
+      .select('roles, default_role')
       .eq('id', user.id)
       .single();
-    if (error || !data) return 'member';
-    return data.role || 'member';
+    if (error || !data) return 'subscriber';
+    const roles = data.roles || {};
+    const defaultRole = data.default_role || 'subscriber';
+    if (appId && roles[appId]) return roles[appId];
+    return defaultRole;
   } catch {
-    return 'member';
+    return 'subscriber';
   }
 }
