@@ -441,6 +441,19 @@
     list.querySelectorAll('.sg-topic-btn').forEach(function (btn) {
       btn.addEventListener('click', function () { self._wtStart(btn.getAttribute('data-wt'), 0, -1); });
     });
+    /* Feedback affordance buttons — only when cfg.feedbackUrl is set */
+    if (self.cfg.feedbackUrl) {
+      [['feature', '💡 Submit a Feature Request'], ['bug', '🐛 Report a Bug']].forEach(function (pair) {
+        var fb = document.createElement('button');
+        fb.className = 'sg-topic-btn sg-topic-btn--feedback';
+        fb.textContent = pair[1];
+        fb.addEventListener('click', function () {
+          self._openText();
+          self._startFeedbackFlow(pair[0], '');
+        });
+        list.appendChild(fb);
+      });
+    }
   };
 
   /* ── Mode transitions ────────────────────────────────────────────────────── */
@@ -1216,6 +1229,22 @@
       return;
     }
 
+    /* ── Scope guard: deflect off-domain questions immediately ─── */
+    if (this.cfg.scopeGuard && this._checkScopeGuard(text)) {
+      var deflect = this.cfg.scopeGuard.deflect || "That's outside what I can help with here.";
+      this._appendMessage('agent', deflect);
+      return;
+    }
+
+    /* ── Feedback intake: bug reports and feature requests ──────── */
+    if (this.cfg.feedbackUrl) {
+      var fbType = this._classifyFeedback(text);
+      if (fbType) {
+        this._startFeedbackFlow(fbType, text);
+        return;
+      }
+    }
+
     if (this.cfg.inferenceUrl && this._classifyQuestion(text) === 'factual') {
       this._askInference(text);
       return;
@@ -1250,6 +1279,169 @@
     return (this.cfg.walkthroughs || []).filter(function (wt) {
       return (wt.keywords || []).some(function (kw) { return lower.indexOf(kw) !== -1; });
     })[0] || null;
+  };
+
+  /* Returns 'bug' | 'feature' | null based on clear submission intent in text. */
+  SomaGuide.prototype._classifyFeedback = function (text) {
+    var lower = text.toLowerCase();
+    var bugIntents = ['bug report', 'report a bug', 'submit a bug', 'i found a bug',
+      "there's a bug", 'there is a bug', 'something is broken', 'page is broken',
+      "isn't working", 'is not working', 'not loading', "won't load", 'broken on',
+      'bug:', 'issue:', 'i want to report an issue', 'i need to report a bug'];
+    var featureIntents = ['feature request', 'feature idea', 'suggest a feature',
+      'submit a feature', 'i have an idea for', 'i have a suggestion',
+      'it would be great if', 'it would be nice if', 'can you add', 'wish the site',
+      'feature:', 'idea:', 'suggestion:', "i'd like to suggest", 'want to suggest',
+      'want to request a feature', 'submit an idea'];
+    for (var i = 0; i < bugIntents.length; i++) {
+      if (lower.indexOf(bugIntents[i]) !== -1) return 'bug';
+    }
+    for (var j = 0; j < featureIntents.length; j++) {
+      if (lower.indexOf(featureIntents[j]) !== -1) return 'feature';
+    }
+    return null;
+  };
+
+  /* Returns true if text matches an off-domain pattern in cfg.scopeGuard.offTopicPatterns. */
+  SomaGuide.prototype._checkScopeGuard = function (text) {
+    var sg = this.cfg.scopeGuard;
+    if (!sg || !sg.offTopicPatterns) return false;
+    var patterns = sg.offTopicPatterns;
+    for (var i = 0; i < patterns.length; i++) {
+      var p = patterns[i];
+      if (p instanceof RegExp && p.test(text)) return true;
+      if (typeof p === 'string' && text.toLowerCase().indexOf(p.toLowerCase()) !== -1) return true;
+    }
+    return false;
+  };
+
+  /* Show a brief acknowledgement then render an inline capture form. */
+  SomaGuide.prototype._startFeedbackFlow = function (type, originalText) {
+    var label = type === 'bug' ? 'bug report' : 'feature request';
+    this._appendMessage('agent',
+      "Sure — I'll log that " + label + " for Greg. Fill in the details below.");
+    /* Pre-fill description only when the original message clearly is the description
+     * (i.e. not just a trigger phrase like "report a bug" with no description). */
+    var prefill = '';
+    if (originalText && originalText.length > 30 && this._classifyFeedback(originalText)) {
+      prefill = originalText;
+    }
+    this._appendFeedbackForm(type, prefill);
+  };
+
+  /* Append an inline feedback capture form to the chat messages area. */
+  SomaGuide.prototype._appendFeedbackForm = function (type, prefill) {
+    var self = this;
+    var msgs = this._$('.sg-messages');
+    if (!msgs) return;
+
+    var wrapper = document.createElement('div');
+    wrapper.className = 'sg-msg sg-msg--action sg-feedback-form';
+
+    var titleEl = document.createElement('div');
+    titleEl.className = 'sg-feedback-form-title';
+    titleEl.textContent = type === 'bug' ? '🐛 Bug Report' : '💡 Feature Request';
+    wrapper.appendChild(titleEl);
+
+    var descLabel = document.createElement('label');
+    descLabel.className = 'sg-feedback-label';
+    descLabel.textContent = type === 'bug' ? "What's broken?" : 'What would you like to see?';
+    wrapper.appendChild(descLabel);
+
+    var descInput = document.createElement('textarea');
+    descInput.className = 'sg-feedback-textarea';
+    descInput.placeholder = type === 'bug'
+      ? 'Describe the issue — what page, what happened, what you expected…'
+      : 'Describe the feature idea…';
+    descInput.rows = 3;
+    if (prefill) descInput.value = prefill;
+    wrapper.appendChild(descInput);
+
+    var nameLabel = document.createElement('label');
+    nameLabel.className = 'sg-feedback-label';
+    nameLabel.textContent = 'Your name (optional)';
+    wrapper.appendChild(nameLabel);
+
+    var nameInput = document.createElement('input');
+    nameInput.type = 'text';
+    nameInput.className = 'sg-feedback-input';
+    nameInput.placeholder = 'e.g. Greg Foster';
+    wrapper.appendChild(nameInput);
+
+    var btnRow = document.createElement('div');
+    btnRow.className = 'sg-feedback-btn-row';
+
+    var submitBtn = document.createElement('button');
+    submitBtn.className = 'sg-feedback-submit';
+    submitBtn.textContent = 'Submit';
+
+    var cancelBtn = document.createElement('button');
+    cancelBtn.className = 'sg-feedback-cancel';
+    cancelBtn.textContent = 'Cancel';
+
+    btnRow.appendChild(submitBtn);
+    btnRow.appendChild(cancelBtn);
+    wrapper.appendChild(btnRow);
+
+    var statusDiv = document.createElement('div');
+    statusDiv.className = 'sg-feedback-status';
+    wrapper.appendChild(statusDiv);
+
+    submitBtn.addEventListener('click', function () {
+      var desc = descInput.value.trim();
+      if (!desc) {
+        statusDiv.textContent = 'Please describe the ' + (type === 'bug' ? 'issue' : 'feature') + '.';
+        statusDiv.className = 'sg-feedback-status sg-feedback-status--error';
+        return;
+      }
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Sending…';
+      statusDiv.textContent = '';
+      statusDiv.className = 'sg-feedback-status';
+
+      var pageCtx = (typeof location !== 'undefined') ? location.href : null;
+      var assistantId = self.cfg.tenantId || self.cfg.persona.id || self.cfg.persona.name || 'unknown';
+
+      fetch(self.cfg.feedbackUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: type,
+          description: desc,
+          member_name: nameInput.value.trim() || null,
+          page_context: pageCtx,
+          assistant_id: assistantId
+        })
+      }).then(function (res) {
+        return res.json().then(function (d) { return { status: res.status, data: d }; });
+      }).then(function (result) {
+        if (result.status === 200) {
+          if (wrapper.parentNode) wrapper.parentNode.removeChild(wrapper);
+          var confirmMsg = type === 'bug'
+            ? "Bug report logged — Greg will review it. Thanks for the heads-up!"
+            : "Feature request logged — Greg will review it. Great idea!";
+          self._appendMessage('agent', confirmMsg);
+        } else {
+          statusDiv.textContent = (result.data && result.data.error) || 'Submission failed — please try again.';
+          statusDiv.className = 'sg-feedback-status sg-feedback-status--error';
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Submit';
+        }
+      }).catch(function () {
+        statusDiv.textContent = 'Network error — please try again.';
+        statusDiv.className = 'sg-feedback-status sg-feedback-status--error';
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Submit';
+      });
+    });
+
+    cancelBtn.addEventListener('click', function () {
+      if (wrapper.parentNode) wrapper.parentNode.removeChild(wrapper);
+      self._appendMessage('agent', "No problem — let me know if you need anything else.");
+    });
+
+    msgs.appendChild(wrapper);
+    msgs.scrollTop = msgs.scrollHeight;
   };
 
   /* Classify a user message as 'factual', 'howto', or 'other'.
@@ -1305,8 +1497,9 @@
       return s.label + ': ' + s.description;
     }).join('\n');
 
+    var scopeCtx  = (this.cfg.scopeGuard && this.cfg.scopeGuard.contextNote) ? this.cfg.scopeGuard.contextNote : '';
     var knowledge = typeof this.cfg.knowledge === 'string' ? this.cfg.knowledge : '';
-    var context   = [knowledge, navText, pageText].filter(Boolean).join('\n\n').slice(0, 8000);
+    var context   = [scopeCtx, knowledge, navText, pageText].filter(Boolean).join('\n\n').slice(0, 8000);
 
     var persona  = this.cfg.persona.name || 'Assistant';
     var url      = this.cfg.inferenceUrl;
