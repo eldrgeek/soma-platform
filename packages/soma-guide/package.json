@@ -4,7 +4,7 @@
   "description": "SOMA Guide widget engine — canonical shareable tour overlay",
   "main": "soma-guide.js",
   "scripts": {
-    "test": "node --test tests/soma-guide.test.js"
+    "test": "node --test tests/*.test.js"
   },
   "files": [
     "soma-guide.js",

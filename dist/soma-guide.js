@@ -23,10 +23,12 @@
   const READY_GATE_MS    = 2500;   /* max wait for target to appear */
   const READY_GATE_TICK  = 80;     /* poll interval */
   const CURSOR_LEAD_IN   = 1200;   /* ms after audio starts → cursor appears */
+  const CURSOR_TRAVEL_MS = 1400;   /* cursor glide time to target (cfg.cursorTravelMs overrides) */
+  const CLICK_THROUGH_MS = 450;    /* pause between click ripple and the advance it triggers */
   const TTS_MS_PER_CHAR  = 85;     /* generous estimate; used for fallback timer */
   const TTS_FLOOR_MS     = 6000;   /* minimum fallback when TTS enabled */
   const TTS_BUFFER_MS    = 3500;   /* extra buffer added to known audio duration */
-  const SOMA_GUIDE_VERSION = '2026-0609'; /* bump each build; used for stale-state guard */
+  const SOMA_GUIDE_VERSION = '2026-0610'; /* bump each build; used for stale-state guard */
 
   /* ── SomaGuide class ────────────────────────────────────────────────────── */
   function SomaGuide(cfg) {
@@ -50,6 +52,12 @@
     this._cursorLeadTimer   = null;  /* delay cursor until mid-utterance */
     this._pendingCursorTarget = null; /* target element captured before audio starts */
     this._pendingCursorDemo   = null; /* demo action captured before audio starts */
+
+    /* Choreographed highlight: applied when the demo cursor reaches the target
+     * (arrow → highlight → click), with a fallback timer in case the cursor
+     * never runs (e.g. audio autoplay blocked). */
+    this._pendingHighlightEl      = null;
+    this._highlightFallbackTimer  = null;
 
     /* Dropdown state managed by engine */
     this._openDropdownContainer = null;
@@ -159,12 +167,28 @@
       }
     }
 
+    /* Landing after "Stop tour" navigated back to the tour's origin page:
+     * restore the original scroll position and reopen the widget at the menu. */
+    if (this._ssGet('reopen-idle') === '1') {
+      this._ssDel('reopen-idle');
+      var restoreY = parseInt(this._ssGet('restore-scroll') || '', 10);
+      this._ssDel('restore-scroll');
+      setTimeout(function () {
+        if (!isNaN(restoreY) && typeof window !== 'undefined' && window.scrollTo) {
+          window.scrollTo(0, restoreY);
+        }
+        self._openIdle(false);
+      }, 300);
+      return;
+    }
+
     var autoWt = this.cfg.autoStartWalkthrough;
     if (autoWt) {
       /* autoStartWalkthrough (Bill/Proteus): open the widget to the greeting
        * panel so the user sees the "▶ Start tour" button. Their click provides
        * the browser gesture that unlocks audio. */
       setTimeout(function () {
+        if (self.mode !== 'minimized') return; /* user already started something */
         self._lsSet('introduced', '1');
         self.introduced = true;
         self._openIdle(true);
@@ -173,12 +197,14 @@
       /* askFirst (Ariadne): open directly into conversational Ask mode.
        * Inference answers from page content; no auto-tour. */
       setTimeout(function () {
+        if (self.mode !== 'minimized') return;
         self._lsSet('introduced', '1');
         self.introduced = true;
         self._openAsk();
       }, 500);
     } else if (!this.introduced) {
-      setTimeout(function () { self._openIdle(true); }, 500);
+      /* Guard: don't stomp a tour/chat the user started within the intro delay */
+      setTimeout(function () { if (self.mode === 'minimized') self._openIdle(true); }, 500);
     }
   };
 
@@ -448,7 +474,7 @@
         fb.className = 'sg-topic-btn sg-topic-btn--feedback';
         fb.textContent = pair[1];
         fb.addEventListener('click', function () {
-          self._openText();
+          self._openText({ skipPreStart: true });
           self._startFeedbackFlow(pair[0], '');
         });
         list.appendChild(fb);
@@ -477,6 +503,8 @@
         this._ssDel('resume-substep');
         this._ssDel('state-ver');
         this._ssDel('state-cfg');
+        this._ssDel('origin-path');
+        this._ssDel('origin-scroll');
       } else {
         var si = this.wt.subStepIndex != null ? this.wt.subStepIndex : -1;
         this.pendingResume = { id: this.wt.id, stepIndex: this.wt.stepIndex, subStepIndex: si };
@@ -528,11 +556,16 @@
     }
   };
 
-  SomaGuide.prototype._openText = function () {
+  /* opts.skipPreStart: don't eagerly open the ElevenLabs session. Used by
+   * structured flows (feedback intake) — the voice agent fires its own
+   * scripted greeting on connect, which would land in the chat on top of
+   * the flow's UI. The session still starts lazily if a later message
+   * falls through to conversation. */
+  SomaGuide.prototype._openText = function (opts) {
     var self = this;
     this._setMode('text');
     this._$('.sg-input').focus();
-    if (this.cfg.voiceAgentId) {
+    if (this.cfg.voiceAgentId && !(opts && opts.skipPreStart)) {
       this._startConversation(true).catch(function (e) {
         console.warn('[SomaGuide] text session pre-start error', e);
       });
@@ -623,6 +656,14 @@
   SomaGuide.prototype._wtStart = function (id, stepIndex, subStepIndex) {
     var wt = this._wtById(id);
     if (!wt) return;
+    /* Record where the user was when the tour began (page + scroll), so
+     * "Stop tour" can put everything back. Only on the first start — the
+     * key survives cross-page tour navigation and mid-tour jumps. */
+    if (!this._ssGet('origin-path') && typeof location !== 'undefined') {
+      this._ssSet('origin-path', location.pathname);
+      var oy = (typeof window !== 'undefined' && window.scrollY != null) ? window.scrollY : 0;
+      this._ssSet('origin-scroll', String(Math.round(oy)));
+    }
     this._clearHighlight();
     this.wt = {
       id: id,
@@ -712,10 +753,19 @@
           }
         }
         if (targetEl) {
-          var dispVal = (typeof window !== 'undefined' && window.getComputedStyle)
-            ? window.getComputedStyle(targetEl).display : '';
-          if (dispVal === 'inline') targetEl.dataset.sgWasInline = '1';
-          targetEl.classList.add('sg-highlight');
+          if (step.demo) {
+            /* Choreographed: highlight lands when the cursor arrives at the
+             * target (arrow → highlight → click). Fallback applies it anyway
+             * if the cursor never runs (autoplay blocked, demo stopped). */
+            self._pendingHighlightEl = targetEl;
+            var li0 = (self.cfg.cursorLeadIn   !== undefined) ? self.cfg.cursorLeadIn   : CURSOR_LEAD_IN;
+            var tr0 = (self.cfg.cursorTravelMs !== undefined) ? self.cfg.cursorTravelMs : CURSOR_TRAVEL_MS;
+            self._highlightFallbackTimer = setTimeout(function () {
+              self._applyPendingHighlight();
+            }, li0 + tr0 + 1200);
+          } else {
+            self._applyHighlight(targetEl);
+          }
           if (typeof targetEl.scrollIntoView === 'function') {
             targetEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
           }
@@ -728,11 +778,25 @@
       self._pendingCursorTarget = targetEl || null;
       self._pendingCursorDemo   = step.demo || null;
 
-      /* Auto-advance: fires ONLY via audio ended event (or muted fallback timer) */
+      /* Auto-advance: fires ONLY via audio ended event (or muted fallback timer).
+       * For demo:'click' steps with the cursor in place, the advance is staged
+       * as an actual click: ripple at the target, beat, then advance — so when
+       * the next step navigates, the page opens *because* of the click. */
       var onEnded = null;
       if (self._autoPlay && !self._autoStopped) {
         onEnded = function () {
-          if (self._autoPlay && !self._autoStopped && self.wt) {
+          if (!(self._autoPlay && !self._autoStopped && self.wt)) return;
+          var cursorInPlace = self._demoCursor &&
+            self._demoCursor.classList.contains('sg-demo-cursor--visible');
+          if (step.demo === 'click' && cursorInPlace) {
+            self._demoRipple();
+            var ct = (self.cfg.clickThroughDelayMs !== undefined)
+              ? self.cfg.clickThroughDelayMs : CLICK_THROUGH_MS;
+            self._autoTimer = setTimeout(function () {
+              self._autoTimer = null;
+              if (self._autoPlay && !self._autoStopped && self.wt) self._wtNext();
+            }, ct);
+          } else {
             self._wtNext();
           }
         };
@@ -797,6 +861,8 @@
     this._ssDel('resume-substep');
     this._ssDel('state-ver');
     this._ssDel('state-cfg');
+    this._ssDel('origin-path');
+    this._ssDel('origin-scroll');
     var done = this.cfg.persona.walkthroughDone || 'All done! Ask me anything.';
     this.wt = null;
     this.pendingResume = null;
@@ -934,6 +1000,11 @@
   SomaGuide.prototype._demoStop = function () {
     this._pendingCursorTarget = null;
     this._pendingCursorDemo   = null;
+    this._pendingHighlightEl  = null;
+    if (this._highlightFallbackTimer) {
+      clearTimeout(this._highlightFallbackTimer);
+      this._highlightFallbackTimer = null;
+    }
     if (this._cursorLeadTimer) {
       clearTimeout(this._cursorLeadTimer);
       this._cursorLeadTimer = null;
@@ -954,6 +1025,7 @@
     var cursor = this._demoCursor;
     if (!cursor) return;
 
+    var travel = (this.cfg.cursorTravelMs !== undefined) ? this.cfg.cursorTravelMs : CURSOR_TRAVEL_MS;
     var rect = target.getBoundingClientRect();
     var destX = Math.round(rect.left + rect.width * 0.5 - 10);
     var destY = Math.round(rect.top - 8);
@@ -969,24 +1041,30 @@
       cursor.style.transition = '';
     }
 
+    /* Glide to the target at the configured pace (overrides the CSS default). */
+    var sec = (travel / 1000) + 's';
+    cursor.style.transitionDuration = sec + ', ' + sec + ', 0.2s';
     cursor.style.left = destX + 'px';
     cursor.style.top  = destY + 'px';
 
     if (this._demoCursorTimer) clearTimeout(this._demoCursorTimer);
     this._demoCursorTimer = setTimeout(function () {
       self._demoCursorTimer = null;
+      /* Arrival: highlight lands now (arrow → highlight), then the action. */
+      self._applyPendingHighlight();
       self._demoDoAction(target, action);
-    }, 800);
+    }, travel + 80);
   };
 
   SomaGuide.prototype._demoDoAction = function (target, action) {
     if (action === 'openDropdown') {
       /* Dropdown already open via precondition; ripple shows where to click */
       this._demoRipple();
-    } else if (action === 'click') {
-      this._demoRipple();
     }
-    /* 'hover' — cursor presence at target is the visual */
+    /* 'click' — the ripple fires when narration ends, staged as the click
+     * that advances the tour (see onEnded in _renderWtStep), so the page
+     * change visibly follows the click rather than happening mid-speech.
+     * 'hover' — cursor presence at target is the visual. */
   };
 
   SomaGuide.prototype._demoRipple = function () {
@@ -1054,7 +1132,9 @@
     });
   };
 
-  /* Return to the neutral idle state, discarding any in-progress tour resume. */
+  /* Return to the neutral idle state, discarding any in-progress tour resume.
+   * Restores the pre-tour starting state: navigates back to the page the tour
+   * began on (if the tour moved away from it) and restores the scroll position. */
   SomaGuide.prototype._wtGoToNeutral = function () {
     this._autoClear();
     this._ttsStop();
@@ -1068,6 +1148,23 @@
     this._ssDel('resume-substep');
     this._ssDel('state-ver');
     this._ssDel('state-cfg');
+
+    var originPath   = this._ssGet('origin-path');
+    var originScroll = parseInt(this._ssGet('origin-scroll') || '', 10);
+    this._ssDel('origin-path');
+    this._ssDel('origin-scroll');
+
+    var curPath = (typeof location !== 'undefined') ? location.pathname : null;
+    if (originPath && curPath !== null && originPath !== curPath) {
+      /* Tour navigated away — go back, then reopen the widget at the menu. */
+      this._ssSet('reopen-idle', '1');
+      if (!isNaN(originScroll)) this._ssSet('restore-scroll', String(originScroll));
+      this._navigate(originPath);
+      return;
+    }
+    if (!isNaN(originScroll) && typeof window !== 'undefined' && window.scrollTo) {
+      window.scrollTo(0, originScroll);
+    }
     this._openIdle(false);
   };
 
@@ -1122,6 +1219,27 @@
         self._wtStart(self.wt.id, si, sub);
       });
     });
+  };
+
+  /* Apply the highlight ring to an element (records inline-display fixup). */
+  SomaGuide.prototype._applyHighlight = function (el) {
+    if (!el) return;
+    var dispVal = (typeof window !== 'undefined' && window.getComputedStyle)
+      ? window.getComputedStyle(el).display : '';
+    if (dispVal === 'inline') el.dataset.sgWasInline = '1';
+    el.classList.add('sg-highlight');
+  };
+
+  /* Apply a deferred (choreographed) highlight now and cancel its fallback. */
+  SomaGuide.prototype._applyPendingHighlight = function () {
+    if (this._highlightFallbackTimer) {
+      clearTimeout(this._highlightFallbackTimer);
+      this._highlightFallbackTimer = null;
+    }
+    if (this._pendingHighlightEl) {
+      this._applyHighlight(this._pendingHighlightEl);
+      this._pendingHighlightEl = null;
+    }
   };
 
   SomaGuide.prototype._clearHighlight = function () {
@@ -1223,20 +1341,17 @@
 
     this._appendMessage('user', text);
 
-    var match = this._matchWalkthrough(text);
-    if (match) {
-      this._wtStart(match.id, 0, -1);
-      return;
-    }
+    /* ── Routing precedence ──────────────────────────────────────────
+     * 1. Feedback intake — intents are precise multi-word phrases; a bug
+     *    report that mentions a page name must not start that page's tour.
+     * 2. Scope guard — deflect clearly off-domain messages.
+     * 3. Walkthrough keywords — but factual questions go to inference
+     *    instead (the answer offers a "show me" button when a related
+     *    walkthrough exists), so a question that merely mentions a topic
+     *    is answered rather than hijacked into a canned tour.
+     * 4. Inference (factual questions).
+     * 5. ElevenLabs conversation fallthrough. */
 
-    /* ── Scope guard: deflect off-domain questions immediately ─── */
-    if (this.cfg.scopeGuard && this._checkScopeGuard(text)) {
-      var deflect = this.cfg.scopeGuard.deflect || "That's outside what I can help with here.";
-      this._appendMessage('agent', deflect);
-      return;
-    }
-
-    /* ── Feedback intake: bug reports and feature requests ──────── */
     if (this.cfg.feedbackUrl) {
       var fbType = this._classifyFeedback(text);
       if (fbType) {
@@ -1245,7 +1360,24 @@
       }
     }
 
-    if (this.cfg.inferenceUrl && this._classifyQuestion(text) === 'factual') {
+    if (this.cfg.scopeGuard && this._checkScopeGuard(text)) {
+      var deflect = this.cfg.scopeGuard.deflect || "That's outside what I can help with here.";
+      this._appendMessage('agent', deflect);
+      return;
+    }
+
+    var qClass = this._classifyQuestion(text);
+    var inferenceFirst = !!this.cfg.inferenceUrl && qClass === 'factual';
+
+    if (!inferenceFirst) {
+      var match = this._matchWalkthrough(text);
+      if (match) {
+        this._wtStart(match.id, 0, -1);
+        return;
+      }
+    }
+
+    if (this.cfg.inferenceUrl && qClass === 'factual') {
       this._askInference(text);
       return;
     }
@@ -1274,11 +1406,32 @@
     });
   };
 
+  /* Match a user message to a walkthrough by keyword.
+   *
+   * Matching rules (deliberately conservative — a false positive hijacks the
+   * whole message into a canned tour, which is far worse than a miss):
+   *  - Keywords match on word boundaries, never inside other words
+   *    ('tour' must not match 'tournament').
+   *  - Multi-word keyword phrases may appear anywhere in the message.
+   *  - Single-word keywords only match when the message is short (≤ 4 words):
+   *    "tour" or "give me a tour" should trigger; a long question that merely
+   *    mentions the word should not. */
   SomaGuide.prototype._matchWalkthrough = function (text) {
-    var lower = text.toLowerCase();
-    return (this.cfg.walkthroughs || []).filter(function (wt) {
-      return (wt.keywords || []).some(function (kw) { return lower.indexOf(kw) !== -1; });
-    })[0] || null;
+    var lower = text.toLowerCase().trim();
+    var wordCount = lower.split(/\s+/).length;
+    var wts = this.cfg.walkthroughs || [];
+    for (var i = 0; i < wts.length; i++) {
+      var kws = wts[i].keywords || [];
+      for (var j = 0; j < kws.length; j++) {
+        var kw = String(kws[j]).toLowerCase();
+        if (!kw) continue;
+        var escaped = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        var re = new RegExp('(?:^|[^a-z0-9])' + escaped + '(?:[^a-z0-9]|$)');
+        if (!re.test(lower)) continue;
+        if (kw.indexOf(' ') !== -1 || wordCount <= 4) return wts[i];
+      }
+    }
+    return null;
   };
 
   /* Returns 'bug' | 'feature' | null based on clear submission intent in text. */
@@ -1313,7 +1466,9 @@
     var patterns = sg.offTopicPatterns;
     for (var i = 0; i < patterns.length; i++) {
       var p = patterns[i];
-      if (p instanceof RegExp && p.test(text)) return true;
+      /* Duck-type RegExp — `instanceof` fails for patterns created in another
+       * realm (iframe, jsdom test harness). */
+      if (p && typeof p.test === 'function' && p.test(text)) return true;
       if (typeof p === 'string' && text.toLowerCase().indexOf(p.toLowerCase()) !== -1) return true;
     }
     return false;

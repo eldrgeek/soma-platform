@@ -354,20 +354,34 @@ describe('SOMA Guide — jump-out / jump-back-in', function () {
 });
 
 describe('SOMA Guide — keyword matching', function () {
-  test('_matchWalkthrough returns correct tour for keyword hit', function () {
+  test('_matchWalkthrough matches a single-word keyword in a short message', function () {
     const win = makeWindow();
     const g = new win.SomaGuide(TEST_CONFIG);
-    const match = g._matchWalkthrough('show me the alpha tour please');
+    const match = g._matchWalkthrough('the alpha tour');
     assert.ok(match, 'should match');
     assert.equal(match.id, 'wt-alpha');
   });
 
-  test('_matchWalkthrough returns second tour for its keyword', function () {
+  test('_matchWalkthrough matches a multi-word keyword phrase anywhere in a long message', function () {
     const win = makeWindow();
     const g = new win.SomaGuide(TEST_CONFIG);
-    const match = g._matchWalkthrough('tell me about the beta stuff');
+    const match = g._matchWalkthrough('hey could you start the second tour for me now');
     assert.ok(match);
     assert.equal(match.id, 'wt-beta');
+  });
+
+  test('_matchWalkthrough does NOT let a single-word keyword hijack a long message', function () {
+    const win = makeWindow();
+    const g = new win.SomaGuide(TEST_CONFIG);
+    const match = g._matchWalkthrough('I have a question about how the beta program works for members');
+    assert.equal(match, null, 'single-word keyword must not match a long sentence');
+  });
+
+  test('_matchWalkthrough does NOT match a keyword inside another word', function () {
+    const win = makeWindow();
+    const g = new win.SomaGuide(TEST_CONFIG);
+    const match = g._matchWalkthrough('alphabet soup');
+    assert.equal(match, null, "'alpha' must not match inside 'alphabet'");
   });
 
   test('_matchWalkthrough returns null on no match', function () {
