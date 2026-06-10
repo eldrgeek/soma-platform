@@ -1,0 +1,47 @@
+{
+  "assistantId": "bill",
+  "tenantId": "nbrpa-legends",
+  "persona": {
+    "name": "Bill",
+    "voice_id": "nPczCjzI2devNBz1zQrb",
+    "greeting": "Hi, I'm Bill. I can walk you through the Legends membership site or answer questions about it.",
+    "contextDoc": "assistants/bill/knowledge.md",
+    "personaDoc": "assistants/bill/persona.md"
+  },
+  "capabilities": [
+    "answer-from-content",
+    "guided-site-driving",
+    "guide-as-tool",
+    "feedback-channel"
+  ],
+  "clientBundles": {
+    "public-widget": {
+      "mount": "fab",
+      "capabilities": ["answer-from-content", "guided-site-driving", "guide-as-tool"],
+      "modalities": ["text", "tts"]
+    },
+    "voice-first-agent": {
+      "mount": "embed",
+      "agentId": "agent_2401ks53q6t8e2drt1h7va3f2c52",
+      "capabilities": ["answer-from-content"],
+      "modalities": ["tts", "stt"]
+    }
+  },
+  "tenantPolicy": {
+    "guideDelegation": true,
+    "crossTenantIsolation": true,
+    "allowedAuthScopes": ["anonymous"]
+  },
+  "guide": {
+    "engine": "soma-guide",
+    "tours": ["membership-walkthrough", "ask-bill-guide"]
+  },
+  "intentClassifier": {
+    "depthKeywords": "soma-infer-default"
+  },
+  "transcripts": {
+    "defaultOn": false,
+    "retentionDays": 30,
+    "store": "pulse-core"
+  }
+}

@@ -1,0 +1,193 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://soma-platform.dev/schema/assistant-config.schema.json",
+  "title": "SOMA Assistant Config",
+  "description": "Manifest schema v1. App-level manifests validate against #/$defs/appManifest; subscriber overrides against #/$defs/subscriberOverride.",
+  "oneOf": [
+    { "$ref": "#/$defs/appManifest" },
+    { "$ref": "#/$defs/subscriberOverride" }
+  ],
+  "$defs": {
+    "modality": {
+      "description": "Input/output mode. text=text chat, tts=ElevenLabs TTS output, stt=Web Speech STT input.",
+      "enum": ["text", "tts", "stt"]
+    },
+    "capability": {
+      "description": "Pluggable capability module. answer-from-content is non-negotiable default.",
+      "enum": [
+        "answer-from-content",
+        "persona-conversation",
+        "guided-site-driving",
+        "guide-as-tool",
+        "feedback-channel"
+      ]
+    },
+    "persona": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Display name for this assistant persona." },
+        "voice_id": { "type": ["string", "null"], "description": "ElevenLabs voice id." },
+        "greeting": { "type": "string", "description": "Opening message shown to user." },
+        "contextDoc": { "type": "string", "description": "Path to grounding context doc (relative to soma-infer assistants dir)." },
+        "personaDoc": { "type": "string", "description": "Path to persona.md (resolved server-side by soma-infer)." },
+        "knowledgeDoc": { "type": "string", "description": "Path to knowledge.md (resolved server-side by soma-infer)." }
+      },
+      "additionalProperties": false
+    },
+    "clientBundle": {
+      "type": "object",
+      "properties": {
+        "capabilities": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/capability" },
+          "uniqueItems": true
+        },
+        "modalities": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/modality" },
+          "uniqueItems": true
+        },
+        "agentId": { "type": "string", "description": "ElevenLabs agent id (voice-first-agent bundle only)." },
+        "mount": {
+          "enum": ["fab", "full-page", "embed"],
+          "description": "Visual mount style for this bundle."
+        }
+      },
+      "additionalProperties": false
+    },
+    "transcripts": {
+      "type": "object",
+      "properties": {
+        "defaultOn": { "type": "boolean", "description": "Whether transcript capture is on by default." },
+        "retentionDays": { "type": "integer", "minimum": 1, "description": "Max days to retain transcripts." },
+        "store": { "type": "string", "description": "Transcript store identifier (e.g. 'pulse-core')." }
+      },
+      "additionalProperties": false
+    },
+    "appManifest": {
+      "type": "object",
+      "description": "App-level (owner-configurable) manifest. All fields are required unless noted.",
+      "required": [
+        "assistantId",
+        "tenantId",
+        "persona",
+        "capabilities",
+        "clientBundles",
+        "tenantPolicy",
+        "transcripts"
+      ],
+      "properties": {
+        "assistantId": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]+$",
+          "description": "Unique assistant identifier (kebab-case)."
+        },
+        "tenantId": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]+$",
+          "description": "Tenant identifier; scopes sessions + transcript writes."
+        },
+        "persona": {
+          "allOf": [{ "$ref": "#/$defs/persona" }],
+          "required": ["name"]
+        },
+        "capabilities": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/capability" },
+          "minItems": 1,
+          "uniqueItems": true,
+          "description": "Capabilities available to all bundles; bundles subset this list."
+        },
+        "clientBundles": {
+          "type": "object",
+          "minProperties": 1,
+          "properties": {
+            "public-widget": { "$ref": "#/$defs/clientBundle" },
+            "subscriber-chat": { "$ref": "#/$defs/clientBundle" },
+            "voice-first-agent": { "$ref": "#/$defs/clientBundle" }
+          },
+          "additionalProperties": false
+        },
+        "tenantPolicy": {
+          "type": "object",
+          "description": "Tenant-level policy. NOT subscriber-overridable under any circumstances.",
+          "properties": {
+            "guideDelegation": { "type": "boolean" },
+            "crossTenantIsolation": { "type": "boolean" },
+            "allowedAuthScopes": {
+              "type": "array",
+              "items": { "enum": ["anonymous", "subscriber", "tenant-admin"] }
+            }
+          },
+          "additionalProperties": true
+        },
+        "guide": {
+          "type": "object",
+          "description": "Guide engine config. NOT subscriber-overridable; scope fixed at tenant level."
+        },
+        "spine": {
+          "type": "object",
+          "description": "Spine infrastructure overrides (inference URL, pulse-core path, etc)."
+        },
+        "intentClassifier": {
+          "type": "object",
+          "description": "Intent classifier config. NOT subscriber-overridable (audit determinism)."
+        },
+        "transcripts": {
+          "allOf": [{ "$ref": "#/$defs/transcripts" }],
+          "required": ["defaultOn", "retentionDays"]
+        }
+      },
+      "additionalProperties": false
+    },
+    "subscriberOverride": {
+      "type": "object",
+      "description": "Per-subscriber override. May only touch fields allowed by the merge contract (spec 3c).",
+      "properties": {
+        "persona": {
+          "$ref": "#/$defs/persona",
+          "description": "Allowed persona fields: name, voice_id, greeting, contextDoc only."
+        },
+        "clientBundles": {
+          "type": "object",
+          "description": "Modality disable-only overrides per bundle.",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "modalities": {
+                "type": "array",
+                "items": { "$ref": "#/$defs/modality" },
+                "description": "Intersection with app-level modalities (disable-only)."
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "transcripts": {
+          "type": "object",
+          "properties": {
+            "defaultOn": { "type": "boolean" },
+            "retentionDays": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Resolved as min(app, subscriber). Cannot increase above app limit."
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "not": {
+        "anyOf": [
+          { "required": ["tenantPolicy"] },
+          { "required": ["guide"] },
+          { "required": ["capabilities"] },
+          { "required": ["spine"] },
+          { "required": ["intentClassifier"] },
+          { "required": ["assistantId"] },
+          { "required": ["tenantId"] }
+        ]
+      },
+      "additionalProperties": false
+    }
+  }
+}

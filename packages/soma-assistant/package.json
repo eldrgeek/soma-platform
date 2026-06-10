@@ -1,0 +1,24 @@
+{
+  "name": "@soma-platform/soma-assistant",
+  "version": "0.1.0",
+  "description": "SOMA Assistant — spine, capabilities, and client bundles for manifest-driven assistants",
+  "main": "src/index.js",
+  "type": "module",
+  "files": [
+    "src/",
+    "schema/",
+    "manifests/"
+  ],
+  "scripts": {
+    "test": "node --test test/"
+  },
+  "keywords": [
+    "soma",
+    "assistant",
+    "manifest"
+  ],
+  "license": "UNLICENSED",
+  "private": true,
+  "dependencies": {},
+  "devDependencies": {}
+}

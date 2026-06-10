@@ -1,0 +1,47 @@
+{
+  "assistantId": "playwriting-platform",
+  "tenantId": "playwriting-platform",
+  "persona": {
+    "name": "Ariadne",
+    "voice_id": "EXAVITQu4vr4xnSDxMaL",
+    "greeting": "Welcome to the playwriting platform. I can show you around, or connect you with your dramaturg.",
+    "contextDoc": "assistants/playwriting-platform/knowledge.md",
+    "personaDoc": "assistants/playwriting-platform/persona.md"
+  },
+  "capabilities": [
+    "answer-from-content",
+    "persona-conversation",
+    "guided-site-driving",
+    "guide-as-tool",
+    "feedback-channel"
+  ],
+  "clientBundles": {
+    "public-widget": {
+      "mount": "fab",
+      "capabilities": ["answer-from-content", "guided-site-driving", "guide-as-tool"],
+      "modalities": ["text", "tts"]
+    },
+    "subscriber-chat": {
+      "mount": "full-page",
+      "capabilities": ["persona-conversation", "answer-from-content", "guide-as-tool", "feedback-channel"],
+      "modalities": ["text", "tts", "stt"]
+    }
+  },
+  "tenantPolicy": {
+    "guideDelegation": true,
+    "crossTenantIsolation": true,
+    "allowedAuthScopes": ["anonymous", "subscriber", "tenant-admin"]
+  },
+  "guide": {
+    "engine": "soma-guide",
+    "tours": ["platform-orientation", "submit-a-script", "dramaturg-handoff"]
+  },
+  "intentClassifier": {
+    "depthKeywords": "soma-infer-default"
+  },
+  "transcripts": {
+    "defaultOn": true,
+    "retentionDays": 180,
+    "store": "pulse-core"
+  }
+}

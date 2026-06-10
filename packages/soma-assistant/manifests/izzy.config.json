@@ -1,0 +1,42 @@
+{
+  "assistantId": "izzy",
+  "tenantId": "playwriting-platform",
+  "persona": {
+    "name": "Izzy",
+    "voice_id": "EXAVITQu4vr4xnSDxMaL",
+    "greeting": "Hello! I'm Izzy, your dramaturge. What are we working on today?",
+    "contextDoc": "assistants/izzy/knowledge.md",
+    "personaDoc": "assistants/izzy/persona.md"
+  },
+  "capabilities": [
+    "persona-conversation",
+    "answer-from-content",
+    "feedback-channel"
+  ],
+  "clientBundles": {
+    "subscriber-chat": {
+      "mount": "full-page",
+      "capabilities": ["persona-conversation", "answer-from-content", "feedback-channel"],
+      "modalities": ["text", "tts", "stt"]
+    }
+  },
+  "tenantPolicy": {
+    "guideDelegation": false,
+    "crossTenantIsolation": true,
+    "allowedAuthScopes": ["subscriber", "tenant-admin"]
+  },
+  "spine": {
+    "rag": {
+      "enabled": true,
+      "source": "assistants/izzy/knowledge.md"
+    }
+  },
+  "intentClassifier": {
+    "depthKeywords": "soma-infer-default"
+  },
+  "transcripts": {
+    "defaultOn": true,
+    "retentionDays": 365,
+    "store": "pulse-core"
+  }
+}
