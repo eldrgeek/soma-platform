@@ -19,7 +19,10 @@
   'use strict';
 
   /* ── Constants ──────────────────────────────────────────────────────────── */
-  const ELEVENLABS_ESM   = 'https://esm.sh/@elevenlabs/client@latest';
+  /* Pinned — '@latest' silently picked up breaking SDK majors in the past.
+   * Bump deliberately and re-test voice after any change. */
+  const ELEVENLABS_ESM   = 'https://esm.sh/@elevenlabs/client@1.10.0';
+  const VOICE_CONNECT_TIMEOUT_MS = 12000;
   const READY_GATE_MS    = 2500;   /* max wait for target to appear */
   const READY_GATE_TICK  = 80;     /* poll interval */
   const CURSOR_LEAD_IN   = 1200;   /* ms after audio starts → cursor appears */
@@ -28,7 +31,94 @@
   const TTS_MS_PER_CHAR  = 85;     /* generous estimate; used for fallback timer */
   const TTS_FLOOR_MS     = 6000;   /* minimum fallback when TTS enabled */
   const TTS_BUFFER_MS    = 3500;   /* extra buffer added to known audio duration */
-  const SOMA_GUIDE_VERSION = '2026-0610'; /* bump each build; used for stale-state guard */
+  const SOMA_GUIDE_VERSION = '2026-0610b'; /* bump each build; used for stale-state guard */
+
+  /* ── Narration cue markup ─────────────────────────────────────────────────
+   *
+   * Walkthrough narrations may embed inline action cues in double brackets:
+   *
+   *   narration: 'The Committee page shows all nine members. ' +
+   *              '[[arrow a[href="members.html"] 2s]] This link in the nav ' +
+   *              '[[highlight]] takes you there. [[click]]'
+   *
+   * Each cue fires when the narration AUDIO reaches that point in the text
+   * (position-proportional timing). Cues are stripped before display, TTS,
+   * and audio-hash computation — adding cues to existing narration does not
+   * invalidate pre-generated clips, as long as the words stay identical.
+   *
+   * Verbs ([sel] defaults to the step's `target`; last cue's element when
+   * that is missing too):
+   *   [[arrow <sel>? <duration>?]]  glide the cursor to the element
+   *                                 (duration: '2s' | '800ms' | slow | fast)
+   *   [[highlight <sel>?]]          gold ring on the element
+   *   [[unhighlight]]               remove all highlight rings
+   *   [[click <sel>?]]              click ripple at the element/cursor
+   *   [[open <sel>]]                open a dropdown (CSS class, no real click)
+   *   [[close]]                     close engine-opened dropdowns
+   *   [[scroll <sel>?]]             scroll the element into view
+   *
+   * When a narration contains cues, the script REPLACES the default
+   * choreography (auto cursor lead-in / highlight-on-arrival / click-at-end)
+   * for that step. Steps without cues behave as before.
+   */
+  /* Lazy body + (?!\]) so selectors containing ']' (attribute selectors like
+   * a[href="x.html"]) parse correctly: the cue closes at the LAST ']]' run. */
+  const CUE_RE = /\s*\[\[(.*?)\]\](?!\])/g;
+  const CUE_DURATION_RE = /^(\d+(?:\.\d+)?)(ms|s)$|^(slow|fast)$/;
+
+  /* Strip cues from a narration string — the canonical text used for
+   * display, TTS synthesis, and audio-hash computation. */
+  function stripCues(raw) {
+    return String(raw == null ? '' : raw).replace(CUE_RE, '').replace(/^\s+/, '');
+  }
+
+  /* Parse a narration string into { text, cues } where each cue is
+   * { verb, selector, travelMs, frac } and frac is the cue's position in the
+   * stripped text (0..1) — multiplied by audio duration to get fire time. */
+  function parseNarration(raw) {
+    raw = String(raw == null ? '' : raw);
+    var text = '';
+    var marks = [];   /* { at, spec } against the un-trimmed stripped text */
+    var last = 0, m;
+    CUE_RE.lastIndex = 0;
+    while ((m = CUE_RE.exec(raw)) !== null) {
+      text += raw.slice(last, m.index);
+      marks.push({ at: text.length, spec: m[1].trim() });
+      last = CUE_RE.lastIndex;
+    }
+    text += raw.slice(last);
+
+    var lead = text.length - text.replace(/^\s+/, '').length;
+    if (lead) {
+      text = text.slice(lead);
+      marks.forEach(function (mk) { mk.at = Math.max(0, mk.at - lead); });
+    }
+
+    var total = Math.max(1, text.length);
+    var cues = [];
+    marks.forEach(function (mk) {
+      if (!mk.spec) return;
+      var tokens = mk.spec.split(/\s+/);
+      var verb = tokens.shift().toLowerCase();
+      var travelMs = null;
+      if (tokens.length) {
+        var dm = CUE_DURATION_RE.exec(tokens[tokens.length - 1]);
+        if (dm) {
+          tokens.pop();
+          if (dm[3] === 'slow') travelMs = 2400;
+          else if (dm[3] === 'fast') travelMs = 600;
+          else travelMs = Math.round(parseFloat(dm[1]) * (dm[2] === 's' ? 1000 : 1));
+        }
+      }
+      cues.push({
+        verb: verb,
+        selector: tokens.length ? tokens.join(' ') : null,
+        travelMs: travelMs,
+        frac: Math.min(1, mk.at / total)
+      });
+    });
+    return { text: text, cues: cues };
+  }
 
   /* ── SomaGuide class ────────────────────────────────────────────────────── */
   function SomaGuide(cfg) {
@@ -58,6 +148,13 @@
      * never runs (e.g. audio autoplay blocked). */
     this._pendingHighlightEl      = null;
     this._highlightFallbackTimer  = null;
+
+    /* Scripted narration cues ([[arrow …]] etc.): parsed cue list waiting for
+     * audio start, scheduled timers, and the last element a cue touched
+     * (selector default for follow-up cues like bare [[highlight]]). */
+    this._pendingCues = null;   /* { cues, step } */
+    this._cueTimers   = [];
+    this._cueLastEl   = null;
 
     /* Dropdown state managed by engine */
     this._openDropdownContainer = null;
@@ -572,16 +669,57 @@
     }
   };
 
+  /* Voice flow: acquire the microphone FIRST (with explicit status guidance —
+   * the SDK's own getUserMedia call gives the user no feedback while the
+   * permission prompt is pending, which reads as an infinite "Connecting…"),
+   * then start the session under a timeout. */
   SomaGuide.prototype._openVoice = function () {
     var self = this;
     this._setMode('voice');
-    this._$('.sg-voice-status').textContent = 'Connecting…';
-    this._startConversation(false).then(function () {
-      self._$('.sg-voice-status').textContent = 'Listening…';
+    var statusEl = this._$('.sg-voice-status');
+    statusEl.textContent = 'Connecting…';
+
+    var micReady;
+    var md = (typeof navigator !== 'undefined') && navigator.mediaDevices;
+    if (md && md.getUserMedia) {
+      statusEl.textContent = 'Allow microphone access to talk…';
+      micReady = md.getUserMedia({ audio: true }).then(function (stream) {
+        /* Permission secured — release the probe stream; the SDK opens its own. */
+        try { stream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {}
+        statusEl.textContent = 'Connecting…';
+      });
+    } else {
+      micReady = Promise.resolve();
+    }
+
+    var timeoutMs = (this.cfg.voiceConnectTimeoutMs !== undefined)
+      ? this.cfg.voiceConnectTimeoutMs : VOICE_CONNECT_TIMEOUT_MS;
+    var connectTimer = setTimeout(function () {
+      if (self.mode === 'voice' && !self._convConnected) {
+        statusEl.textContent =
+          'Taking too long to connect — tap the circle to retry, or use 💬 text chat.';
+      }
+    }, timeoutMs);
+
+    micReady.then(function () {
+      return self._startConversation(false);
+    }).then(function () {
+      clearTimeout(connectTimer);
+      if (self.mode === 'voice') statusEl.textContent = 'Listening…';
     }).catch(function (e) {
+      clearTimeout(connectTimer);
       console.warn('[SomaGuide] voice error', e);
+      if (self.mode !== 'voice') return;
       var name = self.cfg.persona.name || 'I';
-      self._$('.sg-voice-status').textContent = name + " can't connect — try text chat instead.";
+      var errName = e && e.name;
+      if (errName === 'NotAllowedError' || errName === 'PermissionDeniedError' || errName === 'SecurityError') {
+        statusEl.textContent =
+          'Microphone access is blocked. Click the 🔒 icon in the address bar to allow it, then tap the circle to try again.';
+      } else if (errName === 'NotFoundError' || errName === 'NotReadableError') {
+        statusEl.textContent = 'No working microphone found — try 💬 text chat instead.';
+      } else {
+        statusEl.textContent = name + " can't connect — tap the circle to retry, or use 💬 text chat.";
+      }
     });
   };
 
@@ -714,8 +852,11 @@
       }
     }
 
-    /* ── 2. Update narration / instruction text (synchronous — tests check here) ── */
-    this._$('.sg-wt-narration').textContent  = step.narration || '';
+    /* ── 2. Update narration / instruction text (synchronous — tests check here).
+     * Narration may carry inline [[cue]] markup — stripped for display/TTS;
+     * the parsed cues drive scripted choreography below. ── */
+    var parsed = parseNarration(step.narration || '');
+    this._$('.sg-wt-narration').textContent  = parsed.text;
     this._$('.sg-wt-instruction').textContent = step.instruction || '';
 
     var flatIdx   = this._wtFlatIndex(wt, this.wt.stepIndex, this.wt.subStepIndex);
@@ -737,6 +878,7 @@
     this._wtSatisfyPreconditions(step, function () {
       if (!self.wt) return; /* tour exited during async gate */
 
+      var scripted = parsed.cues.length > 0;
       var targetEl = null;
       if (step.target) {
         targetEl = document.querySelector(step.target);
@@ -752,7 +894,13 @@
             }
           }
         }
-        if (targetEl) {
+        if (targetEl && scripted) {
+          /* Scripted step: cues own all choreography; just bring the
+           * target into view so the script plays on-screen. */
+          if (typeof targetEl.scrollIntoView === 'function') {
+            targetEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          }
+        } else if (targetEl) {
           if (step.demo) {
             /* Choreographed: highlight lands when the cursor arrives at the
              * target (arrow → highlight → click). Fallback applies it anyway
@@ -774,21 +922,30 @@
 
       /* Store cursor target/action so the lead-in timer can be armed once audio
        * actually starts playing (in _ttsPlayBlob play().then() / no-TTS fallback).
-       * This ensures the 1200ms lead-in is relative to audio start, not ready-gate. */
-      self._pendingCursorTarget = targetEl || null;
-      self._pendingCursorDemo   = step.demo || null;
+       * This ensures the 1200ms lead-in is relative to audio start, not ready-gate.
+       * Scripted steps instead queue their cue list for the same arm points. */
+      if (scripted) {
+        self._pendingCursorTarget = null;
+        self._pendingCursorDemo   = null;
+        self._cueLastEl           = null;
+        self._pendingCues         = { cues: parsed.cues, step: step };
+      } else {
+        self._pendingCursorTarget = targetEl || null;
+        self._pendingCursorDemo   = step.demo || null;
+      }
 
       /* Auto-advance: fires ONLY via audio ended event (or muted fallback timer).
-       * For demo:'click' steps with the cursor in place, the advance is staged
-       * as an actual click: ripple at the target, beat, then advance — so when
-       * the next step navigates, the page opens *because* of the click. */
+       * For default-choreography demo:'click' steps with the cursor in place,
+       * the advance is staged as an actual click: ripple at the target, beat,
+       * then advance — so when the next step navigates, the page opens
+       * *because* of the click. Scripted steps stage their own clicks. */
       var onEnded = null;
       if (self._autoPlay && !self._autoStopped) {
         onEnded = function () {
           if (!(self._autoPlay && !self._autoStopped && self.wt)) return;
           var cursorInPlace = self._demoCursor &&
             self._demoCursor.classList.contains('sg-demo-cursor--visible');
-          if (step.demo === 'click' && cursorInPlace) {
+          if (!scripted && step.demo === 'click' && cursorInPlace) {
             self._demoRipple();
             var ct = (self.cfg.clickThroughDelayMs !== undefined)
               ? self.cfg.clickThroughDelayMs : CLICK_THROUGH_MS;
@@ -802,7 +959,7 @@
         };
       }
 
-      self._ttsSpeak(step.narration || '', onEnded);
+      self._ttsSpeak(parsed.text, onEnded);
     });
   };
 
@@ -998,6 +1155,7 @@
   };
 
   SomaGuide.prototype._demoStop = function () {
+    this._clearCueTimers();
     this._pendingCursorTarget = null;
     this._pendingCursorDemo   = null;
     this._pendingHighlightEl  = null;
@@ -1018,14 +1176,15 @@
     }
   };
 
-  SomaGuide.prototype._demoMoveTo = function (target, action) {
+  SomaGuide.prototype._demoMoveTo = function (target, action, travelOverrideMs) {
     var self = this;
     if (!target || typeof document === 'undefined') return;
     this._demoBuild();
     var cursor = this._demoCursor;
     if (!cursor) return;
 
-    var travel = (this.cfg.cursorTravelMs !== undefined) ? this.cfg.cursorTravelMs : CURSOR_TRAVEL_MS;
+    var travel = (travelOverrideMs != null) ? travelOverrideMs
+      : (this.cfg.cursorTravelMs !== undefined) ? this.cfg.cursorTravelMs : CURSOR_TRAVEL_MS;
     var rect = target.getBoundingClientRect();
     var destX = Math.round(rect.left + rect.width * 0.5 - 10);
     var destY = Math.round(rect.top - 8);
@@ -1070,14 +1229,111 @@
   SomaGuide.prototype._demoRipple = function () {
     if (!this._demoCursor || typeof document === 'undefined') return;
     var rect = this._demoCursor.getBoundingClientRect();
+    this._spawnRipple(rect.left - 6, rect.top - 6);
+  };
+
+  /* Ripple at an element: uses the cursor position when the cursor is
+   * visible (it should already be pointing there), else the element rect. */
+  SomaGuide.prototype._demoRippleAt = function (el) {
+    if (typeof document === 'undefined') return;
+    if (this._demoCursor && this._demoCursor.classList.contains('sg-demo-cursor--visible')) {
+      this._demoRipple();
+      return;
+    }
+    if (!el) return;
+    var r = el.getBoundingClientRect();
+    this._spawnRipple(r.left + r.width * 0.5 - 16, r.top + r.height * 0.5 - 16);
+  };
+
+  SomaGuide.prototype._spawnRipple = function (x, y) {
     var ripple = document.createElement('div');
     ripple.className = 'sg-demo-ripple';
-    ripple.style.left = (rect.left - 6) + 'px';
-    ripple.style.top  = (rect.top  - 6) + 'px';
+    ripple.style.left = x + 'px';
+    ripple.style.top  = y + 'px';
     document.body.appendChild(ripple);
     setTimeout(function () {
       if (ripple.parentNode) ripple.parentNode.removeChild(ripple);
     }, 700);
+  };
+
+  /* ── Scripted narration cues ─────────────────────────────────────────────── */
+
+  SomaGuide.prototype._clearCueTimers = function () {
+    this._cueTimers.forEach(function (t) { clearTimeout(t); });
+    this._cueTimers = [];
+    this._pendingCues = null;
+    this._cueLastEl = null;
+  };
+
+  /* Schedule the pending step's cues across the narration duration.
+   * Called when audio actually starts (or the no-TTS fallback engages),
+   * with the best-known duration in ms. */
+  SomaGuide.prototype._scheduleCues = function (durationMs) {
+    var self = this;
+    var pending = this._pendingCues;
+    if (!pending || !pending.cues.length) return;
+    this._pendingCues = null;
+    pending.cues.forEach(function (cue) {
+      var t = setTimeout(function () {
+        self._runCue(cue, pending.step);
+      }, Math.round(cue.frac * durationMs));
+      self._cueTimers.push(t);
+    });
+  };
+
+  SomaGuide.prototype._cueResolveEl = function (cue, step) {
+    if (cue.selector) {
+      var el = document.querySelector(cue.selector);
+      if (!el) console.warn('[SomaGuide] cue selector not found: ' + cue.selector);
+      return el;
+    }
+    if (this._cueLastEl) return this._cueLastEl;
+    if (step && step.target) return document.querySelector(step.target);
+    return null;
+  };
+
+  SomaGuide.prototype._runCue = function (cue, step) {
+    if (typeof document === 'undefined') return;
+    var el;
+    switch (cue.verb) {
+      case 'arrow':
+        el = this._cueResolveEl(cue, step);
+        if (el) {
+          this._cueLastEl = el;
+          this._demoMoveTo(el, null, cue.travelMs);
+        }
+        break;
+      case 'highlight':
+        el = this._cueResolveEl(cue, step);
+        if (el) {
+          this._cueLastEl = el;
+          this._applyHighlight(el);
+        }
+        break;
+      case 'unhighlight':
+        this._clearHighlight();
+        break;
+      case 'click':
+        el = this._cueResolveEl(cue, step);
+        if (el) this._cueLastEl = el;
+        this._demoRippleAt(el);
+        break;
+      case 'open':
+        if (cue.selector) this._wtOpenDropdown(cue.selector);
+        break;
+      case 'close':
+        this._wtCloseDropdowns();
+        break;
+      case 'scroll':
+        el = this._cueResolveEl(cue, step);
+        if (el && typeof el.scrollIntoView === 'function') {
+          this._cueLastEl = el;
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        break;
+      default:
+        console.warn('[SomaGuide] unknown cue verb: ' + cue.verb);
+    }
   };
 
   /* ── Resume / navigator ──────────────────────────────────────────────────── */
@@ -1273,7 +1529,7 @@
     self._convBuffer = null;
 
     return this._loadConvClass().then(function (Conversation) {
-      return Conversation.startSession({
+      var sessionOpts = {
         agentId: agentId,
         textOnly: textOnly === true ? true : undefined,
         onConnect: function () {
@@ -1306,6 +1562,16 @@
             if (status) status.textContent = 'Disconnected.';
           }
         }
+      };
+      return Conversation.startSession(sessionOpts).catch(function (err) {
+        /* Voice default transport (WebRTC in SDK 1.x) can fail on restrictive
+         * networks — retry once over plain WebSocket before giving up. */
+        if (textOnly === true) throw err;
+        console.warn('[SomaGuide] voice session failed, retrying over websocket', err);
+        var wsOpts = {};
+        for (var k in sessionOpts) wsOpts[k] = sessionOpts[k];
+        wsOpts.connectionType = 'websocket';
+        return Conversation.startSession(wsOpts);
       });
     }).then(function (conv) {
       self.conversation = conv;
@@ -1825,6 +2091,8 @@
 
     if (!this._ttsEnabled() || !text) {
       if (onEnded) self._autoTimer = setTimeout(onEnded, fallbackMs);
+      /* No audio: schedule scripted cues against the estimated duration */
+      self._scheduleCues(fallbackMs);
       /* Arm cursor immediately for the muted / no-TTS path — no audio to lead into */
       if (self._pendingCursorTarget && self._pendingCursorDemo) {
         var pt0 = self._pendingCursorTarget;
@@ -1915,6 +2183,10 @@
     }
 
     audio.play().then(function () {
+      /* Schedule scripted cues against the real clip duration when known */
+      var durMs = (audio.duration && isFinite(audio.duration))
+        ? Math.ceil(audio.duration * 1000) : fallbackMs;
+      self._scheduleCues(durMs);
       /* Arm cursor lead-in now that audio has actually started playing */
       var pt = self._pendingCursorTarget;
       var pd = self._pendingCursorDemo;
@@ -1928,7 +2200,9 @@
       }
       self._ttsPrefetchNext();
     }).catch(function () {
-      /* Autoplay blocked — fall back to timer, no cursor */
+      /* Autoplay blocked — fall back to timer, no cursor; scripted cues
+       * still play against the text-length estimate. */
+      self._scheduleCues(fallbackMs);
       if (onEnded) {
         clearTimeout(self._autoTimer);
         self._autoTimer = setTimeout(onEnded, fallbackMs);
@@ -1962,7 +2236,7 @@
     var prefetchAppId = this.cfg.tenantId || this.cfg.persona.id || this.cfg.persona.name || 'unknown';
     var url = this.cfg.ttsProxyUrl +
       '?action=tts' +
-      '&text=' + encodeURIComponent(nextStep.narration) +
+      '&text=' + encodeURIComponent(stripCues(nextStep.narration)) +
       '&agent_id=' + encodeURIComponent(this.cfg.voiceAgentId) +
       '&app_id=' + encodeURIComponent(prefetchAppId);
 
@@ -1994,14 +2268,14 @@
       this._ttsStop();
     } else if (this.mode === 'walkthrough' && this.wt) {
       var step = this._wtCurrentStep();
-      if (step) this._ttsSpeak(step.narration || '');
+      if (step) this._ttsSpeak(stripCues(step.narration));
     }
   };
 
   SomaGuide.prototype._ttsReplay = function () {
     if (!this.wt) return;
     var step = this._wtCurrentStep();
-    if (step) this._ttsSpeak(step.narration || '');
+    if (step) this._ttsSpeak(stripCues(step.narration));
   };
 
   SomaGuide.prototype._updateMuteBtn = function () {
@@ -2018,6 +2292,7 @@
     if (typeof document === 'undefined') {
       return [{ message: 'verify() requires a DOM environment' }];
     }
+    var KNOWN_CUE_VERBS = ['arrow', 'highlight', 'unhighlight', 'click', 'open', 'close', 'scroll'];
     function checkStep(wtId, stepPath, step) {
       if (!step.narration) {
         issues.push({ walkthrough: wtId, step: stepPath, issue: 'empty narration' });
@@ -2030,6 +2305,19 @@
         var dp = document.querySelector(step.requires.dropdown);
         if (!dp) issues.push({ walkthrough: wtId, step: stepPath, issue: 'requires.dropdown not found: ' + step.requires.dropdown });
       }
+      parseNarration(step.narration || '').cues.forEach(function (cue) {
+        if (KNOWN_CUE_VERBS.indexOf(cue.verb) === -1) {
+          issues.push({ walkthrough: wtId, step: stepPath, issue: 'unknown cue verb: ' + cue.verb });
+        }
+        if (cue.selector) {
+          var cel = null;
+          try { cel = document.querySelector(cue.selector); } catch (e) {
+            issues.push({ walkthrough: wtId, step: stepPath, issue: 'invalid cue selector: ' + cue.selector });
+            return;
+          }
+          if (!cel) issues.push({ walkthrough: wtId, step: stepPath, issue: 'cue selector not found: ' + cue.selector });
+        }
+      });
     }
     (config.walkthroughs || []).forEach(function (wt) {
       (wt.steps || []).forEach(function (step, i) {
@@ -2043,6 +2331,8 @@
   };
 
   /* ── Public API ── */
+  SomaGuide.parseNarration = parseNarration;
+  SomaGuide.stripCues      = stripCues;
   SomaGuide.prototype.open    = function () { this._openIdle(false); };
   SomaGuide.prototype.minimize = function () { this._minimize(); };
   SomaGuide.prototype.startWalkthrough = function (id, step) { this._wtStart(id, step || 0, -1); };

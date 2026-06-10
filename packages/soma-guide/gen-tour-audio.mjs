@@ -27,6 +27,13 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname  = dirname(__filename);
 const ROOT = join(__dirname, '..');
 
+/* ── Cue stripping (MUST match stripCues in soma-guide.js) ──
+ * Narrations may carry inline [[cue]] choreography markup; audio is
+ * synthesized and hashed from the stripped text only. */
+function stripCues(raw) {
+  return String(raw == null ? '' : raw).replace(/\s*\[\[(.*?)\]\](?!\])/g, '').replace(/^\s+/, '');
+}
+
 /* ── Hash function (MUST match SomaGuide.prototype._tourAudioHash in soma-guide.js) ── */
 function tourAudioHash(agentId, narration) {
   const s = (agentId || '') + '|' + (narration || '');
@@ -57,13 +64,15 @@ const seen = new Set();
 for (const wt of (cfg.walkthroughs || [])) {
   for (const step of (wt.steps || [])) {
     if (step.narration) {
-      const hash = tourAudioHash(agentId, step.narration);
-      if (!seen.has(hash)) { seen.add(hash); narrations.push({ text: step.narration, hash }); }
+      const text = stripCues(step.narration);
+      const hash = tourAudioHash(agentId, text);
+      if (!seen.has(hash)) { seen.add(hash); narrations.push({ text, hash }); }
     }
     for (const sub of (step.substeps || [])) {
       if (sub.narration) {
-        const hash = tourAudioHash(agentId, sub.narration);
-        if (!seen.has(hash)) { seen.add(hash); narrations.push({ text: sub.narration, hash }); }
+        const text = stripCues(sub.narration);
+        const hash = tourAudioHash(agentId, text);
+        if (!seen.has(hash)) { seen.add(hash); narrations.push({ text, hash }); }
       }
     }
   }
