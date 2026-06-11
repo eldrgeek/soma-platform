@@ -4,3 +4,9 @@
 /soma-guide.css
   Access-Control-Allow-Origin: *
   Cache-Control: public, max-age=300
+/soma-owner.js
+  Access-Control-Allow-Origin: *
+  Cache-Control: public, max-age=300
+/soma-edit.js
+  Access-Control-Allow-Origin: *
+  Cache-Control: public, max-age=300

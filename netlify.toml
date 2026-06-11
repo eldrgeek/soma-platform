@@ -1,6 +1,9 @@
 [build]
   publish = "dist"
 
+[functions]
+  directory = "netlify/functions"
+
 [[headers]]
   for = "/soma-guide.js"
   [headers.values]
@@ -18,3 +21,16 @@
   [headers.values]
     Access-Control-Allow-Origin = "*"
     Cache-Control = "public, max-age=300"
+
+[[headers]]
+  for = "/soma-edit.js"
+  [headers.values]
+    Access-Control-Allow-Origin = "*"
+    Cache-Control = "public, max-age=300"
+
+[[headers]]
+  for = "/.netlify/functions/soma-content"
+  [headers.values]
+    Access-Control-Allow-Origin = "*"
+    Access-Control-Allow-Methods = "GET, PUT, OPTIONS"
+    Access-Control-Allow-Headers = "Content-Type"
