@@ -1,14 +1,16 @@
 /* soma-content — content store API for soma-edit.js
  *
- * GET  ?site=<siteId>&key=<contentKey>        → { content, versionCount }
- * PUT  { site, key, content, token }           → { ok } | { error }
+ * Storage: GitHub Gist (keyed JSON, no SDK required)
+ *   GITHUB_CONTENT_TOKEN  — Personal access token with gist scope
+ *   SOMA_CONTENT_GIST_ID  — ID of the private gist holding the store
+ *   SOMA_OWNER_SECRET     — The plain secret; SHA-256 of it is the write token
  *
- * Storage: Netlify Blobs (keyed by site__key)
- * Auth: token must equal SHA-256(SOMA_OWNER_SECRET) env var
- * Versioned: keeps last 10 prior versions per key
+ * GET  ?site=<siteId>&key=<contentKey>          → { content, versionCount }
+ * PUT  { site, key, content, token }             → { ok } | { error }
+ *
+ * Versioned: keeps last 10 prior values per key
  */
 
-const { getStore } = require('@netlify/blobs');
 const crypto = require('crypto');
 
 const CORS = {
@@ -18,8 +20,43 @@ const CORS = {
   'Content-Type': 'application/json',
 };
 
-function json(statusCode, body) {
+function reply(statusCode, body) {
   return { statusCode, headers: CORS, body: JSON.stringify(body) };
+}
+
+/* Read the full gist store as a parsed object */
+async function readStore(gistId, token) {
+  const res = await fetch(`https://api.github.com/gists/${gistId}`, {
+    headers: {
+      'Authorization': 'token ' + token,
+      'Accept': 'application/vnd.github+json',
+      'User-Agent': 'soma-content-function',
+    },
+  });
+  if (!res.ok) throw new Error('gist read failed: ' + res.status);
+  const gist = await res.json();
+  const raw = gist.files['soma-content.json'] && gist.files['soma-content.json'].content;
+  if (!raw) return {};
+  try { return JSON.parse(raw); } catch (e) { return {}; }
+}
+
+/* Write the full store object back to the gist */
+async function writeStore(gistId, token, store) {
+  const res = await fetch(`https://api.github.com/gists/${gistId}`, {
+    method: 'PATCH',
+    headers: {
+      'Authorization': 'token ' + token,
+      'Accept': 'application/vnd.github+json',
+      'Content-Type': 'application/json',
+      'User-Agent': 'soma-content-function',
+    },
+    body: JSON.stringify({
+      files: {
+        'soma-content.json': { content: JSON.stringify(store, null, 2) },
+      },
+    }),
+  });
+  if (!res.ok) throw new Error('gist write failed: ' + res.status);
 }
 
 exports.handler = async (event) => {
@@ -27,67 +64,79 @@ exports.handler = async (event) => {
     return { statusCode: 200, headers: CORS, body: '' };
   }
 
-  const store = getStore('soma-content');
+  const gistId = process.env.SOMA_CONTENT_GIST_ID;
+  const ghToken = process.env.GITHUB_CONTENT_TOKEN;
+  const ownerSecret = process.env.SOMA_OWNER_SECRET;
 
-  /* ── GET: read canonical content ─────────────────────────────────────────── */
+  if (!gistId || !ghToken) {
+    return reply(503, { error: 'content store not configured (missing SOMA_CONTENT_GIST_ID or GITHUB_CONTENT_TOKEN)' });
+  }
+
+  /* ── GET: read canonical content ──────────────────────────────────────── */
   if (event.httpMethod === 'GET') {
     const params = event.queryStringParameters || {};
     const { site, key } = params;
-    if (!site || !key) return json(400, { error: 'site and key required' });
+    if (!site || !key) return reply(400, { error: 'site and key required' });
+
+    let store;
+    try { store = await readStore(gistId, ghToken); } catch (e) {
+      return reply(502, { error: 'store read failed: ' + e.message });
+    }
 
     const blobKey = site + '__' + key;
-    const raw = await store.get(blobKey).catch(() => null);
-    if (!raw) return json(200, { content: null, versionCount: 0 });
+    const entry = store[blobKey];
+    if (!entry) return reply(200, { content: null, versionCount: 0 });
 
-    let data;
-    try { data = JSON.parse(raw); } catch (e) { return json(200, { content: null, versionCount: 0 }); }
-
-    return json(200, {
-      content: data.current !== undefined ? data.current : null,
-      versionCount: Array.isArray(data.versions) ? data.versions.length : 0,
+    return reply(200, {
+      content: entry.current !== undefined ? entry.current : null,
+      versionCount: Array.isArray(entry.versions) ? entry.versions.length : 0,
     });
   }
 
-  /* ── PUT: save canonical content (owner-only) ────────────────────────────── */
+  /* ── PUT: save canonical content (owner-only) ─────────────────────────── */
   if (event.httpMethod === 'PUT') {
-    const secret = process.env.SOMA_OWNER_SECRET;
-    if (!secret) return json(503, { error: 'content store not configured (missing SOMA_OWNER_SECRET)' });
+    if (!ownerSecret) return reply(503, { error: 'owner auth not configured' });
 
     let body;
     try { body = JSON.parse(event.body || '{}'); } catch (e) {
-      return json(400, { error: 'invalid JSON body' });
+      return reply(400, { error: 'invalid JSON body' });
     }
 
     const { site, key, content, token } = body;
     if (!site || !key || content === undefined) {
-      return json(400, { error: 'site, key, content required' });
+      return reply(400, { error: 'site, key, content required' });
     }
 
-    /* Verify owner token = SHA-256(SOMA_OWNER_SECRET) */
-    const expected = crypto.createHash('sha256').update(secret).digest('hex');
+    /* Verify: token must be SHA-256(SOMA_OWNER_SECRET) */
+    const expected = crypto.createHash('sha256').update(ownerSecret).digest('hex');
     if (!token || token !== expected) {
-      return json(403, { error: 'unauthorized' });
+      return reply(403, { error: 'unauthorized' });
+    }
+
+    let store;
+    try { store = await readStore(gistId, ghToken); } catch (e) {
+      return reply(502, { error: 'store read failed: ' + e.message });
     }
 
     const blobKey = site + '__' + key;
-    const raw = await store.get(blobKey).catch(() => null);
-    let existing = null;
-    if (raw) { try { existing = JSON.parse(raw); } catch (e) {} }
-
-    const versions = existing && Array.isArray(existing.versions) ? existing.versions.slice() : [];
-    if (existing && existing.current !== undefined) {
+    const existing = store[blobKey] || {};
+    const versions = Array.isArray(existing.versions) ? existing.versions.slice() : [];
+    if (existing.current !== undefined) {
       versions.push({ content: existing.current, savedAt: existing.updatedAt || null });
     }
 
-    const newData = {
+    store[blobKey] = {
       current: content,
       updatedAt: new Date().toISOString(),
       versions: versions.slice(-10), /* keep last 10 for rollback */
     };
 
-    await store.set(blobKey, JSON.stringify(newData));
-    return json(200, { ok: true });
+    try { await writeStore(gistId, ghToken, store); } catch (e) {
+      return reply(502, { error: 'store write failed: ' + e.message });
+    }
+
+    return reply(200, { ok: true });
   }
 
-  return json(405, { error: 'method not allowed' });
+  return reply(405, { error: 'method not allowed' });
 };

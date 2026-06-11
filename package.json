@@ -1,8 +1,5 @@
 {
   "name": "soma-platform",
   "private": true,
-  "description": "SOMA CDN platform — widget engines + content primitives",
-  "dependencies": {
-    "@netlify/blobs": "^8.1.0"
-  }
+  "description": "SOMA CDN platform — widget engines + content primitives"
 }
