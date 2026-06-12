@@ -35,8 +35,10 @@ Alternative: load from `https://soma-guide.netlify.app/soma-guide.js` via `scrip
 ## Follow-ups
 
 - **Distinct Ariadne voice**: provision her own ElevenLabs voice agent; update `voiceAgentId` in `ariadne-config.js`
-- **Auto-mapper**: port Yeshie's perceive engine to scan a page's headings/links/roles and build a real `siteMap` + `walkthroughs` at runtime — inject before the engine
-- **Site-aware hand-off**: if `window.SomaGuideConfig` already exists on the page (e.g. Bill on Legends, Proteus on Levinese), skip injection and let the native guide take over
+- ~~**Auto-mapper**: port Yeshie's perceive engine to scan a page's headings/links/roles and build a real `siteMap` + `walkthroughs` at runtime — inject before the engine~~ **Done (Phase B)** — `packages/auto-mapper/` + `vendor/auto-mapper.js`; `perceive.js` uses it when available
+- ~~**Site-aware hand-off**: if `window.SomaGuideConfig` already exists on the page (e.g. Bill on Legends, Proteus on Levinese), skip injection and let the native guide take over~~ **Done** — guard added at top of `perceive.js`
+- **LLM refinement pass**: add an optional post-perceive LLM call to improve archetype classification and step narration; extension points are marked `LLM_HOOK` in `auto-mapper.js`
+- **Fragment persistence**: POST the auto-mapper Yeshie fragment to a mapper endpoint for accumulation into shared site models (Phase C cold-site falsifier)
 
 ## Architecture
 

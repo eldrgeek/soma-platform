@@ -4,13 +4,13 @@
  * Runs in the MAIN world (injected by background.js) before the soma-guide
  * engine loads. On each toolbar click:
  *   - Widget already running → toggle open / minimize.
- *   - Widget absent → perceive the live page DOM, build a dynamic
- *     SomaGuideConfig (site-aware greeting + walkthrough), and let the engine
- *     auto-init on the next script injection.
+ *   - window.SomaGuideConfig already exists (native/site-specific config) → skip generation.
+ *   - Widget absent → use window.AutoMapper (injected by background.js from vendor/auto-mapper.js)
+ *     to perceive the live DOM, build a SomaGuideConfig via AutoMapperConverter, and let the
+ *     engine auto-init. Falls back to built-in nav-tree perception when AutoMapper unavailable.
  *
- * The config sets autoStartWalkthrough so the engine immediately begins the
- * generated tour (and speaks the first step's narration) instead of silently
- * showing the idle panel.
+ * Phase B wiring: background.js injects vendor/auto-mapper.js → vendor/converter.js → perceive.js
+ * so window.AutoMapper and window.AutoMapperConverter are available here.
  */
 (function (global) {
   /* ── Ariadne persona constants ─────────────────────────────────────────── */
@@ -27,6 +27,13 @@
     } else {
       global.somaGuide.minimize();
     }
+    return;
+  }
+
+  /* ── Site-aware hand-off: native config already present — skip generation.
+   * Bill on Legends, Proteus on Levinese, etc. set window.SomaGuideConfig
+   * before this script runs. We honour that config and do nothing. ── */
+  if (global.SomaGuideConfig) {
     return;
   }
 
@@ -380,6 +387,45 @@
   }
 
   /* ── Run perceive and wire up config for the engine ────────────────────── */
+
+  /* Fast path: use AutoMapper (injected by background.js) for richer perception.
+   * AutoMapper produces full ARIA-role affordances, landmarks, archetype guess.
+   * AutoMapperConverter merges the result into a SomaGuideConfig in one call.
+   * Falls back to the built-in nav-tree perceive() when AutoMapper is unavailable
+   * (e.g. isolated test environments, or if the vendor file failed to inject). */
+  if (global.AutoMapper && global.AutoMapperConverter) {
+    var personaCfg = {
+      name:          PERSONA_NAME,
+      avatar:        '🧵',
+      greeting:      "Hi! I'm " + PERSONA_NAME + " — ask me anything about this page, or take a tour.",
+      askGreeting:   'Ask me anything about this page! Or click "Take a tour" below to explore.',
+      shortGreeting: "Hi! I'm " + PERSONA_NAME + '. Need help finding something?',
+      tagline:       'Your guide through any unfamiliar page.',
+    };
+    var pageNode = global.AutoMapper.perceive(document, window);
+    var generatedCfg = global.AutoMapperConverter.pageNodeToSomaConfig(pageNode, personaCfg);
+    global.SomaGuideConfig = Object.assign(generatedCfg, {
+      voiceAgentId: VOICE_AGENT_ID,
+      ttsProxyUrl:  TTS_PROXY_URL,
+      inferenceUrl: INFERENCE_URL,
+      askFirst:     true,
+    });
+    /* Expose both formats for devtools inspection */
+    global._somaAriadnePageNode = pageNode;
+    global._somaAriadneMap = {
+      title:           pageNode.title,
+      metaDescription: pageNode.metaDescription,
+      headingOutline:  pageNode.headings.map(function (h) { return h.text; }),
+      archetype:       pageNode.archetype,
+      framework:       pageNode.framework,
+      affordances:     pageNode.affordances,
+      primaryAffordances: pageNode.primaryAffordances,
+    };
+    return;
+  }
+
+  /* Fallback: built-in nav-tree perception (kept for environments where
+   * the auto-mapper vendor files are not available). */
   var map = perceive(document);
   global.SomaGuideConfig = buildConfig(map);
   global._somaAriadneMap = map;   /* exposed for devtools inspection */

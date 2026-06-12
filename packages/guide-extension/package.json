@@ -6,6 +6,7 @@
   "scripts": {
     "test": "node --test tests/perceive.test.js",
     "sync-engine": "cp ../soma-guide/soma-guide.js vendor/soma-guide.js && cp ../soma-guide/soma-guide.css vendor/soma-guide.css && echo 'Engine synced from packages/soma-guide'",
+    "sync-mapper": "cp ../auto-mapper/auto-mapper.js vendor/auto-mapper.js && cp ../auto-mapper/converter.js vendor/converter.js && echo 'Auto-mapper synced from packages/auto-mapper'",
     "dev": "node watch.mjs"
   },
   "devDependencies": {
