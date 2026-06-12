@@ -80,7 +80,22 @@ async function ensureGateRegistered(origin) {
  * @param {boolean} resume  true when called from the gate (cross-nav), false on first click
  */
 async function injectAriadne(tabId, resume) {
-  // 1. perceive.js: builds SomaGuideConfig, or toggles if already running.
+  // 1a. auto-mapper.js: exposes window.AutoMapper (rich DOM perception).
+  await chrome.scripting.executeScript({
+    target: { tabId },
+    world: 'MAIN',
+    files: ['vendor/auto-mapper.js'],
+  });
+
+  // 1b. converter.js: exposes window.AutoMapperConverter (format adapters).
+  await chrome.scripting.executeScript({
+    target: { tabId },
+    world: 'MAIN',
+    files: ['vendor/converter.js'],
+  });
+
+  // 1c. perceive.js: uses AutoMapper to build SomaGuideConfig, or toggles if already running.
+  //     If window.SomaGuideConfig already exists (native/site-specific config), skips generation.
   await chrome.scripting.executeScript({
     target: { tabId },
     world: 'MAIN',

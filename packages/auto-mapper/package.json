@@ -1,0 +1,16 @@
+{
+  "name": "@soma-platform/auto-mapper",
+  "version": "1.0.0",
+  "description": "Browser-injectable DOM perception module — heuristic page map from live DOM, no LLM in hot path.",
+  "main": "auto-mapper.js",
+  "scripts": {
+    "test": "node --test tests/*.test.js"
+  },
+  "files": [
+    "auto-mapper.js",
+    "converter.js"
+  ],
+  "devDependencies": {
+    "jsdom": "^26.1.0"
+  }
+}
