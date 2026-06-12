@@ -19,9 +19,9 @@
   'use strict';
 
   /* ── Constants ──────────────────────────────────────────────────────────── */
-  /* Pinned — '@latest' silently picked up breaking SDK majors in the past.
-   * Bump deliberately and re-test voice after any change. */
-  const ELEVENLABS_ESM   = 'https://esm.sh/@elevenlabs/client@1.10.0';
+  /* Updated from @1.10.0 — pinned version stopped working with current ElevenLabs API.
+   * bill-talk.netlify.app uses @latest and voice works there; align to match. */
+  const ELEVENLABS_ESM   = 'https://esm.sh/@elevenlabs/client@latest';
   const VOICE_CONNECT_TIMEOUT_MS = 12000;
   const READY_GATE_MS    = 2500;   /* max wait for target to appear */
   const READY_GATE_TICK  = 80;     /* poll interval */
