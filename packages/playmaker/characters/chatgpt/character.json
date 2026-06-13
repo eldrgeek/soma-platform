@@ -1,0 +1,20 @@
+{
+  "characterId": "chatgpt",
+  "displayName": "ChatGPT",
+  "avatar": "🤖",
+  "backend": "ui-bridge",
+  "backendConfig": {
+    "relayTarget": null,
+    "notes": "W2 fills relayTarget with the Yeshie relay spec. See wave2-stubs/chatgpt-bridge/README.md and the ui-bridge backend stub in src/backends/ui-bridge.js."
+  },
+  "voiceAgentId": null,
+  "persona": {
+    "name": "ChatGPT",
+    "greeting": "ChatGPT is Eric's partner on the other side. Direct a message here and it will be relayed to his ChatGPT session — preserving the relationship and memory he's built there.",
+    "systemPromptSummary": "This character routes through Yeshie to Eric's real ChatGPT tab. No system prompt is injected — the message is relayed verbatim (with optional Writing Room context) into ChatGPT's composer. The reply is captured and attributed to this character in the Writing Room."
+  },
+  "capabilities": [
+    "persona-conversation"
+  ],
+  "notes": "INTEGRATION POINT FOR W2 (ChatGPT-as-character bridge, F4). The ui-bridge backend stub returns a graceful 'bridge not yet connected' placeholder until W2 lands. W2 should: (1) implement the Yeshie relay flow (open ChatGPT tab if absent, inject prompt, capture response), (2) update backendConfig.relayTarget with the relay spec, (3) replace the stub in src/backends/ui-bridge.js with the real relay call. Do NOT change this character.json schema or characterId — the Writing Room selector already references 'chatgpt'."
+}

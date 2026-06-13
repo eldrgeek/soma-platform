@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://soma-platform.dev/schema/character.schema.json",
+  "title": "Playmaker Character",
+  "description": "A Playmaker character = a named AI partner with a persona, knowledge pack, backend routing, and optional voice. Extends the soma-assistant manifest model: persona + knowledgeDoc + voice_id map directly onto manifest.persona fields.",
+  "type": "object",
+  "required": ["characterId", "displayName", "backend", "persona", "capabilities"],
+  "properties": {
+    "characterId": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+$",
+      "description": "Stable kebab-case identifier. Used as the selector key and in session attribution."
+    },
+    "displayName": {
+      "type": "string",
+      "description": "Human-readable name shown in the character selector and message labels."
+    },
+    "avatar": {
+      "type": "string",
+      "description": "Single emoji or short string used as the character's visual avatar."
+    },
+    "backend": {
+      "enum": ["soma-infer", "ui-bridge"],
+      "description": "Routing backend. soma-infer: POST to VPS /infer/chat with persona+knowledge. ui-bridge: relay through Yeshie hardened relay (F4, built by W2). Additional backends (e.g. api-direct) may be added in Wave 2."
+    },
+    "backendConfig": {
+      "type": "object",
+      "description": "Backend-specific config. For soma-infer: { inferUrl, assistantId }. For ui-bridge: { relayTarget } (W2 fills this).",
+      "additionalProperties": true
+    },
+    "voiceAgentId": {
+      "type": ["string", "null"],
+      "description": "ElevenLabs conversational agent ID for voice replies. null = pending (voice-clone workflow F2 fills this). When null, falls back to text-only TTS via voice_id or silent."
+    },
+    "persona": {
+      "type": "object",
+      "description": "Persona definition. Maps onto soma-assistant manifest.persona fields.",
+      "required": ["name"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Character name used in the system prompt and message attribution."
+        },
+        "voice_id": {
+          "type": ["string", "null"],
+          "description": "ElevenLabs voice ID for TTS narration (non-agent path). null = no TTS or use voiceAgentId path."
+        },
+        "greeting": {
+          "type": "string",
+          "description": "Opening message shown when the character is first addressed."
+        },
+        "personaDoc": {
+          "type": "string",
+          "description": "Path to persona.md relative to this package's characters/ dir. Resolved server-side by soma-infer."
+        },
+        "knowledgeDoc": {
+          "type": "string",
+          "description": "Path to knowledge.md relative to this package's characters/ dir. Resolved server-side by soma-infer."
+        },
+        "systemPromptSummary": {
+          "type": "string",
+          "description": "One-paragraph summary used as a fallback system prompt when personaDoc is not available server-side."
+        }
+      },
+      "additionalProperties": false
+    },
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "persona-conversation",
+          "answer-from-content",
+          "feedback-channel",
+          "margins-reactor"
+        ]
+      },
+      "minItems": 1,
+      "uniqueItems": true,
+      "description": "Capability set for this character. Subset of soma-assistant capability enum, plus playmaker-specific additions (margins-reactor for F7)."
+    },
+    "notes": {
+      "type": "string",
+      "description": "Human-readable notes for developers — integration status, TODOs, known limits."
+    }
+  },
+  "additionalProperties": false
+}

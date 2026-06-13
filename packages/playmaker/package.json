@@ -1,0 +1,25 @@
+{
+  "name": "@soma-platform/playmaker",
+  "version": "0.1.0",
+  "description": "Playmaker — character model, selector, and backend routing for Eric's AI-assisted writing platform",
+  "main": "src/index.js",
+  "type": "module",
+  "files": [
+    "src/",
+    "schema/",
+    "characters/"
+  ],
+  "scripts": {
+    "test": "node --test test/character-model.test.js test/character-selector.test.js"
+  },
+  "keywords": [
+    "soma",
+    "playmaker",
+    "character",
+    "playwriting"
+  ],
+  "license": "UNLICENSED",
+  "private": true,
+  "dependencies": {},
+  "devDependencies": {}
+}
