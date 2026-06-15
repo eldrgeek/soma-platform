@@ -1751,7 +1751,7 @@
     if (originalText && originalText.length > 30 && this._classifyFeedback(originalText)) {
       prefill = originalText;
     }
-    this._appendFeedbackForm(type, prefill);
+    this._showFeedbackModal(type, prefill);
   };
 
   /* Append an inline feedback capture form to the chat messages area. */
@@ -1867,6 +1867,190 @@
 
     msgs.appendChild(wrapper);
     msgs.scrollTop = msgs.scrollHeight;
+  };
+
+  /* Show a full-page modal overlay for bug/feature feedback capture.
+   * Cleaner than the inline form — single-purpose, no surrounding chat chrome.
+   * Auto-captures page URL and member identity from SomaAuth if available. */
+  SomaGuide.prototype._showFeedbackModal = function (type, prefill) {
+    var self = this;
+
+    var overlay = document.createElement('div');
+    overlay.className = 'sg-feedback-overlay';
+
+    var card = document.createElement('div');
+    card.className = 'sg-feedback-modal';
+    card.setAttribute('role', 'dialog');
+    card.setAttribute('aria-modal', 'true');
+    card.setAttribute('aria-label', type === 'bug' ? 'Bug Report' : 'Feature Request');
+
+    var closeBtn = document.createElement('button');
+    closeBtn.className = 'sg-feedback-modal-close';
+    closeBtn.innerHTML = '&times;';
+    closeBtn.setAttribute('aria-label', 'Close');
+    card.appendChild(closeBtn);
+
+    var titleEl = document.createElement('div');
+    titleEl.className = 'sg-feedback-modal-title';
+    titleEl.textContent = type === 'bug' ? '🐛 Bug Report' : '💡 Feature Request';
+    card.appendChild(titleEl);
+
+    var subEl = document.createElement('div');
+    subEl.className = 'sg-feedback-modal-sub';
+    subEl.textContent = type === 'bug'
+      ? "Describe what's broken — what page, what you clicked, what happened vs. what you expected."
+      : 'Describe the feature or improvement you\'d like to see on the site.';
+    card.appendChild(subEl);
+
+    var labelEl = document.createElement('label');
+    labelEl.className = 'sg-feedback-modal-label';
+    labelEl.textContent = type === 'bug' ? "What's broken?" : 'What would you like?';
+    card.appendChild(labelEl);
+
+    var textarea = document.createElement('textarea');
+    textarea.className = 'sg-feedback-modal-textarea';
+    textarea.placeholder = type === 'bug'
+      ? 'Include the page name, what you clicked, and what went wrong…'
+      : 'Describe the feature idea…';
+    if (prefill) textarea.value = prefill;
+    card.appendChild(textarea);
+
+    var identityDiv = document.createElement('div');
+    identityDiv.className = 'sg-feedback-modal-identity';
+    card.appendChild(identityDiv);
+
+    var btnRow = document.createElement('div');
+    btnRow.className = 'sg-feedback-modal-btn-row';
+
+    var cancelBtn = document.createElement('button');
+    cancelBtn.className = 'sg-feedback-modal-cancel';
+    cancelBtn.textContent = 'Cancel';
+
+    var submitBtn = document.createElement('button');
+    submitBtn.className = 'sg-feedback-modal-submit';
+    submitBtn.textContent = 'Submit';
+
+    btnRow.appendChild(cancelBtn);
+    btnRow.appendChild(submitBtn);
+    card.appendChild(btnRow);
+
+    var statusDiv = document.createElement('div');
+    statusDiv.className = 'sg-feedback-modal-status';
+    card.appendChild(statusDiv);
+
+    overlay.appendChild(card);
+    document.body.appendChild(overlay);
+    textarea.focus();
+
+    /* Collect context */
+    var pageCtx = (typeof location !== 'undefined') ? location.href : null;
+    var memberName = null;
+    var memberEmail = null;
+
+    function renderIdentity() {
+      var parts = [];
+      if (memberName) parts.push('Submitted by ' + memberName + (memberEmail ? ' \xb7 ' + memberEmail : ''));
+      else if (memberEmail) parts.push('Submitted by ' + memberEmail);
+      if (pageCtx) {
+        try { parts.push('Page: ' + new URL(pageCtx).pathname); } catch (e) { parts.push('Page: ' + pageCtx); }
+      }
+      identityDiv.textContent = parts.length
+        ? parts.join('  \xb7  ')
+        : 'Page context will be captured automatically.';
+    }
+
+    renderIdentity();
+
+    /* Try SomaAuth for member identity */
+    if (window.SomaAuth && typeof window.SomaAuth.getSession === 'function') {
+      var sessionResult = window.SomaAuth.getSession();
+      if (sessionResult && typeof sessionResult.then === 'function') {
+        sessionResult.then(function (result) {
+          /* SomaAuth.getSession returns {data: {session}} in some versions */
+          var session = result && result.data ? result.data.session : result;
+          if (session && session.user) {
+            memberEmail = session.user.email || null;
+            memberName = (session.user.user_metadata && session.user.user_metadata.full_name) || null;
+            renderIdentity();
+          }
+        }).catch(function () {});
+      }
+    }
+
+    function dismiss() {
+      if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+    }
+
+    function escListener(e) {
+      if (e.key === 'Escape') {
+        document.removeEventListener('keydown', escListener);
+        dismiss();
+      }
+    }
+    document.addEventListener('keydown', escListener);
+
+    closeBtn.addEventListener('click', dismiss);
+
+    cancelBtn.addEventListener('click', function () {
+      dismiss();
+      self._appendMessage('agent', 'No problem — let me know if you need anything else.');
+    });
+
+    overlay.addEventListener('click', function (e) {
+      if (e.target === overlay) {
+        dismiss();
+        self._appendMessage('agent', 'No problem — let me know if you need anything else.');
+      }
+    });
+
+    submitBtn.addEventListener('click', function () {
+      var desc = textarea.value.trim();
+      if (!desc) {
+        statusDiv.textContent = 'Please describe the ' + (type === 'bug' ? 'issue' : 'feature') + '.';
+        statusDiv.className = 'sg-feedback-modal-status sg-fms-err';
+        return;
+      }
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Sending…';
+      statusDiv.textContent = '';
+      statusDiv.className = 'sg-feedback-modal-status';
+
+      var assistantId = self.cfg.tenantId ||
+        (self.cfg.persona && (self.cfg.persona.id || self.cfg.persona.name)) || 'unknown';
+
+      fetch(self.cfg.feedbackUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: type,
+          description: desc,
+          member_name: memberName,
+          member_email: memberEmail,
+          page_context: pageCtx,
+          assistant_id: assistantId
+        })
+      }).then(function (res) {
+        return res.json().then(function (d) { return { status: res.status, data: d }; });
+      }).then(function (result) {
+        if (result.status === 200) {
+          dismiss();
+          var confirmMsg = type === 'bug'
+            ? 'Bug report logged — Greg will review it. Thanks for the heads-up!'
+            : 'Feature request logged — Greg will review it. Great idea!';
+          self._appendMessage('agent', confirmMsg);
+        } else {
+          statusDiv.textContent = (result.data && result.data.error) || 'Submission failed — please try again.';
+          statusDiv.className = 'sg-feedback-modal-status sg-fms-err';
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Submit';
+        }
+      }).catch(function () {
+        statusDiv.textContent = 'Network error — please try again.';
+        statusDiv.className = 'sg-feedback-modal-status sg-fms-err';
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Submit';
+      });
+    });
   };
 
   /* Classify a user message as 'factual', 'howto', or 'other'.

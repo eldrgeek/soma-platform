@@ -151,7 +151,7 @@ describe('Routing — _sendText precedence', function () {
     const g = new win.SomaGuide(fullConfig());
     g._sendText('I want to report a bug on the committee page');
     assert.equal(g.mode === 'walkthrough', false, 'must not start the tour');
-    assert.ok(win.document.querySelector('.sg-feedback-form'), 'feedback form must render');
+    assert.ok(win.document.querySelector('.sg-feedback-overlay'), 'feedback modal must render');
     assert.equal(g.wt, null);
   });
 
@@ -159,7 +159,7 @@ describe('Routing — _sendText precedence', function () {
     const win = makeWindow();
     const g = new win.SomaGuide(fullConfig());
     g._sendText('it would be great if the committee page had photos');
-    assert.ok(win.document.querySelector('.sg-feedback-form'), 'feedback form must render');
+    assert.ok(win.document.querySelector('.sg-feedback-overlay'), 'feedback modal must render');
     assert.equal(g.wt, null);
   });
 
@@ -227,7 +227,7 @@ describe('Feedback buttons — no ElevenLabs pre-start', function () {
     btns[1].click(); /* 🐛 Report a Bug */
     setTimeout(function () {
       assert.equal(g.mode, 'text');
-      assert.ok(win.document.querySelector('.sg-feedback-form'), 'feedback form must render');
+      assert.ok(win.document.querySelector('.sg-feedback-overlay'), 'feedback modal must render');
       assert.equal(win._convStarts, 0, 'ElevenLabs session must NOT start (its scripted greeting would land in the chat)');
       done();
     }, 30);
@@ -239,7 +239,7 @@ describe('Feedback buttons — no ElevenLabs pre-start', function () {
     g._openIdle(false);
     win.document.querySelectorAll('.sg-topic-btn--feedback')[0].click();
     setTimeout(function () {
-      assert.ok(win.document.querySelector('.sg-feedback-form'));
+      assert.ok(win.document.querySelector('.sg-feedback-overlay'));
       assert.equal(win._convStarts, 0);
       done();
     }, 30);
