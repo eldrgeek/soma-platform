@@ -342,10 +342,10 @@
   padding: 6px 8px;
   font-size: 0.9rem;
   cursor: pointer;
-  opacity: 0.55;
+  opacity: 0.75;
   transition: opacity 0.15s, background 0.15s, border-color 0.15s;
 }
-.sg-mic:hover { opacity: 0.9; background: #fff8e7; border-color: #c9a84c; }
+.sg-mic:hover { opacity: 1; background: #fff8e7; border-color: #c9a84c; }
 .sg-mic--listening {
   opacity: 1;
   background: #fff0f0;
