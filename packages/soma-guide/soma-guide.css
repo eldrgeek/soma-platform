@@ -84,6 +84,11 @@
   width: 220px;
 }
 
+/* Mode containers (idle / voice / text / walkthrough / tour bar) are switched
+ * via the `hidden` attribute in JS. Their own `display:flex/block` rules would
+ * otherwise override `hidden` and stack every mode at once — make `hidden` win. */
+.sg [hidden] { display: none !important; }
+
 /* ── Header ── */
 .sg-header {
   display: flex;
@@ -188,6 +193,38 @@
 .sg-topic-btn:hover {
   background: #ede7d3;
   border-color: #c9a84c;
+}
+
+/* ── Suggestion chips (conversational shell) ── */
+.sg-suggest {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px 2px 10px;
+}
+.sg-suggest-chip,
+.sg-suggest-more {
+  background: #f5f1e8;
+  border: 1px solid #e8dfc4;
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-family: inherit;
+  font-size: 0.78rem;
+  color: #060e18;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.sg-suggest-chip:hover,
+.sg-suggest-more:hover {
+  background: #ede7d3;
+  border-color: #c9a84c;
+}
+.sg-suggest-more {
+  background: transparent;
+  border-color: transparent;
+  color: #5f5e5a;
+  text-decoration: underline;
+  text-decoration-style: dotted;
 }
 
 /* ── Voice UI ── */

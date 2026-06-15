@@ -26,7 +26,7 @@
   const TTS_MS_PER_CHAR  = 85;     /* generous estimate; used for fallback timer */
   const TTS_FLOOR_MS     = 6000;   /* minimum fallback when TTS enabled */
   const TTS_BUFFER_MS    = 3500;   /* extra buffer added to known audio duration */
-  const SOMA_GUIDE_VERSION = '2026-0615b'; /* bump each build; used for stale-state guard */
+  const SOMA_GUIDE_VERSION = '2026-0615c'; /* bump each build; used for stale-state guard */
 
   /* ── SomaGuide class ────────────────────────────────────────────────────── */
   function SomaGuide(cfg) {
@@ -224,6 +224,7 @@
       '    </div>',
       '    <div class="sg-text-ui" hidden>',
       '      <div class="sg-messages" role="log" aria-live="polite"></div>',
+      '      <div class="sg-suggest" hidden></div>',
       '      <div class="sg-input-bar">',
       '        <input class="sg-input" type="text" placeholder="Ask me anything…" aria-label="Message">',
       '        <button class="sg-mic sg-btn-icon" title="Voice input" aria-label="Voice input">🎤</button>',
@@ -592,6 +593,70 @@
     var greeting = this.cfg.persona.askGreeting || this.cfg.persona.greeting || '';
     if (greeting) this._appendMessage('agent', greeting);
     this._$('.sg-input').focus();
+  };
+
+  /* Decluttered conversational shell (opt-in via cfg.conversationalShell).
+   * One prompt instead of the idle menu; the orb and tour bar are mode-gated so
+   * they never appear here. A few adaptive chips sit above the input and fade as
+   * they're used; a "What can <name> do?" chip expands the full list on demand. */
+  SomaGuide.prototype._openShell = function () {
+    this._setMode('text');
+    if (!this.introduced) {
+      var greeting = this.cfg.persona.greeting || '';
+      if (greeting) this._appendMessage('agent', greeting);
+      this._lsSet('introduced', '1');
+      this.introduced = true;
+    }
+    this._renderSuggestions(false);
+    var input = this._$('.sg-input');
+    if (input) input.focus();
+  };
+
+  SomaGuide.prototype._renderSuggestions = function (expandAll) {
+    var self = this;
+    var box = this._$('.sg-suggest');
+    if (!box) return;
+
+    var chips = (this.cfg.walkthroughs || []).map(function (w) {
+      return { id: w.id, label: w.label, kind: 'wt' };
+    });
+    if (this.cfg.feedbackUrl) {
+      chips.push({ id: 'fb-feature', label: 'Suggest a feature', kind: 'feature' });
+      chips.push({ id: 'fb-bug',     label: 'Report a bug',      kind: 'bug' });
+    }
+    if (!chips.length) { box.hidden = true; return; }
+
+    var usedRaw = this._lsGet('used-suggest') || '';
+    var used = usedRaw ? usedRaw.split(',') : [];
+
+    var shown;
+    if (expandAll) {
+      shown = chips;
+    } else {
+      var fresh = chips.filter(function (c) { return used.indexOf(c.id) === -1; });
+      shown = (fresh.length ? fresh : chips).slice(0, 3);
+    }
+
+    box.innerHTML = '';
+    shown.forEach(function (c) {
+      var b = document.createElement('button');
+      b.className = 'sg-suggest-chip';
+      b.textContent = c.label;
+      b.addEventListener('click', function () {
+        if (used.indexOf(c.id) === -1) { used.push(c.id); self._lsSet('used-suggest', used.join(',')); }
+        if (c.kind === 'wt') { self._wtStart(c.id, 0, -1); }
+        else { self._openText(); self._startFeedbackFlow(c.kind, ''); }
+      });
+      box.appendChild(b);
+    });
+    if (!expandAll && chips.length > shown.length) {
+      var more = document.createElement('button');
+      more.className = 'sg-suggest-more';
+      more.textContent = 'What can ' + (this.cfg.persona.name || 'I') + ' do?';
+      more.addEventListener('click', function () { self._renderSuggestions(true); });
+      box.appendChild(more);
+    }
+    box.hidden = false;
   };
 
   SomaGuide.prototype._setMode = function (mode) {
@@ -1601,6 +1666,9 @@
   SomaGuide.prototype._appendMessage = function (role, text) {
     var msgs = this._$('.sg-messages');
     if (!msgs) return;
+    /* Once the user actually engages, retire the suggestion chips — they're
+     * onboarding scaffolding, not permanent chrome. */
+    if (role === 'user') { var sug = this._$('.sg-suggest'); if (sug) sug.hidden = true; }
     var div = document.createElement('div');
     div.className = 'sg-msg sg-msg--' + role;
     var span = document.createElement('span');
@@ -1920,7 +1988,10 @@
   };
 
   /* ── Public API ── */
-  SomaGuide.prototype.open    = function () { this._openIdle(false); };
+  SomaGuide.prototype.open    = function () {
+    if (this.cfg.conversationalShell) { this._openShell(); }
+    else { this._openIdle(false); }
+  };
   SomaGuide.prototype.minimize = function () { this._minimize(); };
   SomaGuide.prototype.startWalkthrough = function (id, step) { this._wtStart(id, step || 0, -1); };
 

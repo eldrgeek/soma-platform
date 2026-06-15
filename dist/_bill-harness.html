@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bill shell harness</title>
+<link rel="stylesheet" href="./soma-guide.css">
+<style>
+  body { font-family: 'Inter', system-ui, sans-serif; margin: 0; background: #0d1b2a;
+    color: #e8eef5; min-height: 100vh; }
+  .hero { padding: 40px; }
+  .hero h1 { font-family: Georgia, serif; color: #c9a84c; font-size: 2.2rem; margin: 0 0 6px; }
+</style>
+</head>
+<body>
+  <div class="hero">
+    <h1>Legends of Basketball</h1>
+    <p>Membership site — harness for the Ask Bill conversational shell.</p>
+  </div>
+
+  <script>
+    window.SomaGuideConfig = {
+      conversationalShell: true,
+      inferenceUrl: 'https://example.invalid/ask',
+      ttsProxyUrl: 'https://example.invalid/tts',
+      persona: {
+        name: 'Bill',
+        avatar: '🏀',
+        greeting: "Hi! I'm Bill, your AI guide to the Legends of Basketball site. Ask me anything, or tell me what you want to do.",
+        shortGreeting: 'Welcome back! How can I help you today?'
+      },
+      feedbackUrl: '/.netlify/functions/submit-feedback',
+      walkthroughs: [
+        { id: 'tour',        label: 'Site Tour',                 steps: [] },
+        { id: 'find-member', label: 'How to find a member',      steps: [] },
+        { id: 'suggest',     label: 'How to suggest a feature',  steps: [] },
+        { id: 'use-bill',    label: 'How to use Ask Bill',       steps: [] }
+      ]
+    };
+  </script>
+  <script src="./soma-guide.js"></script>
+  <script>
+    window.addEventListener('load', function () {
+      setTimeout(function () { if (window.somaGuide) window.somaGuide.open(); }, 300);
+    });
+  </script>
+</body>
+</html>
