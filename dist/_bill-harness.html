@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bill testbed harness</title>
+<link rel="stylesheet" href="./soma-guide.css">
+<style>
+  body { font-family: 'Inter', system-ui, sans-serif; margin: 0; background: #0d1b2a; color: #e8eef5; }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 40px 24px 200px; }
+  h1 { font-family: Georgia, serif; color: #c9a84c; font-size: 2rem; margin: 0 0 4px; }
+  .sub { color: #9fb0c3; margin: 0 0 28px; }
+  .card { background: #13243a; border: 1px solid #253a55; border-radius: 12px; padding: 18px 20px; margin: 0 0 20px; }
+  .card h2 { font-size: 1.05rem; color: #e8eef5; margin: 0 0 12px; font-weight: 600; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
+  th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid #253a55; color: #cdd9e6; }
+  th { color: #8aa0b8; font-weight: 500; }
+  .btn { background: #c9a84c; color: #0d1b2a; border: none; border-radius: 8px; padding: 9px 16px; font-weight: 600; cursor: pointer; font-family: inherit; }
+  .btn.ghost { background: transparent; color: #c9a84c; border: 1px solid #c9a84c; }
+  .row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+  .add-form { margin-top: 14px; padding: 14px; border: 1px dashed #3a5273; border-radius: 8px; }
+  .add-form label { display: block; font-size: 0.82rem; color: #8aa0b8; margin: 8px 0 4px; }
+  .add-form input, .add-form select { width: 100%; box-sizing: border-box; padding: 8px; border-radius: 6px; border: 1px solid #3a5273; background: #0d1b2a; color: #e8eef5; font-family: inherit; }
+  .demo-bar { background: #102036; border: 1px solid #c9a84c44; border-radius: 12px; padding: 16px 20px; margin: 0 0 24px; }
+  .demo-bar p { margin: 0 0 10px; color: #c9a84c; font-size: 0.9rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Legends of Basketball</h1>
+  <p class="sub">Bill testbed — interactive controls so Bill can demonstrate "show" (and, later, "do").</p>
+
+  <div class="demo-bar">
+    <p>Ask Bill to show you how:</p>
+    <div class="row">
+      <button class="btn ghost" onclick="ask('add-member')">How do I add a member?</button>
+      <button class="btn ghost" onclick="ask('link-room')">How do I link a user to a room?</button>
+      <button class="btn ghost" onclick="ask('tour')">Give me the tour</button>
+    </div>
+  </div>
+
+  <div class="card" id="members-card">
+    <h2>Committee members</h2>
+    <table>
+      <thead><tr><th>Name</th><th>Role</th></tr></thead>
+      <tbody id="members-body">
+        <tr><td>Lionel Hollins</td><td>Chair</td></tr>
+        <tr><td>Purvis Short</td><td>Member</td></tr>
+      </tbody>
+    </table>
+    <div class="row">
+      <button class="btn" id="add-member-btn" onclick="document.getElementById('add-member-form').style.display='block'">+ Add member</button>
+    </div>
+    <div class="add-form" id="add-member-form" style="display:none;">
+      <label for="m-name">Name</label>
+      <input id="m-name" type="text" placeholder="e.g. Sam Jones">
+      <label for="m-role">Role</label>
+      <select id="m-role"><option>Member</option><option>Chair</option><option>Treasurer</option></select>
+      <div class="row"><button class="btn" id="save-member-btn">Save member</button></div>
+    </div>
+  </div>
+
+  <div class="card" id="rooms-card">
+    <h2>Rooms</h2>
+    <p style="color:#9fb0c3; font-size:0.9rem; margin:0 0 4px;">Assign members to discussion rooms.</p>
+    <div class="row">
+      <button class="btn" id="link-room-btn" onclick="document.getElementById('link-room-form').style.display='block'">Link user to room</button>
+    </div>
+    <div class="add-form" id="link-room-form" style="display:none;">
+      <label for="r-user">User</label>
+      <select id="r-user"><option>Lionel Hollins</option><option>Purvis Short</option></select>
+      <label for="r-room">Room</label>
+      <select id="r-room"><option>Scholarships</option><option>Membership</option><option>Chapter Presidents</option></select>
+      <div class="row"><button class="btn" id="save-link-btn">Link</button></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  window.SomaGuideConfig = {
+    conversationalShell: true,
+    inferenceUrl: 'https://example.invalid/ask',
+    ttsProxyUrl: 'https://example.invalid/tts',
+    voiceAgentId: 'agent_2401ks53q6t8e2drt1h7va3f2c52',
+    persona: {
+      name: 'Bill',
+      avatar: '🏀',
+      greeting: "Hi! I'm Bill. Ask me anything, or tell me what you want to do — I can show you how, or walk you through it.",
+      shortGreeting: 'Welcome back! How can I help?'
+    },
+    feedbackUrl: '/.netlify/functions/submit-feedback',
+    walkthroughs: [
+      { id: 'tour', label: 'Site Tour', steps: [
+        { target: '#members-card', narration: 'This is the Committee members list — everyone on the committee shows up here.', instruction: 'The members list' },
+        { target: '#rooms-card', narration: 'And down here you assign members to discussion rooms.', instruction: 'Rooms' }
+      ]},
+      { id: 'find-member', label: 'How to find a member', steps: [
+        { target: '#members-card', narration: 'Members are listed here by name and role. Scan the table to find someone.', instruction: 'Browse the members list' }
+      ]},
+      { id: 'add-member', label: 'How to add a member', steps: [
+        { target: '#add-member-btn', demo: 'click', narration: 'To add a member, start with the Add member button.', instruction: 'Click + Add member' },
+        { target: '#add-member-form', narration: 'Fill in the name and pick a role, then Save member. That is all it takes.', instruction: 'Enter name + role, then Save' }
+      ]},
+      { id: 'link-room', label: 'How to link a user to a room', steps: [
+        { target: '#link-room-btn', demo: 'click', narration: 'To link a user to a room, open the Link user to room control.', instruction: 'Click Link user to room' },
+        { target: '#link-room-form', narration: 'Choose the user, choose the room, then Link. Done.', instruction: 'Pick user + room, then Link' }
+      ]},
+      { id: 'suggest', label: 'How to suggest a feature', steps: [
+        { target: '#members-card', narration: 'See something you would change? Tell me and I will log a feature request for the team.', instruction: 'Just describe what you want' }
+      ]}
+    ]
+  };
+
+  function ask(id) {
+    if (!window.somaGuide) return;
+    window.somaGuide.open();
+    setTimeout(function () { window.somaGuide.startWalkthrough(id); }, 200);
+  }
+</script>
+<script src="./soma-guide.js"></script>
+<script>
+  window.addEventListener('load', function () {
+    setTimeout(function () { if (window.somaGuide) window.somaGuide.open(); }, 300);
+  });
+</script>
+</body>
+</html>

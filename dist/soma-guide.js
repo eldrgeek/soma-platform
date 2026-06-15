@@ -26,7 +26,7 @@
   const TTS_MS_PER_CHAR  = 85;     /* generous estimate; used for fallback timer */
   const TTS_FLOOR_MS     = 6000;   /* minimum fallback when TTS enabled */
   const TTS_BUFFER_MS    = 3500;   /* extra buffer added to known audio duration */
-  const SOMA_GUIDE_VERSION = '2026-0615b'; /* bump each build; used for stale-state guard */
+  const SOMA_GUIDE_VERSION = '2026-0615c'; /* bump each build; used for stale-state guard */
 
   /* ── SomaGuide class ────────────────────────────────────────────────────── */
   function SomaGuide(cfg) {
@@ -77,6 +77,7 @@
 
     this._build();
     this._enableDrag();
+    this._enableResize();
     this._bindEvents();
     console.log('[SomaGuide] v' + SOMA_GUIDE_VERSION);
 
@@ -213,6 +214,10 @@
       '    </div>',
       '  </div>',
       '  <div class="sg-body">',
+      '    <div class="sg-io-toggle" hidden role="group" aria-label="Response mode">',
+      '      <button class="sg-io-btn sg-io-text" aria-pressed="true">💬 Text</button>',
+      '      <button class="sg-io-btn sg-io-voice" aria-pressed="false">🎙 Voice</button>',
+      '    </div>',
       '    <div class="sg-idle-ui">',
       '      <p class="sg-greeting"></p>',
       '      <div class="sg-topic-list"></div>',
@@ -224,6 +229,7 @@
       '    </div>',
       '    <div class="sg-text-ui" hidden>',
       '      <div class="sg-messages" role="log" aria-live="polite"></div>',
+      '      <div class="sg-suggest" hidden></div>',
       '      <div class="sg-input-bar">',
       '        <input class="sg-input" type="text" placeholder="Ask me anything…" aria-label="Message">',
       '        <button class="sg-mic sg-btn-icon" title="Voice input" aria-label="Voice input">🎤</button>',
@@ -307,15 +313,84 @@
     document.addEventListener('touchend', onUp);
   };
 
+  /* ── Resize (custom handles on all four corners) ── */
+  SomaGuide.prototype._enableResize = function () {
+    var self = this;
+    var panel = this._$('.sg-panel');
+    if (!panel) return;
+    /* [name, affectsLeft, affectsTop] */
+    var corners = [['nw', 1, 1], ['ne', 0, 1], ['sw', 1, 0], ['se', 0, 0]];
+    corners.forEach(function (c) {
+      var name = c[0], affL = c[1], affT = c[2];
+      var h = document.createElement('div');
+      h.className = 'sg-resize-h sg-resize-' + name;
+      self.el.appendChild(h);
+
+      var active = false, sx, sy, sw, sh, sLeft, sTop;
+      function down(cx, cy) {
+        var r = self.el.getBoundingClientRect();
+        /* anchor to left/top so all-corner math is consistent */
+        self.el.style.left = r.left + 'px';
+        self.el.style.top = r.top + 'px';
+        self.el.style.right = 'auto';
+        self.el.style.bottom = 'auto';
+        sx = cx; sy = cy; sw = r.width; sh = r.height; sLeft = r.left; sTop = r.top;
+        active = true;
+        document.body.style.userSelect = 'none';
+      }
+      function move(cx, cy) {
+        if (!active) return;
+        var dx = cx - sx, dy = cy - sy;
+        var minW = 280, minH = 300;
+        var maxW = Math.min(window.innerWidth - 20, 760), maxH = window.innerHeight - 20;
+        var w = affL ? sw - dx : sw + dx;
+        var ht = affT ? sh - dy : sh + dy;
+        w = Math.max(minW, Math.min(maxW, w));
+        ht = Math.max(minH, Math.min(maxH, ht));
+        panel.style.width = w + 'px';
+        panel.style.height = ht + 'px';
+        if (affL) self.el.style.left = (sLeft + (sw - w)) + 'px';
+        if (affT) self.el.style.top = (sTop + (sh - ht)) + 'px';
+      }
+      function up() {
+        if (!active) return;
+        active = false;
+        document.body.style.userSelect = '';
+        self._lsSet('panel-w', parseInt(panel.style.width, 10) || '');
+        self._lsSet('panel-h', parseInt(panel.style.height, 10) || '');
+      }
+      h.addEventListener('mousedown', function (e) { down(e.clientX, e.clientY); e.preventDefault(); e.stopPropagation(); });
+      document.addEventListener('mousemove', function (e) { move(e.clientX, e.clientY); });
+      document.addEventListener('mouseup', up);
+      h.addEventListener('touchstart', function (e) { var t = e.touches[0]; down(t.clientX, t.clientY); }, { passive: true });
+      document.addEventListener('touchmove', function (e) { if (active) { var t = e.touches[0]; move(t.clientX, t.clientY); } }, { passive: true });
+      document.addEventListener('touchend', up);
+    });
+  };
+
+  SomaGuide.prototype._applySavedSize = function () {
+    var panel = this._$('.sg-panel');
+    if (!panel) return;
+    var w = this._lsGet('panel-w'), h = this._lsGet('panel-h');
+    if (w) panel.style.width = w + 'px';
+    if (h) panel.style.height = h + 'px';
+  };
+
   /* ── Bind events ── */
   SomaGuide.prototype._bindEvents = function () {
     var self = this;
 
-    this._$('.sg-fab').addEventListener('click', function () { self._openIdle(false); });
+    this._$('.sg-fab').addEventListener('click', function () { self.open(); });
     this._$('.sg-btn-min').addEventListener('click', function () { self._minimize(); });
     this._$('.sg-btn-close').addEventListener('click', function () { self._minimize(); });
-    this._$('.sg-btn-text').addEventListener('click', function () { self._openText(); });
-    this._$('.sg-btn-voice').addEventListener('click', function () { self._openVoice(); });
+    this._$('.sg-btn-text').addEventListener('click', function () { self._chooseText(); });
+    this._$('.sg-btn-voice').addEventListener('click', function () { self._chooseVoice(); });
+
+    /* Explicit output-mode toggle (Text / Voice) shown in the shell. */
+    var ioText = this._$('.sg-io-text');
+    var ioVoice = this._$('.sg-io-voice');
+    if (ioText)  ioText.addEventListener('click', function () { self._chooseText(); });
+    if (ioVoice) ioVoice.addEventListener('click', function () { self._chooseVoice(); });
 
     /* Orb is the tap-to-start target in voice mode.
      * First tap → connect; second tap (while active) → reset to invitation state.
@@ -594,6 +669,93 @@
     this._$('.sg-input').focus();
   };
 
+  /* Decluttered conversational shell (opt-in via cfg.conversationalShell).
+   * One prompt instead of the idle menu; the orb and tour bar are mode-gated so
+   * they never appear here. A few adaptive chips sit above the input and fade as
+   * they're used; a "What can <name> do?" chip expands the full list on demand. */
+  SomaGuide.prototype._openShell = function () {
+    this._setMode('text');
+    if (!this.introduced) {
+      var greeting = this.cfg.persona.greeting || '';
+      if (greeting) this._appendMessage('agent', greeting);
+      this._lsSet('introduced', '1');
+      this.introduced = true;
+    }
+    this._renderSuggestions(false);
+    /* Voice affordance: announce "you can talk to me" on first encounter by
+     * pulsing the Voice output toggle; it quiets once the user engages. */
+    var vbtn = this._$('.sg-io-voice');
+    if (vbtn && this.cfg.voiceAgentId && this._lsGet('voice-intro-done') !== '1') {
+      vbtn.classList.add('sg-io-voice--pulse');
+    }
+    var input = this._$('.sg-input');
+    if (input) input.focus();
+  };
+
+  SomaGuide.prototype._retireVoiceIntro = function () {
+    var vbtn = this._$('.sg-io-voice');
+    if (vbtn) vbtn.classList.remove('sg-io-voice--pulse');
+    this._lsSet('voice-intro-done', '1');
+  };
+
+  /* Output-mode choices (Text vs Voice), persisted so returning users get their pick. */
+  SomaGuide.prototype._chooseText = function () {
+    this._lsSet('io-mode', 'text');
+    if (this.cfg.conversationalShell) { this._openShell(); } else { this._openText(); }
+  };
+  SomaGuide.prototype._chooseVoice = function () {
+    this._lsSet('io-mode', 'voice');
+    this._retireVoiceIntro();
+    this._openVoice();
+  };
+
+  SomaGuide.prototype._renderSuggestions = function (expandAll) {
+    var self = this;
+    var box = this._$('.sg-suggest');
+    if (!box) return;
+
+    var chips = (this.cfg.walkthroughs || []).map(function (w) {
+      return { id: w.id, label: w.label, kind: 'wt' };
+    });
+    if (this.cfg.feedbackUrl) {
+      chips.push({ id: 'fb-feature', label: 'Suggest a feature', kind: 'feature' });
+      chips.push({ id: 'fb-bug',     label: 'Report a bug',      kind: 'bug' });
+    }
+    if (!chips.length) { box.hidden = true; return; }
+
+    var usedRaw = this._lsGet('used-suggest') || '';
+    var used = usedRaw ? usedRaw.split(',') : [];
+
+    var shown;
+    if (expandAll) {
+      shown = chips;
+    } else {
+      var fresh = chips.filter(function (c) { return used.indexOf(c.id) === -1; });
+      shown = (fresh.length ? fresh : chips).slice(0, 3);
+    }
+
+    box.innerHTML = '';
+    shown.forEach(function (c) {
+      var b = document.createElement('button');
+      b.className = 'sg-suggest-chip';
+      b.textContent = c.label;
+      b.addEventListener('click', function () {
+        if (used.indexOf(c.id) === -1) { used.push(c.id); self._lsSet('used-suggest', used.join(',')); }
+        if (c.kind === 'wt') { self._wtStart(c.id, 0, -1); }
+        else { self._openText(); self._startFeedbackFlow(c.kind, ''); }
+      });
+      box.appendChild(b);
+    });
+    if (!expandAll && chips.length > shown.length) {
+      var more = document.createElement('button');
+      more.className = 'sg-suggest-more';
+      more.textContent = 'What can ' + (this.cfg.persona.name || 'I') + ' do?';
+      more.addEventListener('click', function () { self._renderSuggestions(true); });
+      box.appendChild(more);
+    }
+    box.hidden = false;
+  };
+
   SomaGuide.prototype._setMode = function (mode) {
     this._ttsStop();
     this._stopConversation();
@@ -610,6 +772,16 @@
     this._$('.sg-wt-ui').hidden          = mode !== 'walkthrough';
     this._$('.sg-wt-bar').hidden         = mode !== 'walkthrough';
     this._$('.sg-resume-bar').hidden     = true;
+    if (mode === 'text') this._applySavedSize();
+
+    /* Output-mode toggle is present in text + voice; reflect the active choice. */
+    var tog = this._$('.sg-io-toggle');
+    if (tog) {
+      tog.hidden = !(mode === 'text' || mode === 'voice');
+      var t = this._$('.sg-io-text'), v = this._$('.sg-io-voice');
+      if (t) { t.classList.toggle('sg-io-btn--active', mode === 'text'); t.setAttribute('aria-pressed', mode === 'text'); }
+      if (v) { v.classList.toggle('sg-io-btn--active', mode === 'voice'); v.setAttribute('aria-pressed', mode === 'voice'); }
+    }
   };
 
   /* ── Walkthrough — state helpers ─────────────────────────────────────────── */
@@ -1256,10 +1428,21 @@
 
     this._appendMessage('user', text);
 
+    /* ── Tell → Show ladder ──────────────────────────────────────
+     * A how-to question that matches a walkthrough gets an OFFER to show
+     * (Tell, then "want me to show you?"). An explicit "show me / walk me
+     * through" launches the demo directly. Factual questions fall through
+     * to the answer path below. */
+    var lower = text.toLowerCase();
     var match = this._matchWalkthrough(text);
     if (match) {
-      this._wtStart(match.id, 0, -1);
-      return;
+      var explicitShow = /\b(show me|walk me|demonstrate|give me a demo|guide me)\b/.test(lower);
+      var howto = explicitShow || this._classifyQuestion(text) === 'howto';
+      if (howto) {
+        if (explicitShow) { this._wtStart(match.id, 0, -1); }
+        else { this._appendOfferShow(match, text); }
+        return;
+      }
     }
 
     /* ── Scope guard: deflect off-domain questions immediately ─── */
@@ -1312,9 +1495,57 @@
 
   SomaGuide.prototype._matchWalkthrough = function (text) {
     var lower = text.toLowerCase();
-    return (this.cfg.walkthroughs || []).filter(function (wt) {
+    var wts = this.cfg.walkthroughs || [];
+
+    /* 1) explicit keyword hit (config-defined, highest confidence) */
+    var byKw = wts.filter(function (wt) {
       return (wt.keywords || []).some(function (kw) { return lower.indexOf(kw) !== -1; });
-    })[0] || null;
+    })[0];
+    if (byKw) return byKw;
+
+    /* 2) significant-token overlap with the walkthrough label */
+    var STOP = { how:1, do:1, does:1, i:1, to:1, a:1, an:1, the:1, me:1, can:1, could:1,
+      you:1, my:1, of:1, on:1, for:1, with:1, in:1, is:1, are:1, what:1, where:1, site:1 };
+    var words = lower.replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter(Boolean);
+    var best = null, bestScore = 0;
+    wts.forEach(function (wt) {
+      var tokens = (wt.label || '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ')
+        .split(/\s+/).filter(function (t) { return t && !STOP[t]; });
+      var score = tokens.filter(function (t) { return words.indexOf(t) !== -1; }).length;
+      if (score > bestScore) { bestScore = score; best = wt; }
+    });
+    return bestScore >= 1 ? best : null;
+  };
+
+  /* Tell → Show: offer a demonstration rather than launching one unbidden. */
+  SomaGuide.prototype._appendOfferShow = function (wt, originalText) {
+    var self = this;
+    var msgs = this._$('.sg-messages');
+    if (!msgs) return;
+    var label = (wt.label || 'this').replace(/^how to /i, '');
+    this._appendMessage('agent', 'I can show you how to ' + label + ' — want me to walk you through it?');
+
+    var row = document.createElement('div');
+    row.className = 'sg-msg sg-msg--action sg-offer';
+    var showBtn = document.createElement('button');
+    showBtn.className = 'sg-offer-show';
+    showBtn.textContent = '▶ Show me';
+    showBtn.addEventListener('click', function () {
+      if (row.parentNode) row.parentNode.removeChild(row);
+      self._wtStart(wt.id, 0, -1);
+    });
+    var tellBtn = document.createElement('button');
+    tellBtn.className = 'sg-offer-tell';
+    tellBtn.textContent = 'Just tell me';
+    tellBtn.addEventListener('click', function () {
+      if (row.parentNode) row.parentNode.removeChild(row);
+      if (self.cfg.inferenceUrl) { self._askInference(originalText); }
+      else { self._appendMessage('agent', "It's under " + label + "."); }
+    });
+    row.appendChild(showBtn);
+    row.appendChild(tellBtn);
+    msgs.appendChild(row);
+    msgs.scrollTop = msgs.scrollHeight;
   };
 
   /* Returns 'bug' | 'feature' | null based on clear submission intent in text. */
@@ -1370,6 +1601,12 @@
     var self = this;
     var msgs = this._$('.sg-messages');
     if (!msgs) return;
+
+    /* Focus the panel on the form: hide chat scrollback + suggestion chips so the
+     * form isn't buried below history. Restored on submit-success or cancel. */
+    msgs.classList.add('sg-messages--focus');
+    var sug = this._$('.sg-suggest'); if (sug) sug.hidden = true;
+    var unfocus = function () { msgs.classList.remove('sg-messages--focus'); };
 
     var wrapper = document.createElement('div');
     wrapper.className = 'sg-msg sg-msg--action sg-feedback-form';
@@ -1453,6 +1690,7 @@
       }).then(function (result) {
         if (result.status === 200) {
           if (wrapper.parentNode) wrapper.parentNode.removeChild(wrapper);
+          unfocus();
           var confirmMsg = type === 'bug'
             ? "Bug report logged — Greg will review it. Thanks for the heads-up!"
             : "Feature request logged — Greg will review it. Great idea!";
@@ -1473,6 +1711,7 @@
 
     cancelBtn.addEventListener('click', function () {
       if (wrapper.parentNode) wrapper.parentNode.removeChild(wrapper);
+      unfocus();
       self._appendMessage('agent', "No problem — let me know if you need anything else.");
     });
 
@@ -1601,6 +1840,12 @@
   SomaGuide.prototype._appendMessage = function (role, text) {
     var msgs = this._$('.sg-messages');
     if (!msgs) return;
+    /* Once the user actually engages, retire the onboarding scaffolding — the
+     * suggestion chips and the prominent voice affordance. */
+    if (role === 'user') {
+      var sug = this._$('.sg-suggest'); if (sug) sug.hidden = true;
+      this._retireVoiceIntro();
+    }
     var div = document.createElement('div');
     div.className = 'sg-msg sg-msg--' + role;
     var span = document.createElement('span');
@@ -1920,7 +2165,12 @@
   };
 
   /* ── Public API ── */
-  SomaGuide.prototype.open    = function () { this._openIdle(false); };
+  SomaGuide.prototype.open    = function () {
+    if (this.cfg.conversationalShell) {
+      if (this._lsGet('io-mode') === 'voice' && this.cfg.voiceAgentId) { this._openVoice(); }
+      else { this._openShell(); }
+    } else { this._openIdle(false); }
+  };
   SomaGuide.prototype.minimize = function () { this._minimize(); };
   SomaGuide.prototype.startWalkthrough = function (id, step) { this._wtStart(id, step || 0, -1); };
 
