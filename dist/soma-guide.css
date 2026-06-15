@@ -9,8 +9,11 @@
   font-family: 'Georgia', serif;
   font-size: 15px;
   color: #060e18;
-  user-select: none;
+  user-select: text;
 }
+/* SOMA principle: all content text is selectable (scrape, don't screenshot).
+ * Only the chrome (drag handle + buttons) opts out, to avoid selecting on drag. */
+.sg-header, .sg-fab, .sg button, .sg-suggest-chip, .sg-suggest-more { user-select: none; }
 
 /* ── FAB (minimized state) ── */
 .sg-fab {
@@ -65,8 +68,8 @@
   display: flex;
   width: 360px;
   height: 480px;
-  resize: both;
-  overflow: auto;
+  resize: none;
+  overflow: hidden;
 }
 
 /* ── Mode: walkthrough ── */
@@ -88,6 +91,26 @@
  * via the `hidden` attribute in JS. Their own `display:flex/block` rules would
  * otherwise override `hidden` and stack every mode at once — make `hidden` win. */
 .sg [hidden] { display: none !important; }
+
+/* When an inline form (feedback/action) is active, focus on it: hide the chat
+ * scrollback so the form isn't buried below history that's irrelevant to filling it. */
+.sg-messages--focus > :not(.sg-feedback-form) { display: none; }
+
+/* ── Resize handles (all four corners, with cursor + hover hint) ── */
+.sg-resize-h { position: absolute; width: 14px; height: 14px; z-index: 6; }
+.sg--min .sg-resize-h { display: none; }
+.sg-resize-nw { top: 0; left: 0;  cursor: nwse-resize; }
+.sg-resize-ne { top: 0; right: 0; cursor: nesw-resize; }
+.sg-resize-sw { bottom: 0; left: 0;  cursor: nesw-resize; }
+.sg-resize-se { bottom: 0; right: 0; cursor: nwse-resize; }
+.sg-resize-h::after { content: ''; position: absolute; width: 7px; height: 7px; opacity: 0; transition: opacity 0.12s; }
+.sg-resize-h:hover::after { opacity: 1; border: 2px solid #c9a84c; }
+.sg-resize-nw:hover::after { top: 3px; left: 3px; border-right: 0; border-bottom: 0; }
+.sg-resize-ne:hover::after { top: 3px; right: 3px; border-left: 0; border-bottom: 0; }
+.sg-resize-sw:hover::after { bottom: 3px; left: 3px; border-right: 0; border-top: 0; }
+.sg-resize-se:hover::after { bottom: 3px; right: 3px; border-left: 0; border-top: 0; }
+/* keep header controls clickable above the top-corner handles */
+.sg-header-btns, .sg-persona { position: relative; z-index: 7; }
 
 /* ── Header ── */
 .sg-header {
@@ -225,6 +248,38 @@
   color: #5f5e5a;
   text-decoration: underline;
   text-decoration-style: dotted;
+}
+
+/* Tell → Show offer buttons */
+.sg-offer { display: flex; gap: 8px; }
+.sg-offer-show, .sg-offer-tell {
+  border-radius: 8px; padding: 7px 14px; font-family: inherit; font-size: 0.82rem; cursor: pointer;
+}
+.sg-offer-show { background: #102036; color: #c9a84c; border: none; font-weight: 600; }
+.sg-offer-show:hover { background: #1a3050; }
+.sg-offer-tell { background: transparent; color: #5f5e5a; border: 1px solid #d9d5c8; }
+.sg-offer-tell:hover { border-color: #c9a84c; color: #060e18; }
+
+/* Output-mode toggle (Text / Voice) — the explicit "how should Bill answer" choice.
+ * On first encounter the Voice option pulses to announce "you can talk to me",
+ * then quiets once the user has engaged. */
+.sg-io-toggle { display: flex; gap: 6px; padding: 10px 14px 4px; }
+.sg-io-btn {
+  flex: 1;
+  border: 1px solid #d9d5c8;
+  background: #f5f1e8;
+  color: #5f5e5a;
+  border-radius: 999px;
+  padding: 7px 10px;
+  font-family: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+.sg-io-btn--active { background: #102036; color: #c9a84c; border-color: #102036; font-weight: 600; }
+.sg-io-voice--pulse { border-color: #c9a84c; animation: sg-voice-pulse 2.2s ease-in-out infinite; }
+@keyframes sg-voice-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(201,168,76,0.5); }
+  50%      { box-shadow: 0 0 0 6px rgba(201,168,76,0); }
 }
 
 /* ── Voice UI ── */
