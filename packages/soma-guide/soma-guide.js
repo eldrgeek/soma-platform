@@ -31,7 +31,7 @@
   const TTS_MS_PER_CHAR  = 85;     /* generous estimate; used for fallback timer */
   const TTS_FLOOR_MS     = 6000;   /* minimum fallback when TTS enabled */
   const TTS_BUFFER_MS    = 3500;   /* extra buffer added to known audio duration */
-  const SOMA_GUIDE_VERSION = '2026-0610b'; /* bump each build; used for stale-state guard */
+  const SOMA_GUIDE_VERSION = '2026-0615'; /* bump each build; used for stale-state guard */
 
   /* ── Narration cue markup ─────────────────────────────────────────────────
    *
@@ -349,7 +349,7 @@
       '      <div class="sg-messages" role="log" aria-live="polite"></div>',
       '      <div class="sg-input-bar">',
       '        <input class="sg-input" type="text" placeholder="Ask me anything…" aria-label="Message">',
-      '        <button class="sg-mic sg-btn-icon" title="Voice input" aria-label="Voice input" hidden>🎤</button>',
+      '        <button class="sg-mic sg-btn-icon" title="Voice input" aria-label="Voice input">🎤</button>',
       '        <button class="sg-web-toggle" title="Search the web (off)" aria-label="Toggle web search" aria-pressed="false">🔎</button>',
       '        <button class="sg-send" aria-label="Send">↑</button>',
       '      </div>',
@@ -499,7 +499,8 @@
   };
 
   /* Set up Web Speech API mic button in the text chat input bar.
-   * Button stays hidden if SpeechRecognition is not supported by the browser. */
+   * Always visible. On browsers without SpeechRecognition (Firefox etc.),
+   * clicking the button falls through to the ElevenLabs voice mode instead. */
   SomaGuide.prototype._initMic = function () {
     var self = this;
     var micBtn = this._$('.sg-mic');
@@ -507,9 +508,13 @@
 
     var SR = (typeof window !== 'undefined') &&
       (window.SpeechRecognition || window.webkitSpeechRecognition);
-    if (!SR) return; /* no support — button stays hidden */
+    if (!SR) {
+      /* No Web Speech API — route mic click to ElevenLabs voice mode */
+      micBtn.title = 'Speak your question (opens voice mode)';
+      micBtn.addEventListener('click', function () { self._openVoice(); });
+      return;
+    }
 
-    micBtn.hidden = false;
     var recognition = new SR();
     recognition.continuous = false;
     recognition.interimResults = true;
