@@ -26,7 +26,7 @@
   const TTS_MS_PER_CHAR  = 85;     /* generous estimate; used for fallback timer */
   const TTS_FLOOR_MS     = 6000;   /* minimum fallback when TTS enabled */
   const TTS_BUFFER_MS    = 3500;   /* extra buffer added to known audio duration */
-  const SOMA_GUIDE_VERSION = '2026-0615'; /* bump each build; used for stale-state guard */
+  const SOMA_GUIDE_VERSION = '2026-0615b'; /* bump each build; used for stale-state guard */
 
   /* ── SomaGuide class ────────────────────────────────────────────────────── */
   function SomaGuide(cfg) {
@@ -317,15 +317,33 @@
     this._$('.sg-btn-text').addEventListener('click', function () { self._openText(); });
     this._$('.sg-btn-voice').addEventListener('click', function () { self._openVoice(); });
 
-    /* Orb is the visual tap-to-speak target in voice mode.
-     * Tapping it starts (or restarts) the ElevenLabs voice session. */
+    /* Orb is the tap-to-start target in voice mode.
+     * First tap → connect; second tap (while active) → reset to invitation state.
+     * Connection starts here, NOT in _openVoice(), so entering voice mode is an
+     * invitation and the user chooses when to start speaking. */
     var orbEl = this._$('.sg-orb');
     if (orbEl) {
       var orbAction = function () {
-        if (self.mode === 'voice') {
+        if (self.mode !== 'voice') return;
+        var orb = self._$('.sg-orb');
+        if (orb && orb.classList.contains('sg-orb--active')) {
+          /* Already connected/connecting — tap again to reset */
+          orb.classList.remove('sg-orb--active');
           self._stopConversation();
-          self._openVoice();
+          self._$('.sg-voice-status').textContent = 'Tap to speak';
+          return;
         }
+        /* Start voice connection */
+        if (orb) orb.classList.add('sg-orb--active');
+        self._$('.sg-voice-status').textContent = 'Connecting…';
+        self._startConversation(false).then(function () {
+          self._$('.sg-voice-status').textContent = 'Listening…';
+        }).catch(function (e) {
+          console.warn('[SomaGuide] voice error', e);
+          if (orb) orb.classList.remove('sg-orb--active');
+          var name = self.cfg.persona.name || 'I';
+          self._$('.sg-voice-status').textContent = name + " can't connect — try text chat instead.";
+        });
       };
       orbEl.addEventListener('click', orbAction);
       orbEl.addEventListener('keydown', function (e) {
@@ -535,6 +553,19 @@
 
   SomaGuide.prototype._openText = function () {
     var self = this;
+    /* Anchor to top-left before entering text mode so CSS resize extends right/down.
+     * Default CSS positions the widget via bottom/right; resize would extend left/up
+     * (counter-intuitive) until we convert to explicit left/top coordinates. */
+    if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+      var cs = window.getComputedStyle(self.el);
+      if (cs.right !== 'auto' || cs.bottom !== 'auto') {
+        var r = self.el.getBoundingClientRect();
+        self.el.style.left   = r.left + 'px';
+        self.el.style.top    = r.top  + 'px';
+        self.el.style.right  = 'auto';
+        self.el.style.bottom = 'auto';
+      }
+    }
     this._setMode('text');
     this._$('.sg-input').focus();
     if (this.cfg.voiceAgentId) {
@@ -545,16 +576,11 @@
   };
 
   SomaGuide.prototype._openVoice = function () {
-    var self = this;
     this._setMode('voice');
-    this._$('.sg-voice-status').textContent = 'Connecting…';
-    this._startConversation(false).then(function () {
-      self._$('.sg-voice-status').textContent = 'Listening…';
-    }).catch(function (e) {
-      console.warn('[SomaGuide] voice error', e);
-      var name = self.cfg.persona.name || 'I';
-      self._$('.sg-voice-status').textContent = name + " can't connect — try text chat instead.";
-    });
+    /* Reset orb to invitation state — connection starts when orb is tapped */
+    var orb = this._$('.sg-orb');
+    if (orb) orb.classList.remove('sg-orb--active');
+    this._$('.sg-voice-status').textContent = 'Tap to speak';
   };
 
   /* Open directly into the conversational ask UI (text mode) with a greeting
@@ -1189,8 +1215,10 @@
         },
         onDisconnect: function () {
           if (self.mode === 'voice') {
+            var orb = self._$('.sg-orb');
+            if (orb) orb.classList.remove('sg-orb--active');
             var status = self._$('.sg-voice-status');
-            if (status) status.textContent = 'Disconnected.';
+            if (status) status.textContent = 'Tap to speak';
           }
         }
       });
@@ -1250,7 +1278,10 @@
       }
     }
 
-    if (this.cfg.inferenceUrl && this._classifyQuestion(text) === 'factual') {
+    /* Route all questions to inference when configured — ElevenLabs text sessions
+     * are unreliable (async ESM load, CORS) and silently fail, leaving users with
+     * no response. Inference is the reliable answer path for text mode. */
+    if (this.cfg.inferenceUrl) {
       this._askInference(text);
       return;
     }
