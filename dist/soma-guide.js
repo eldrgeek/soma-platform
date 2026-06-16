@@ -1786,9 +1786,18 @@
   /* Match a typed request to a registered action: explicit keywords first, then
    * significant-token overlap with the action label (so "add Sam Jones as
    * Treasurer" matches the "add a member" action via the verb). */
+  SomaGuide.prototype._isAdmin = function () {
+    try { return !!(this.cfg.isAdmin && this.cfg.isAdmin()); } catch (e) { return false; }
+  };
+
   SomaGuide.prototype._matchAction = function (text) {
+    var self = this;
     var lower = text.toLowerCase();
-    var actions = this.cfg.actions || [];
+    /* Admin-only actions (requiresAdmin) are invisible to non-admins — they never
+     * match, so members can't trigger them even by phrasing. */
+    var actions = (this.cfg.actions || []).filter(function (a) {
+      return !a.requiresAdmin || self._isAdmin();
+    });
     var byKw = actions.filter(function (a) {
       return (a.keywords || []).some(function (kw) { return lower.indexOf(kw) !== -1; });
     })[0];
