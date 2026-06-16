@@ -81,6 +81,12 @@
     this._session = { id: 's-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), turns: [] };
     this._profile = null;
 
+    /* Host adapter — "Bill's hands". All reach into the host page goes through
+     * this one object, so a future iframe build can swap in a postMessage-backed
+     * adapter (talking to a host shim) without changing engine logic. Defaults
+     * to direct-DOM for the embedded delivery mode. See docs/SOMA-DELIVERY.md. */
+    this._host = this.cfg.host || this._makeEmbeddedHost();
+
     this._build();
     this._enableDrag();
     this._enableResize();
@@ -466,6 +472,32 @@
     if (idn && typeof idn.recordSeen === 'function') {
       try { Promise.resolve(idn.recordSeen(id)).catch(function () {}); } catch (e) {}
     }
+  };
+
+  /* ── Host adapter (embedded / direct-DOM) ──────────────────────────────────
+   * The single surface through which Bill touches the host page. An iframe
+   * delivery would provide an alternative adapter with the SAME methods, backed
+   * by postMessage to a host shim (which executes these on the host and renders
+   * highlight/cursor host-side). Engine logic calls this._host.* and stays
+   * delivery-agnostic. */
+  SomaGuide.prototype._makeEmbeddedHost = function () {
+    return {
+      mode: 'embedded',
+      find: function (sel) { return document.querySelector(sel); },
+      exists: function (sel) { return !!document.querySelector(sel); },
+      rect: function (sel) { var el = document.querySelector(sel); return el ? el.getBoundingClientRect() : null; },
+      click: function (sel) { var el = document.querySelector(sel); if (el) el.click(); return !!el; },
+      setValue: function (sel, val) {
+        var el = document.querySelector(sel);
+        if (!el) return false;
+        el.value = (val == null ? '' : val);
+        el.dispatchEvent(new Event(el.tagName === 'SELECT' ? 'change' : 'input', { bubbles: true }));
+        return true;
+      },
+      scrollIntoView: function (sel) { var el = document.querySelector(sel); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); },
+      highlight: function (sel) { var el = document.querySelector(sel); if (el) el.classList.add('sg-highlight'); },
+      clearHighlight: function () { Array.prototype.forEach.call(document.querySelectorAll('.sg-highlight'), function (e) { e.classList.remove('sg-highlight'); }); }
+    };
   };
 
   /* ── Bind events ── */
@@ -1870,7 +1902,8 @@
     return String(tpl).replace(/\{(\w+)\}/g, function (_, k) { return params[k] != null ? params[k] : ''; });
   };
 
-  /* Execute an action's declarative steps on the live page, visibly. */
+  /* Execute an action's declarative steps on the live page, visibly.
+   * All host access goes through this._host so the executor is delivery-agnostic. */
   SomaGuide.prototype._runAction = function (action, params) {
     var self = this;
     var steps = action.steps || [];
@@ -1882,18 +1915,9 @@
         return;
       }
       var s = steps[i++];
-      var el = document.querySelector(s.target);
-      if (el) {
-        if (s.op === 'click') {
-          el.click();
-        } else if (s.op === 'fill') {
-          el.value = (s.param ? params[s.param] : s.value) || '';
-          el.dispatchEvent(new Event('input', { bubbles: true }));
-        } else if (s.op === 'select') {
-          el.value = (s.param ? params[s.param] : s.value) || '';
-          el.dispatchEvent(new Event('change', { bubbles: true }));
-        }
-      }
+      var val = (s.param ? params[s.param] : s.value);
+      if (s.op === 'click') self._host.click(s.target);
+      else if (s.op === 'fill' || s.op === 'select') self._host.setValue(s.target, val);
       setTimeout(next, 420);
     }
     next();
