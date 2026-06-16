@@ -108,6 +108,47 @@
       { id: 'suggest', label: 'How to suggest a feature', steps: [
         { target: '#members-card', narration: 'See something you would change? Tell me and I will log a feature request for the team.', instruction: 'Just describe what you want' }
       ]}
+    ],
+    actions: [
+      {
+        id: 'add-member', label: 'add a member',
+        keywords: ['add a member', 'add member', 'new member'],
+        risk: 'low',
+        params: [
+          { name: 'name', label: 'Member name', placeholder: 'e.g. Sam Jones' },
+          { name: 'role', label: 'Role', type: 'select', options: ['Member', 'Chair', 'Treasurer'] }
+        ],
+        confirmText: 'Add {name} as {role}?',
+        steps: [
+          { op: 'click',  target: '#add-member-btn' },
+          { op: 'fill',   target: '#m-name', param: 'name' },
+          { op: 'select', target: '#m-role', param: 'role' }
+        ],
+        doneText: 'Done — I opened the form and filled in {name} as {role}. Press Save member to commit it.'
+      },
+      {
+        id: 'link-room', label: 'link a user to a room',
+        keywords: ['link a user', 'link user', 'assign to a room', 'add to a room', 'link to room'],
+        risk: 'low',
+        params: [
+          { name: 'user', label: 'User', type: 'select', options: ['Lionel Hollins', 'Purvis Short'] },
+          { name: 'room', label: 'Room', type: 'select', options: ['Scholarships', 'Membership', 'Chapter Presidents'] }
+        ],
+        confirmText: 'Link {user} to {room}?',
+        steps: [
+          { op: 'click',  target: '#link-room-btn' },
+          { op: 'select', target: '#r-user', param: 'user' },
+          { op: 'select', target: '#r-room', param: 'room' }
+        ],
+        doneText: 'Done — {user} is set to link to {room}. Press Link to confirm.'
+      },
+      {
+        id: 'wipe-db', label: 'reset the member database',
+        keywords: ['wipe the database', 'delete all members', 'reset the database', 'clear all members'],
+        risk: 'high',
+        requestText: 'Reset the member database (delete all members and start fresh).',
+        params: []
+      }
     ]
   };
 

@@ -257,6 +257,8 @@
 }
 .sg-offer-show { background: #102036; color: #c9a84c; border: none; font-weight: 600; }
 .sg-offer-show:hover { background: #1a3050; }
+.sg-offer-do { background: #c9a84c; color: #0d1b2a; border: none; font-weight: 600; }
+.sg-offer-do:hover { background: #b8962f; }
 .sg-offer-tell { background: transparent; color: #5f5e5a; border: 1px solid #d9d5c8; }
 .sg-offer-tell:hover { border-color: #c9a84c; color: #060e18; }
 

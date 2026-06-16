@@ -75,6 +75,11 @@
     this._ttsMuted  = this._lsGet('tts-muted')  === '1';
     this._ttsAudio  = null;
 
+    /* Conversation recording (diagnostics): stable anon id + per-load session. */
+    this._anonId = this._lsGet('anon-id');
+    if (!this._anonId) { this._anonId = 'a-' + Math.random().toString(36).slice(2, 10); this._lsSet('anon-id', this._anonId); }
+    this._session = { id: 's-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), turns: [] };
+
     this._build();
     this._enableDrag();
     this._enableResize();
@@ -374,6 +379,54 @@
     var w = this._lsGet('panel-w'), h = this._lsGet('panel-h');
     if (w) panel.style.width = w + 'px';
     if (h) panel.style.height = h + 'px';
+  };
+
+  /* ── Conversation recording (diagnostics) ──────────────────────────────────
+   * Records each turn AND Bill's decision trace (matched action, extracted
+   * params, chosen rung) so off-track behavior is diagnosable after the fact.
+   * Kept in memory + a rolling localStorage transcript; optionally POSTed to
+   * cfg.telemetry.logUrl for cross-session/user collection.
+   * Inspect live:  somaGuide.dumpTranscript()  /  somaGuide.getTranscript({all:true}) */
+  SomaGuide.prototype._log = function (event, data) {
+    if (!this._session) return;
+    var rec = {
+      ts: new Date().toISOString(),
+      sessionId: this._session.id,
+      anonId: this._anonId,
+      app: this.cfg.tenantId || this.cfg.persona.id || this.cfg.persona.name,
+      page: (typeof location !== 'undefined') ? location.href : null,
+      event: event,
+      data: data || {}
+    };
+    this._session.turns.push(rec);
+    try {
+      var prev = JSON.parse(this._lsGet('transcript') || '[]');
+      prev.push(rec);
+      if (prev.length > 200) prev = prev.slice(-200);
+      this._lsSet('transcript', JSON.stringify(prev));
+    } catch (e) {}
+    var t = this.cfg.telemetry;
+    if (t && t.logUrl) {
+      try {
+        fetch(t.logUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(rec), keepalive: true }).catch(function () {});
+      } catch (e) {}
+    }
+  };
+
+  SomaGuide.prototype.getTranscript = function (opts) {
+    if (opts && opts.all) { try { return JSON.parse(this._lsGet('transcript') || '[]'); } catch (e) { return []; } }
+    return this._session ? this._session.turns.slice() : [];
+  };
+  SomaGuide.prototype.dumpTranscript = function (opts) {
+    var t = this.getTranscript(opts);
+    try {
+      console.table(t.map(function (r) { return { ts: r.ts, event: r.event, summary: JSON.stringify(r.data).slice(0, 140) }; }));
+    } catch (e) {}
+    return JSON.stringify(t, null, 2);
+  };
+  SomaGuide.prototype.clearTranscript = function () {
+    if (this._session) this._session.turns = [];
+    this._lsSet('transcript', '[]');
   };
 
   /* ── Bind events ── */
@@ -1434,16 +1487,40 @@
      * through" launches the demo directly. Factual questions fall through
      * to the answer path below. */
     var lower = text.toLowerCase();
-    var match = this._matchWalkthrough(text);
-    if (match) {
-      var explicitShow = /\b(show me|walk me|demonstrate|give me a demo|guide me)\b/.test(lower);
-      var howto = explicitShow || this._classifyQuestion(text) === 'howto';
+    var wt = this._matchWalkthrough(text);
+    var action = this._matchAction(text);
+    var explicitShow = /\b(show me|walk me|demonstrate|give me a demo|guide me)\b/.test(lower);
+    var explicitDo = /\b(do it|do that|go ahead|for me|just do it|please add|can you add)\b/.test(lower);
+    var imperative = /^\s*(add|create|new|link|assign|delete|remove|wipe|reset|update|set|change)\b/i.test(text);
+    var classified = this._classifyQuestion(text);
+
+    /* Decision trace — records what Bill matched and decided, so off-track
+     * behavior ("add Purvis to membership" → wrong action) is diagnosable. */
+    this._log('decision', {
+      text: text,
+      classified: classified,
+      matchedWalkthrough: wt ? wt.id : null,
+      matchedAction: action ? action.id : null,
+      extractedParams: action ? this._extractParams(action, text) : null,
+      imperative: imperative, explicitDo: explicitDo, explicitShow: explicitShow
+    });
+
+    if (wt || action) {
+      var howto = explicitShow || classified === 'howto';
+      /* A direct command ("add Sam Jones as Treasurer") goes straight to Do. */
+      if (action && (imperative || explicitDo)) {
+        this._log('rung', { rung: 'do', action: action.id });
+        this._startDoFlow(action, text); return;
+      }
+      /* A how-to offers the rungs. */
       if (howto) {
-        if (explicitShow) { this._wtStart(match.id, 0, -1); }
-        else { this._appendOfferShow(match, text); }
+        if (explicitShow && wt) { this._log('rung', { rung: 'show', walkthrough: wt.id }); this._wtStart(wt.id, 0, -1); return; }
+        this._log('rung', { rung: 'offer', walkthrough: wt ? wt.id : null, action: action ? action.id : null });
+        this._appendOffer(wt, action, text);
         return;
       }
     }
+    this._log('rung', { rung: 'tell' });
 
     /* ── Scope guard: deflect off-domain questions immediately ─── */
     if (this.cfg.scopeGuard && this._checkScopeGuard(text)) {
@@ -1517,23 +1594,71 @@
     return bestScore >= 1 ? best : null;
   };
 
-  /* Tell → Show: offer a demonstration rather than launching one unbidden. */
-  SomaGuide.prototype._appendOfferShow = function (wt, originalText) {
+  /* Match a typed request to a registered action: explicit keywords first, then
+   * significant-token overlap with the action label (so "add Sam Jones as
+   * Treasurer" matches the "add a member" action via the verb). */
+  SomaGuide.prototype._matchAction = function (text) {
+    var lower = text.toLowerCase();
+    var actions = this.cfg.actions || [];
+    var byKw = actions.filter(function (a) {
+      return (a.keywords || []).some(function (kw) { return lower.indexOf(kw) !== -1; });
+    })[0];
+    if (byKw) return byKw;
+
+    var STOP = { a:1, an:1, the:1, to:1, of:1, for:1, with:1, in:1, on:1, my:1, me:1 };
+    var words = lower.replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter(Boolean);
+    function wb(s) { return new RegExp('\\b' + s.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b').test(lower); }
+    var best = null, bestScore = 0;
+    actions.forEach(function (a) {
+      var tokens = (a.label || '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ')
+        .split(/\s+/).filter(function (t) { return t && !STOP[t]; });
+      var score = tokens.filter(function (t) { return words.indexOf(t) !== -1; }).length;
+      /* Strong signal: the sentence names one of THIS action's option values
+       * (e.g. "membership" → the link action's room), which disambiguates
+       * "add X to <group>" away from a plain "add a member". */
+      (a.params || []).forEach(function (p) {
+        (p.options || []).forEach(function (o) {
+          o.toLowerCase().split(/\s+/).forEach(function (w) { if (w.length > 2 && wb(w)) score += 2; });
+        });
+      });
+      if (score > bestScore) { bestScore = score; best = a; }
+    });
+    return bestScore >= 1 ? best : null;
+  };
+
+  /* Tell → Show → Do: offer the rungs that apply rather than acting unbidden.
+   * An answer ends with "want me to show you / do it?" — the user climbs as far
+   * as they need. */
+  SomaGuide.prototype._appendOffer = function (wt, action, originalText) {
     var self = this;
     var msgs = this._$('.sg-messages');
     if (!msgs) return;
-    var label = (wt.label || 'this').replace(/^how to /i, '');
-    this._appendMessage('agent', 'I can show you how to ' + label + ' — want me to walk you through it?');
+    var label = ((action && action.label) || (wt && wt.label) || 'this').replace(/^how to /i, '');
+    this._appendMessage('agent', 'I can help you ' + label + ' — want me to walk you through it, or just do it for you?');
 
     var row = document.createElement('div');
     row.className = 'sg-msg sg-msg--action sg-offer';
-    var showBtn = document.createElement('button');
-    showBtn.className = 'sg-offer-show';
-    showBtn.textContent = '▶ Show me';
-    showBtn.addEventListener('click', function () {
-      if (row.parentNode) row.parentNode.removeChild(row);
-      self._wtStart(wt.id, 0, -1);
-    });
+
+    if (wt) {
+      var showBtn = document.createElement('button');
+      showBtn.className = 'sg-offer-show';
+      showBtn.textContent = '▶ Show me';
+      showBtn.addEventListener('click', function () {
+        if (row.parentNode) row.parentNode.removeChild(row);
+        self._wtStart(wt.id, 0, -1);
+      });
+      row.appendChild(showBtn);
+    }
+    if (action) {
+      var doBtn = document.createElement('button');
+      doBtn.className = 'sg-offer-do';
+      doBtn.textContent = '✨ Do it for me';
+      doBtn.addEventListener('click', function () {
+        if (row.parentNode) row.parentNode.removeChild(row);
+        self._startDoFlow(action, originalText);
+      });
+      row.appendChild(doBtn);
+    }
     var tellBtn = document.createElement('button');
     tellBtn.className = 'sg-offer-tell';
     tellBtn.textContent = 'Just tell me';
@@ -1542,10 +1667,195 @@
       if (self.cfg.inferenceUrl) { self._askInference(originalText); }
       else { self._appendMessage('agent', "It's under " + label + "."); }
     });
-    row.appendChild(showBtn);
     row.appendChild(tellBtn);
     msgs.appendChild(row);
     msgs.scrollTop = msgs.scrollHeight;
+  };
+
+  /* Extract action params from the user's sentence (intent → structured args).
+   * Select params match against their option list (reliable); the first free-text
+   * param is pulled from "named X" / "add X (as|to)" patterns. */
+  SomaGuide.prototype._extractParams = function (action, text) {
+    var lower = ' ' + (text || '').toLowerCase() + ' ';
+    var out = {};
+    var textParamUsed = false;
+    function wb(s) { return new RegExp('\\b' + s.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b').test(lower); }
+    (action.params || []).forEach(function (p) {
+      if (p.type === 'select' && p.options) {
+        /* whole-word match first ("membership" must NOT match the "Member" role);
+         * then token overlap so "Purvis" resolves to the "Purvis Short" option. */
+        var hit = p.options.filter(function (o) { return wb(o); })[0];
+        if (!hit) {
+          hit = p.options.filter(function (o) {
+            return o.toLowerCase().split(/\s+/).some(function (w) { return w.length > 2 && wb(w); });
+          })[0];
+        }
+        if (hit) out[p.name] = hit;
+      } else if (!textParamUsed) {
+        textParamUsed = true;
+        var v = null, m;
+        if ((m = text.match(/\bnamed\s+(.+?)(?:\s+as\b|\s+to\b|[.,]|$)/i))) v = m[1];
+        else if ((m = text.match(/\badd\s+(?:a\s+member\s+)?(.+?)(?:\s+as\b|\s+to\b|[.,]|$)/i))) v = m[1];
+        if (v) {
+          v = v.trim();
+          if (v && !/^(a|an|the|member|new member|user)$/i.test(v)) {
+            out[p.name] = v.replace(/\b\w/g, function (c) { return c.toUpperCase(); });
+          }
+        }
+      }
+    });
+    return out;
+  };
+
+  /* Single gate: execute (reversible) or route to approval (consequential). */
+  SomaGuide.prototype._commitDo = function (action, params) {
+    this._log(action.risk === 'high' ? 'action_routed_for_approval' : 'action_run', { action: action.id, params: params });
+    if (action.risk === 'high') {
+      if (this.cfg.feedbackUrl) {
+        this._startFeedbackFlow('feature', this._fill(action.requestText || (action.label + ': ' + JSON.stringify(params)), params));
+      } else {
+        this._appendMessage('agent', 'That one needs sign-off — I’ve routed it for approval rather than doing it directly.');
+      }
+      return;
+    }
+    this._runAction(action, params);
+  };
+
+  /* Do: pull params from the sentence. If we have them all, confirm and go;
+   * otherwise show a form pre-filled with whatever we extracted. */
+  SomaGuide.prototype._startDoFlow = function (action, originalText) {
+    var extracted = this._extractParams(action, originalText || '');
+    var defs = action.params || [];
+    var allFilled = defs.length > 0 && defs.every(function (p) { return extracted[p.name]; });
+    if (allFilled || (defs.length === 0 && action.risk !== 'high')) {
+      this._appendConfirmDo(action, extracted);
+    } else {
+      this._renderDoForm(action, extracted);
+    }
+  };
+
+  SomaGuide.prototype._renderDoForm = function (action, prefill) {
+    var self = this;
+    var msgs = this._$('.sg-messages');
+    if (!msgs) return;
+    prefill = prefill || {};
+
+    var wrap = document.createElement('div');
+    wrap.className = 'sg-msg sg-msg--action sg-do-form';
+    var title = document.createElement('div');
+    title.className = 'sg-feedback-form-title';
+    title.textContent = '✨ ' + (action.label || 'Do this').replace(/^./, function (c) { return c.toUpperCase(); });
+    wrap.appendChild(title);
+
+    var inputs = {};
+    (action.params || []).forEach(function (p) {
+      var lbl = document.createElement('label');
+      lbl.className = 'sg-feedback-label';
+      lbl.textContent = p.label || p.name;
+      wrap.appendChild(lbl);
+      var field;
+      if (p.type === 'select' && p.options) {
+        field = document.createElement('select');
+        p.options.forEach(function (o) { var op = document.createElement('option'); op.textContent = o; field.appendChild(op); });
+      } else {
+        field = document.createElement('input');
+        field.type = 'text';
+        field.placeholder = p.placeholder || '';
+      }
+      if (prefill[p.name]) field.value = prefill[p.name];
+      field.className = 'sg-feedback-input';
+      wrap.appendChild(field);
+      inputs[p.name] = field;
+    });
+
+    var btnRow = document.createElement('div');
+    btnRow.className = 'sg-feedback-btn-row';
+    var goBtn = document.createElement('button');
+    goBtn.className = 'sg-feedback-submit';
+    goBtn.textContent = action.risk === 'high' ? 'Submit for approval' : 'Do it';
+    var cancelBtn = document.createElement('button');
+    cancelBtn.className = 'sg-feedback-cancel';
+    cancelBtn.textContent = 'Cancel';
+    btnRow.appendChild(goBtn);
+    btnRow.appendChild(cancelBtn);
+    wrap.appendChild(btnRow);
+    msgs.appendChild(wrap);
+    msgs.scrollTop = msgs.scrollHeight;
+
+    cancelBtn.addEventListener('click', function () {
+      if (wrap.parentNode) wrap.parentNode.removeChild(wrap);
+      self._appendMessage('agent', 'No problem — left it as is.');
+    });
+    goBtn.addEventListener('click', function () {
+      var params = {};
+      Object.keys(inputs).forEach(function (k) { params[k] = inputs[k].value; });
+      if (wrap.parentNode) wrap.parentNode.removeChild(wrap);
+      self._commitDo(action, params);
+    });
+  };
+
+  /* Confident path: one-line confirm with Do it / Edit / Cancel. */
+  SomaGuide.prototype._appendConfirmDo = function (action, params) {
+    var self = this;
+    var msgs = this._$('.sg-messages');
+    if (!msgs) return;
+    var summary = action.confirmText ? this._fill(action.confirmText, params)
+      : (action.label.replace(/^./, function (c) { return c.toUpperCase(); }) +
+         (Object.keys(params).length ? ' (' + Object.keys(params).map(function (k) { return params[k]; }).join(', ') + ')' : '') + '?');
+    this._appendMessage('agent', summary);
+
+    var row = document.createElement('div');
+    row.className = 'sg-msg sg-msg--action sg-offer';
+    var go = document.createElement('button');
+    go.className = action.risk === 'high' ? 'sg-offer-tell' : 'sg-offer-do';
+    go.textContent = action.risk === 'high' ? 'Submit for approval' : '✨ Do it';
+    go.addEventListener('click', function () { if (row.parentNode) row.parentNode.removeChild(row); self._commitDo(action, params); });
+    var edit = document.createElement('button');
+    edit.className = 'sg-offer-show';
+    edit.textContent = 'Edit';
+    edit.addEventListener('click', function () { if (row.parentNode) row.parentNode.removeChild(row); self._renderDoForm(action, params); });
+    var cancel = document.createElement('button');
+    cancel.className = 'sg-offer-tell';
+    cancel.textContent = 'Cancel';
+    cancel.addEventListener('click', function () { if (row.parentNode) row.parentNode.removeChild(row); self._appendMessage('agent', 'No problem — left it as is.'); });
+    row.appendChild(go);
+    row.appendChild(edit);
+    row.appendChild(cancel);
+    msgs.appendChild(row);
+    msgs.scrollTop = msgs.scrollHeight;
+  };
+
+  SomaGuide.prototype._fill = function (tpl, params) {
+    return String(tpl).replace(/\{(\w+)\}/g, function (_, k) { return params[k] != null ? params[k] : ''; });
+  };
+
+  /* Execute an action's declarative steps on the live page, visibly. */
+  SomaGuide.prototype._runAction = function (action, params) {
+    var self = this;
+    var steps = action.steps || [];
+    var i = 0;
+    var say = action.doneText ? this._fill(action.doneText, params) : 'Done.';
+    function next() {
+      if (i >= steps.length) {
+        self._appendMessage('agent', say);
+        return;
+      }
+      var s = steps[i++];
+      var el = document.querySelector(s.target);
+      if (el) {
+        if (s.op === 'click') {
+          el.click();
+        } else if (s.op === 'fill') {
+          el.value = (s.param ? params[s.param] : s.value) || '';
+          el.dispatchEvent(new Event('input', { bubbles: true }));
+        } else if (s.op === 'select') {
+          el.value = (s.param ? params[s.param] : s.value) || '';
+          el.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      }
+      setTimeout(next, 420);
+    }
+    next();
   };
 
   /* Returns 'bug' | 'feature' | null based on clear submission intent in text. */
@@ -1846,6 +2156,7 @@
       var sug = this._$('.sg-suggest'); if (sug) sug.hidden = true;
       this._retireVoiceIntro();
     }
+    this._log(role === 'user' ? 'user_message' : 'agent_message', { text: text });
     var div = document.createElement('div');
     div.className = 'sg-msg sg-msg--' + role;
     var span = document.createElement('span');
