@@ -79,11 +79,13 @@
     this._anonId = this._lsGet('anon-id');
     if (!this._anonId) { this._anonId = 'a-' + Math.random().toString(36).slice(2, 10); this._lsSet('anon-id', this._anonId); }
     this._session = { id: 's-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), turns: [] };
+    this._profile = null;
 
     this._build();
     this._enableDrag();
     this._enableResize();
     this._bindEvents();
+    this._loadProfile();
     console.log('[SomaGuide] v' + SOMA_GUIDE_VERSION);
 
     var self = this;
@@ -427,6 +429,43 @@
   SomaGuide.prototype.clearTranscript = function () {
     if (this._session) this._session.turns = [];
     this._lsSet('transcript', '[]');
+  };
+
+  /* ── Identity (account-keyed SOMA profile, optional) ───────────────────────
+   * Delivery-agnostic: works the same whether Bill is embedded via <script> or
+   * served in an iframe. The per-site config supplies getProfile()/recordSeen();
+   * the engine uses the profile for recognition (skip the first-run greeting for
+   * known users, decay chips cross-device) and reports progress back. */
+  SomaGuide.prototype._loadProfile = function () {
+    var self = this;
+    var idn = this.cfg.identity;
+    if (!idn || typeof idn.getProfile !== 'function') return;
+    var appId = idn.appId || this.cfg.persona.id || this.cfg.persona.name;
+    try {
+      Promise.resolve(idn.getProfile()).then(function (p) {
+        if (!p) return;
+        self._profile = p;
+        /* Known user → treat as introduced (skip the first-run greeting). */
+        if ((p.bill_familiarity && p.bill_familiarity > 0) || (p.apps_used && p.apps_used.length)) {
+          self.introduced = true;
+        }
+        /* Cross-device chip decay: walkthroughs already seen on any device. */
+        var seen = (p.guide_seen && p.guide_seen[appId]) || [];
+        if (seen.length) {
+          var used = (self._lsGet('used-suggest') || '').split(',').filter(Boolean);
+          seen.forEach(function (s) { if (used.indexOf(s) === -1) used.push(s); });
+          self._lsSet('used-suggest', used.join(','));
+        }
+        if (self.mode === 'text') self._renderSuggestions(false);
+      }).catch(function () {});
+    } catch (e) {}
+  };
+
+  SomaGuide.prototype._recordSeen = function (id) {
+    var idn = this.cfg.identity;
+    if (idn && typeof idn.recordSeen === 'function') {
+      try { Promise.resolve(idn.recordSeen(id)).catch(function () {}); } catch (e) {}
+    }
   };
 
   /* ── Bind events ── */
@@ -879,6 +918,7 @@
   SomaGuide.prototype._wtStart = function (id, stepIndex, subStepIndex) {
     var wt = this._wtById(id);
     if (!wt) return;
+    this._recordSeen(id);
     this._clearHighlight();
     this.wt = {
       id: id,
@@ -1710,6 +1750,7 @@
   /* Single gate: execute (reversible) or route to approval (consequential). */
   SomaGuide.prototype._commitDo = function (action, params) {
     this._log(action.risk === 'high' ? 'action_routed_for_approval' : 'action_run', { action: action.id, params: params });
+    this._recordSeen(action.id);
     if (action.risk === 'high') {
       if (this.cfg.feedbackUrl) {
         this._startFeedbackFlow('feature', this._fill(action.requestText || (action.label + ': ' + JSON.stringify(params)), params));
