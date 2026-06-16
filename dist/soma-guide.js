@@ -88,11 +88,18 @@
     this._host = this.cfg.host ||
       (this.cfg.delivery === 'iframe' ? this._makeIframeHost() : this._makeEmbeddedHost());
 
+    /* Always-on observer: a ring buffer of recent page activity (nav / clicks /
+     * errors / input focus), used to give intake its "is this about <last
+     * action>?" context. Privacy-guarded — never captures sensitive field values. */
+    this._activity = [];
+    this._activePersona = null;
+
     this._build();
     this._enableDrag();
     this._enableResize();
     this._bindEvents();
     this._loadProfile();
+    this._startObserver();
     console.log('[SomaGuide] v' + SOMA_GUIDE_VERSION);
 
     var self = this;
@@ -436,6 +443,86 @@
   SomaGuide.prototype.clearTranscript = function () {
     if (this._session) this._session.turns = [];
     this._lsSet('transcript', '[]');
+  };
+
+  /* ── Always-on observer ────────────────────────────────────────────────────
+   * Records recent page activity so intake can say "is this about <last
+   * action>?". Privacy: clicks store element labels/selectors, inputs store the
+   * field identity, and field VALUES are captured ONLY for non-sensitive fields
+   * (never password/email/cc/otp/etc.) and only when cfg.observeValues !== false. */
+  SomaGuide.prototype._startObserver = function () {
+    if (this.cfg.observe === false || typeof document === 'undefined') return;
+    var self = this;
+    var captureValues = this.cfg.observeValues !== false;
+
+    function inWidget(el) { return !!(el && el.closest && el.closest('#soma-guide')); }
+    function labelFor(el) {
+      if (!el) return '';
+      var t = el.closest ? (el.closest('button, a, [role="button"], [role="link"], input, select, textarea, label') || el) : el;
+      var txt = (t.getAttribute && (t.getAttribute('aria-label') || t.getAttribute('title'))) ||
+                (t.textContent || '').trim() || (t.getAttribute && (t.getAttribute('name') || t.getAttribute('id'))) ||
+                (t.value || '') || t.tagName;
+      return String(txt).replace(/\s+/g, ' ').trim().slice(0, 80);
+    }
+    function selFor(el) {
+      if (!el || !el.tagName) return '';
+      var s = el.tagName.toLowerCase();
+      if (el.id) s += '#' + el.id;
+      else if (el.name) s += '[name="' + el.name + '"]';
+      return s;
+    }
+    function sensitive(el) {
+      if (!el) return true;
+      var type = (el.type || '').toLowerCase();
+      if (type === 'password' || type === 'email' || type === 'hidden') return true;
+      var hay = ((el.name || '') + ' ' + (el.id || '') + ' ' + (el.autocomplete || '')).toLowerCase();
+      return /pass|otp|code|secret|token|card|cc-|cvv|cvc|ssn|social|account|routing|pin/.test(hay);
+    }
+
+    document.addEventListener('click', function (e) {
+      if (inWidget(e.target)) return;
+      self._recordActivity({ type: 'click', label: labelFor(e.target), selector: selFor(e.target.closest ? (e.target.closest('button,a,[role]') || e.target) : e.target) });
+    }, true);
+
+    document.addEventListener('focusin', function (e) {
+      var el = e.target;
+      if (inWidget(el) || !el.tagName || !/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) return;
+      self._recordActivity({ type: 'focus', field: labelFor(el), selector: selFor(el) });
+    }, true);
+
+    document.addEventListener('change', function (e) {
+      var el = e.target;
+      if (inWidget(el) || !el.tagName || !/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) return;
+      var ev = { type: 'input', field: labelFor(el), selector: selFor(el) };
+      if (captureValues && !sensitive(el)) ev.value = String(el.value == null ? '' : el.value).slice(0, 120);
+      else ev.value = '(redacted)';
+      self._recordActivity(ev);
+    }, true);
+
+    window.addEventListener('error', function (e) {
+      self._recordActivity({ type: 'error', message: String((e && e.message) || 'error').slice(0, 200) });
+    });
+
+    function nav() { self._recordActivity({ type: 'nav', url: location.href, title: (document.title || '').slice(0, 120) }); }
+    ['pushState', 'replaceState'].forEach(function (m) {
+      var orig = history[m];
+      if (typeof orig === 'function') { history[m] = function () { var r = orig.apply(this, arguments); try { nav(); } catch (e) {} return r; }; }
+    });
+    window.addEventListener('popstate', nav);
+    window.addEventListener('hashchange', nav);
+    nav();
+  };
+
+  SomaGuide.prototype._recordActivity = function (ev) {
+    ev.ts = Date.now();
+    this._activity.push(ev);
+    if (this._activity.length > 50) this._activity = this._activity.slice(-50);
+  };
+
+  /* Recent meaningful activity (most-recent first), excluding pure focus noise. */
+  SomaGuide.prototype.getRecentActivity = function (n) {
+    var meaningful = this._activity.filter(function (a) { return a.type !== 'focus'; });
+    return meaningful.slice(-(n || 5)).reverse();
   };
 
   /* ── Identity (account-keyed SOMA profile, optional) ───────────────────────
@@ -1718,11 +1805,15 @@
       return;
     }
 
-    /* ── Feedback intake: bug reports and feature requests ──────── */
+    /* ── Bug / change intake ─────────────────────────────────────
+     * A reported bug or change request hands off to the intake specialist
+     * (context-rich, observer-aware). Falls back to the plain feedback form
+     * when intake is disabled. */
     if (this.cfg.feedbackUrl) {
       var fbType = this._classifyFeedback(text);
       if (fbType) {
-        this._startFeedbackFlow(fbType, text);
+        if (this.cfg.intake !== false) { this._startIntake(fbType, text); }
+        else { this._startFeedbackFlow(fbType, text); }
         return;
       }
     }
@@ -2084,6 +2175,147 @@
   };
 
   /* Show a brief acknowledgement then render an inline capture form. */
+  /* ── Intake specialist (persona handoff + observer context) ──────────────── */
+  SomaGuide.prototype._handoffTo = function (key) {
+    var p = (this.cfg.personas && this.cfg.personas[key]) ||
+            { name: (this.cfg.persona.name || 'Bill') + ' · Support', avatar: '🛠', greeting: '' };
+    this._activePersona = key;
+    var av = this._$('.sg-persona-avatar'); if (av && p.avatar) av.textContent = p.avatar;
+    var nm = this._$('.sg-persona-name');  if (nm && p.name) nm.textContent = p.name;
+    /* If the specialist has its own voice agent and we're in voice mode, reconnect. */
+    if (p.voiceAgentId && this.mode === 'voice') {
+      this._activeVoiceAgentId = p.voiceAgentId;
+      try { this._stopConversation(); this._startConversation(false); } catch (e) {}
+    }
+    this._log('handoff', { to: key, persona: p.name });
+    return p;
+  };
+  SomaGuide.prototype._restorePersona = function () {
+    this._activePersona = null;
+    this._activeVoiceAgentId = null;
+    var av = this._$('.sg-persona-avatar'); if (av) av.textContent = this.cfg.persona.avatar || '💬';
+    var nm = this._$('.sg-persona-name');  if (nm) nm.textContent = this.cfg.persona.name || 'Assistant';
+  };
+
+  SomaGuide.prototype._activityOpener = function () {
+    var a = this.getRecentActivity(4);
+    var err = a.filter(function (x) { return x.type === 'error'; })[0];
+    var click = a.filter(function (x) { return x.type === 'click'; })[0];
+    var nav = a.filter(function (x) { return x.type === 'nav'; })[0];
+    if (err) return 'I noticed an error just popped up on this page — is your report about that?';
+    if (click && click.label) return 'I can see you just used “' + click.label + '”. Is this about that?';
+    if (nav) return 'Looks like you’re on “' + (nav.title || nav.url) + '”. Is it about something here?';
+    return null;
+  };
+
+  SomaGuide.prototype._startIntake = function (type, originalText) {
+    var p = this._handoffTo('intake');
+    this._appendMessage('agent', p.greeting ||
+      ('I handle ' + (type === 'bug' ? 'bug reports' : 'change requests') + ' — let me get the details so the team can act on it.'));
+    var opener = this._activityOpener();
+    if (opener) this._appendMessage('agent', opener);
+    this._renderIntakeForm(type, originalText);
+  };
+
+  SomaGuide.prototype._renderIntakeForm = function (type, prefill) {
+    var self = this;
+    var msgs = this._$('.sg-messages'); if (!msgs) return;
+    msgs.classList.add('sg-messages--focus');
+    var sug = this._$('.sg-suggest'); if (sug) sug.hidden = true;
+
+    var wrap = document.createElement('div');
+    wrap.className = 'sg-msg sg-msg--action sg-feedback-form';
+    var title = document.createElement('div');
+    title.className = 'sg-feedback-form-title';
+    title.textContent = type === 'bug' ? '🐛 Report a problem' : '💡 Request a change';
+    wrap.appendChild(title);
+
+    var dLbl = document.createElement('label'); dLbl.className = 'sg-feedback-label';
+    dLbl.textContent = type === 'bug' ? 'What’s happening?' : 'What would you like changed?';
+    wrap.appendChild(dLbl);
+    var desc = document.createElement('textarea'); desc.className = 'sg-feedback-textarea'; desc.rows = 3;
+    if (prefill && prefill.length > 25) desc.value = prefill;
+    wrap.appendChild(desc);
+
+    /* Ask for name only when we don't already know the user. */
+    var nameInput = null;
+    var known = this._profile && this._profile.display_name;
+    if (!known) {
+      var nLbl = document.createElement('label'); nLbl.className = 'sg-feedback-label';
+      nLbl.textContent = 'Your name (so we can follow up)';
+      wrap.appendChild(nLbl);
+      nameInput = document.createElement('input'); nameInput.type = 'text'; nameInput.className = 'sg-feedback-input';
+      nameInput.placeholder = 'e.g. Greg Foster';
+      wrap.appendChild(nameInput);
+    }
+
+    var row = document.createElement('div'); row.className = 'sg-feedback-btn-row';
+    var go = document.createElement('button'); go.className = 'sg-feedback-submit'; go.textContent = 'Next';
+    var cancel = document.createElement('button'); cancel.className = 'sg-feedback-cancel'; cancel.textContent = 'Cancel';
+    row.appendChild(go); row.appendChild(cancel); wrap.appendChild(row);
+    msgs.appendChild(wrap); msgs.scrollTop = msgs.scrollHeight;
+
+    cancel.addEventListener('click', function () {
+      if (wrap.parentNode) wrap.parentNode.removeChild(wrap);
+      msgs.classList.remove('sg-messages--focus');
+      self._restorePersona();
+      self._appendMessage('agent', 'No problem — let me know if you need anything else.');
+    });
+    go.addEventListener('click', function () {
+      var d = desc.value.trim();
+      if (!d) { desc.focus(); return; }
+      if (wrap.parentNode) wrap.parentNode.removeChild(wrap);
+      msgs.classList.remove('sg-messages--focus');
+      var nav = self.getRecentActivity(4).filter(function (x) { return x.type === 'nav'; })[0];
+      var req = {
+        type: type,
+        description: d,
+        name: known ? self._profile.display_name : (nameInput ? nameInput.value.trim() : ''),
+        page: nav ? (nav.url) : (typeof location !== 'undefined' ? location.href : null),
+        recent_activity: self.getRecentActivity(5)
+      };
+      self._intakeRestate(req);
+    });
+  };
+
+  /* Restate-to-agreement: echo it back, get a yes before it goes anywhere. */
+  SomaGuide.prototype._intakeRestate = function (req) {
+    var self = this;
+    var msgs = this._$('.sg-messages'); if (!msgs) return;
+    var ctx = [];
+    var lastClick = (req.recent_activity || []).filter(function (x) { return x.type === 'click'; })[0];
+    if (lastClick && lastClick.label) ctx.push('right after you used “' + lastClick.label + '”');
+    this._appendMessage('agent',
+      'Here’s what I’ve got — “' + req.description + '”' +
+      (ctx.length ? ' (' + ctx.join(', ') + ')' : '') + '. Did I get that right?');
+
+    var row = document.createElement('div');
+    row.className = 'sg-msg sg-msg--action sg-offer';
+    var yes = document.createElement('button'); yes.className = 'sg-offer-do'; yes.textContent = '✓ That’s right';
+    yes.addEventListener('click', function () {
+      if (row.parentNode) row.parentNode.removeChild(row);
+      self._finishIntake(req);
+    });
+    var edit = document.createElement('button'); edit.className = 'sg-offer-show'; edit.textContent = 'Let me fix it';
+    edit.addEventListener('click', function () {
+      if (row.parentNode) row.parentNode.removeChild(row);
+      self._renderIntakeForm(req.type, req.description);
+    });
+    row.appendChild(yes); row.appendChild(edit);
+    msgs.appendChild(row); msgs.scrollTop = msgs.scrollHeight;
+  };
+
+  SomaGuide.prototype._finishIntake = function (req) {
+    /* Phase 1: assemble + record the structured request. Routing (safety vet →
+     * dev-worker | manager approval) + notify is Phase 2. */
+    this._log('intake_complete', req);
+    var who = req.name ? (', ' + req.name.split(' ')[0]) : '';
+    this._appendMessage('agent',
+      'Got it' + who + '. I’ve logged this with the context — your page and what you’d just done. ' +
+      'The team will pick it up from here.');
+    this._restorePersona();
+  };
+
   SomaGuide.prototype._startFeedbackFlow = function (type, originalText) {
     var label = type === 'bug' ? 'bug report' : 'feature request';
     this._appendMessage('agent',
