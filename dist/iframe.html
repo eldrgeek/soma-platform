@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SOMA Guide</title>
+<link rel="stylesheet" href="./soma-guide.css">
+<style>
+  /* The iframe is a transparent, full-viewport, click-through overlay injected by
+   * the host shim. Make the document itself transparent + click-through, and let
+   * only Bill's own widget element (#soma-guide) capture pointer events, so host
+   * clicks pass through everywhere else. */
+  html, body {
+    margin: 0;
+    background: transparent !important;
+    pointer-events: none;
+  }
+  #soma-guide,
+  #soma-guide * {
+    pointer-events: auto;
+  }
+</style>
+</head>
+<body>
+<!-- soma-guide.js boots from window.SomaGuideConfig automatically; here we DON'T
+     set SomaGuideConfig up front. Instead we wait for the host shim to post the
+     host page's config in, stamp it with delivery:'iframe', then construct Bill
+     manually so this._host becomes the postMessage-backed iframe adapter. -->
+<script src="./soma-guide.js"></script>
+<script>
+  (function () {
+    var booted = false;
+
+    function boot(config) {
+      if (booted) return;
+      booted = true;
+      var cfg = config || {};
+      cfg.delivery = 'iframe';
+      /* The host shim listens with origin '*' in the local demo; we post results
+       * back to the parent. hostOrigin can be tightened in production. */
+      cfg.hostOrigin = cfg.hostOrigin || '*';
+      window.SomaGuideConfig = cfg;
+      try {
+        window.somaGuide = new window.SomaGuide(cfg);
+      } catch (e) {
+        console.error('[SomaGuide iframe] boot failed', e);
+      }
+    }
+
+    window.addEventListener('message', function (ev) {
+      var d = ev.data;
+      if (!d || d.sg !== 'host-config') return;
+      boot(d.config);
+    });
+
+    /* Tell the parent shim we're ready, so it (re)sends the config even if its
+     * own load handler fired before this listener was attached. */
+    function announce() {
+      if (window.parent && window.parent !== window) {
+        try { window.parent.postMessage({ sg: 'iframe-ready' }, '*'); } catch (e) {}
+      }
+    }
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', announce);
+    } else {
+      announce();
+    }
+  })();
+</script>
+</body>
+</html>

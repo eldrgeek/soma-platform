@@ -85,7 +85,8 @@
      * this one object, so a future iframe build can swap in a postMessage-backed
      * adapter (talking to a host shim) without changing engine logic. Defaults
      * to direct-DOM for the embedded delivery mode. See docs/SOMA-DELIVERY.md. */
-    this._host = this.cfg.host || this._makeEmbeddedHost();
+    this._host = this.cfg.host ||
+      (this.cfg.delivery === 'iframe' ? this._makeIframeHost() : this._makeEmbeddedHost());
 
     this._build();
     this._enableDrag();
@@ -497,6 +498,72 @@
       scrollIntoView: function (sel) { var el = document.querySelector(sel); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); },
       highlight: function (sel) { var el = document.querySelector(sel); if (el) el.classList.add('sg-highlight'); },
       clearHighlight: function () { Array.prototype.forEach.call(document.querySelectorAll('.sg-highlight'), function (e) { e.classList.remove('sg-highlight'); }); }
+    };
+  };
+
+  /* ── Host adapter (iframe / postMessage) ────────────────────────────────────
+   * Used when cfg.delivery === 'iframe'. Bill's brain + UI run inside a
+   * cross-origin <iframe>; a cross-origin iframe cannot touch the host DOM, so
+   * every reach into the host is posted to the host shim (soma-guide-shim.js),
+   * which executes it on the host DOM and renders highlight + demo cursor
+   * host-side. Same method names as the embedded adapter, so engine logic is
+   * unchanged.
+   *
+   * Sync methods (click/setValue/scrollIntoView/highlight/clearHighlight/demo)
+   * are fire-and-forget — they post a command and return immediately. Methods
+   * that need an answer (exists/rect) return a Promise resolved by the shim's
+   * reply, correlated by a monotonically increasing request id. find() is not
+   * meaningfully transferable across the origin boundary, so it returns null;
+   * the engine's iframe-mode paths use selectors + exists/rect instead of raw
+   * element handles. */
+  SomaGuide.prototype._makeIframeHost = function () {
+    var self = this;
+    this._hostReqId = 0;
+    this._hostPending = {};          /* id -> resolve fn */
+    var target = (typeof window !== 'undefined' && window.parent) ? window.parent : null;
+    var origin = this.cfg.hostOrigin || '*';
+
+    /* Single listener for shim replies (results of exists/rect requests). */
+    if (typeof window !== 'undefined' && !this._hostListenerBound) {
+      this._hostListenerBound = true;
+      window.addEventListener('message', function (ev) {
+        var d = ev.data;
+        if (!d || d.sg !== 'host-result' || d.id == null) return;
+        var fn = self._hostPending[d.id];
+        if (fn) { delete self._hostPending[d.id]; fn(d.result); }
+      });
+    }
+
+    function post(cmd, args) {
+      if (!target) return;
+      try { target.postMessage({ sg: 'host-cmd', cmd: cmd, args: args || {} }, origin); }
+      catch (e) { /* origin mismatch / detached parent */ }
+    }
+    function request(cmd, args) {
+      return new Promise(function (resolve) {
+        if (!target) { resolve(null); return; }
+        var id = ++self._hostReqId;
+        self._hostPending[id] = resolve;
+        try { target.postMessage({ sg: 'host-cmd', cmd: cmd, args: args || {}, id: id }, origin); }
+        catch (e) { delete self._hostPending[id]; resolve(null); }
+        /* Safety timeout so a lost reply never wedges a Promise forever. */
+        setTimeout(function () {
+          if (self._hostPending[id]) { delete self._hostPending[id]; resolve(null); }
+        }, 3000);
+      });
+    }
+
+    return {
+      mode: 'iframe',
+      _post: post,                              /* engine uses this for demo-cursor commands */
+      find: function () { return null; },        /* element handles can't cross the boundary */
+      exists: function (sel) { return request('exists', { sel: sel }); },   /* Promise<bool> */
+      rect: function (sel) { return request('rect', { sel: sel }); },       /* Promise<rect|null> */
+      click: function (sel) { post('click', { sel: sel }); return true; },
+      setValue: function (sel, val) { post('setValue', { sel: sel, val: (val == null ? '' : val) }); return true; },
+      scrollIntoView: function (sel) { post('scrollIntoView', { sel: sel }); },
+      highlight: function (sel) { post('highlight', { sel: sel }); },
+      clearHighlight: function () { post('clearHighlight', {}); }
     };
   };
 
@@ -1024,37 +1091,49 @@
     this._wtSatisfyPreconditions(step, function () {
       if (!self.wt) return; /* tour exited during async gate */
 
-      var targetEl = null;
-      if (step.target) {
-        targetEl = document.querySelector(step.target);
-        if (targetEl) {
-          /* Skip highlight when the element has no layout (hidden/invisible).
-           * docHasLayout guard keeps jsdom-based tests unaffected (doc is 0-wide). */
-          var docHasLayout = typeof document !== 'undefined' &&
-            document.documentElement.getBoundingClientRect().width > 0;
-          if (docHasLayout) {
-            var tRect = targetEl.getBoundingClientRect();
-            if (tRect.width === 0 && tRect.height === 0) {
-              targetEl = null; /* not visible — narrate without highlight */
+      /* Iframe delivery: we can't hold a host element handle, so we delegate
+       * highlight + scroll to the shim by selector and stash the SELECTOR as the
+       * pending cursor target. _demoMoveTo branches on string vs. element. */
+      if (self._host && self._host.mode === 'iframe') {
+        if (step.target) {
+          self._host.scrollIntoView(step.target);
+          self._host.highlight(step.target);
+        }
+        self._pendingCursorTarget = step.target || null;   /* selector string */
+        self._pendingCursorDemo   = step.demo || null;
+      } else {
+        var targetEl = null;
+        if (step.target) {
+          targetEl = document.querySelector(step.target);
+          if (targetEl) {
+            /* Skip highlight when the element has no layout (hidden/invisible).
+             * docHasLayout guard keeps jsdom-based tests unaffected (doc is 0-wide). */
+            var docHasLayout = typeof document !== 'undefined' &&
+              document.documentElement.getBoundingClientRect().width > 0;
+            if (docHasLayout) {
+              var tRect = targetEl.getBoundingClientRect();
+              if (tRect.width === 0 && tRect.height === 0) {
+                targetEl = null; /* not visible — narrate without highlight */
+              }
+            }
+          }
+          if (targetEl) {
+            var dispVal = (typeof window !== 'undefined' && window.getComputedStyle)
+              ? window.getComputedStyle(targetEl).display : '';
+            if (dispVal === 'inline') targetEl.dataset.sgWasInline = '1';
+            targetEl.classList.add('sg-highlight');
+            if (typeof targetEl.scrollIntoView === 'function') {
+              targetEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             }
           }
         }
-        if (targetEl) {
-          var dispVal = (typeof window !== 'undefined' && window.getComputedStyle)
-            ? window.getComputedStyle(targetEl).display : '';
-          if (dispVal === 'inline') targetEl.dataset.sgWasInline = '1';
-          targetEl.classList.add('sg-highlight');
-          if (typeof targetEl.scrollIntoView === 'function') {
-            targetEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-          }
-        }
-      }
 
-      /* Store cursor target/action so the lead-in timer can be armed once audio
-       * actually starts playing (in _ttsPlayBlob play().then() / no-TTS fallback).
-       * This ensures the 1200ms lead-in is relative to audio start, not ready-gate. */
-      self._pendingCursorTarget = targetEl || null;
-      self._pendingCursorDemo   = step.demo || null;
+        /* Store cursor target/action so the lead-in timer can be armed once audio
+         * actually starts playing (in _ttsPlayBlob play().then() / no-TTS fallback).
+         * This ensures the 1200ms lead-in is relative to audio start, not ready-gate. */
+        self._pendingCursorTarget = targetEl || null;
+        self._pendingCursorDemo   = step.demo || null;
+      }
 
       /* Auto-advance: fires ONLY via audio ended event (or muted fallback timer) */
       var onEnded = null;
@@ -1200,6 +1279,30 @@
   /* Satisfy dropdown-open and target-visible preconditions, then call onReady.
    * Page navigation is handled upstream in _renderWtStep (synchronous path). */
   SomaGuide.prototype._wtSatisfyPreconditions = function (step, onReady) {
+    /* Iframe delivery: the host shim opens dropdowns + owns the host DOM, so we
+     * dispatch the dropdown command and let the shim's exists() gate the target.
+     * We give the shim a brief moment to apply the dropdown, then proceed — the
+     * shim's highlight/scroll/cursor are no-ops when a selector is absent. */
+    if (this._host && this._host.mode === 'iframe') {
+      if (step.requires && step.requires.dropdown && this._host._post) {
+        this._host._post('openDropdown', { sel: step.requires.dropdown });
+      }
+      if (!step.target) { onReady(); return; }
+      var self = this, start = Date.now();
+      (function poll() {
+        Promise.resolve(self._host.exists(step.target)).then(function (ok) {
+          if (!self.wt) return;                       /* tour exited during gate */
+          if (ok) { onReady(); return; }
+          if (Date.now() - start >= READY_GATE_MS) {
+            console.warn('[SomaGuide] (iframe) target not found within timeout: ' + step.target + ' — proceeding');
+            onReady();
+            return;
+          }
+          setTimeout(poll, READY_GATE_TICK);
+        });
+      })();
+      return;
+    }
     if (step.requires && step.requires.dropdown) {
       this._wtOpenDropdown(step.requires.dropdown);
     }
@@ -1262,6 +1365,9 @@
   SomaGuide.prototype._demoStop = function () {
     this._pendingCursorTarget = null;
     this._pendingCursorDemo   = null;
+    if (this._host && this._host.mode === 'iframe' && this._host._post) {
+      this._host._post('demoStop', {});
+    }
     if (this._cursorLeadTimer) {
       clearTimeout(this._cursorLeadTimer);
       this._cursorLeadTimer = null;
@@ -1277,7 +1383,14 @@
 
   SomaGuide.prototype._demoMoveTo = function (target, action) {
     var self = this;
-    if (!target || typeof document === 'undefined') return;
+    if (!target) return;
+    /* Iframe delivery: target is a selector string; the shim owns the cursor and
+     * renders it host-side (over the host DOM, where the target actually lives). */
+    if (self._host && self._host.mode === 'iframe') {
+      if (self._host._post) self._host._post('demoCursor', { sel: target, action: action || null });
+      return;
+    }
+    if (typeof document === 'undefined') return;
     this._demoBuild();
     var cursor = this._demoCursor;
     if (!cursor) return;
@@ -1453,6 +1566,10 @@
   };
 
   SomaGuide.prototype._clearHighlight = function () {
+    if (this._host && this._host.mode === 'iframe') {
+      this._host.clearHighlight();
+      return;
+    }
     document.querySelectorAll('.sg-highlight').forEach(function (el) {
       el.classList.remove('sg-highlight');
       if (el.dataset.sgWasInline) delete el.dataset.sgWasInline;
