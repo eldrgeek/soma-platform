@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Site Change Log | {{SITE_NAME}} Admin</title>
+  <!--
+    SOMA Change Log — drop-in review/approval page.
+
+    PLACEHOLDERS (replace all before shipping; full list in README.md):
+      {{SITE_NAME}}            human site name, e.g. "Acme Membership"
+      {{SUPABASE_PROJECT_REF}} Supabase project ref (for the setup-note SQL link)
+      {{ADMIN_EMAIL_1}}        admin email allow-listed for this page
+      {{ADMIN_EMAIL_2}}        second admin email (add/remove in ADMIN_EMAILS below)
+      {{ADMIN_CONTACT_EMAIL}}  email shown on the access-denied screen
+      {{ACCEPT_STORAGE_KEY}}   localStorage key for per-browser static accepts
+                               e.g. "acme_changelog_accepted"
+      {{PUBLISH_AGENT_EMAIL}}  build-agent inbox that receives publish-approval
+                               emails for breaking changes, e.g. claude@acme.com
+      {{LOGIN_PATH}}           sign-in page path, e.g. /login.html
+      {{ADMIN_HOME_PATH}}      admin landing page to link back to, e.g. /admin.html
+
+    DEPENDENCIES (provide these on the host site — see README):
+      - Supabase JS UMD bundle
+      - /js/soma-auth-config.js   (window.SOMA_AUTH_CONFIG = { url, anonKey })
+      - /js/soma-auth.js          (SomaAuth: init, onAuthStateChange, getRole, signOut)
+      - your site stylesheet providing the CSS variables used below
+        (--navy, --gold, --white, --border, --text-dark/medium/light)
+  -->
+  <link rel="stylesheet" href="/css/style.css">
+  <!-- SOMA Auth -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="/js/soma-auth-config.js"></script>
+  <script src="/js/soma-auth.js"></script>
+  <style>
+    .page-hero { background: var(--navy); padding: 100px 24px 48px; text-align: center; color: var(--white); }
+    .page-hero h1 { font-family: 'Playfair Display', serif; font-size: 2rem; color: var(--gold); margin-bottom: 8px; }
+    .page-hero p { color: rgba(255,255,255,0.65); font-size: 0.9rem; }
+    .page-content { max-width: 920px; margin: 0 auto; padding: 36px 24px 80px; }
+
+    .access-denied { background: var(--navy); border-radius: 12px; padding: 48px; text-align: center; color: var(--white); margin-top: 40px; }
+    .access-denied h2 { font-family: 'Playfair Display', serif; color: var(--gold); margin-bottom: 12px; }
+    .access-denied p { color: rgba(255,255,255,0.7); }
+
+    .stats-row { display: flex; gap: 16px; margin-bottom: 32px; flex-wrap: wrap; }
+    .stat-card { background: var(--white); border: 1px solid var(--border); border-radius: 10px; padding: 20px 24px; flex: 1; min-width: 100px; text-align: center; }
+    .stat-num { font-family: 'Playfair Display', serif; font-size: 2rem; color: var(--navy); }
+    .stat-label { font-size: 0.75rem; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.06em; }
+
+    .tab-bar { display: flex; gap: 4px; margin-bottom: 24px; border-bottom: 2px solid var(--border); }
+    .tab { padding: 10px 20px; cursor: pointer; font-size: 0.88rem; font-weight: 500; color: var(--text-medium); border-bottom: 3px solid transparent; margin-bottom: -2px; transition: color 0.15s; }
+    .tab.active { color: var(--navy); border-bottom-color: var(--gold); font-weight: 700; }
+    .tab:hover:not(.active) { color: var(--navy); }
+
+    .section-heading { font-family: 'Playfair Display', serif; font-size: 1.2rem; color: var(--navy); margin-bottom: 4px; }
+    .gold-line { width: 40px; height: 3px; background: var(--gold); margin: 6px 0 20px; }
+
+    .cl-item { background: var(--white); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 14px; transition: box-shadow 0.15s; }
+    .cl-item:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.07); }
+    .cl-item-header { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 10px; flex-wrap: wrap; }
+    .cl-date { font-size: 0.78rem; color: var(--text-light); white-space: nowrap; margin-top: 2px; min-width: 86px; }
+    .cl-title { font-weight: 700; color: var(--navy); font-size: 0.98rem; flex: 1; }
+    .cl-summary { font-size: 0.85rem; color: var(--text-medium); line-height: 1.65; margin-bottom: 10px; }
+
+    .badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap; }
+    .badge-mike { background: #dbeafe; color: #1e40af; }
+    .badge-greg { background: #d1fae5; color: #065f46; }
+    .badge-completed { background: #f5e9c5; color: #92400e; }
+    .badge-in-progress { background: #ede9fe; color: #7c3aed; }
+    .badge-deferred { background: #f3f4f6; color: #6b7280; }
+
+    .cl-responses { border-top: 1px solid var(--border); margin-top: 14px; padding-top: 14px; }
+    .cl-response-item { background: #fffdf5; border: 1px solid #f0e8c8; border-radius: 8px; padding: 12px 14px; margin-bottom: 10px; font-size: 0.85rem; }
+    .cl-response-meta { font-size: 0.75rem; color: var(--text-light); margin-bottom: 4px; }
+    .cl-response-text { color: var(--text-dark); line-height: 1.6; }
+
+    .cl-add-note-toggle { background: none; border: 1px solid var(--border); border-radius: 6px; padding: 6px 14px; font-size: 0.8rem; font-family: inherit; color: var(--text-medium); cursor: pointer; transition: background 0.15s, color 0.15s; }
+    .cl-add-note-toggle:hover { background: var(--gold-pale, #fffdf5); color: var(--navy); border-color: var(--gold); }
+    .cl-note-form { margin-top: 12px; display: none; }
+    .cl-note-form.open { display: block; }
+    .cl-note-textarea { width: 100%; box-sizing: border-box; border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; font-family: 'Inter', sans-serif; font-size: 0.85rem; line-height: 1.55; resize: vertical; min-height: 80px; }
+    .cl-note-textarea:focus { outline: 2px solid var(--gold); outline-offset: 1px; }
+    .cl-note-actions { display: flex; gap: 8px; margin-top: 8px; align-items: center; }
+    .btn-save-note { background: var(--navy); color: var(--gold); border: none; border-radius: 6px; padding: 8px 18px; font-size: 0.82rem; font-weight: 600; cursor: pointer; font-family: inherit; transition: opacity 0.15s; }
+    .btn-save-note:hover { opacity: 0.85; }
+    .btn-save-note:disabled { opacity: 0.4; cursor: default; }
+    .btn-cancel-note { background: none; border: 1px solid var(--border); border-radius: 6px; padding: 8px 14px; font-size: 0.82rem; color: var(--text-medium); cursor: pointer; font-family: inherit; }
+    .note-status { font-size: 0.8rem; margin-left: 4px; }
+    .note-status.ok { color: #1a7a1a; }
+    .note-status.err { color: #c0392b; }
+
+    .date-filter-row { display: flex; gap: 12px; align-items: center; margin-bottom: 20px; flex-wrap: wrap; }
+    .date-filter-row label { font-size: 0.82rem; font-weight: 600; color: var(--text-dark); white-space: nowrap; }
+    .date-filter-row input[type="date"] { border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; font-family: 'Inter', sans-serif; font-size: 0.85rem; color: var(--text-dark); }
+    .date-filter-row input[type="date"]:focus { outline: 2px solid var(--gold); outline-offset: 1px; }
+    .btn-clear-dates { background: none; border: 1px solid var(--border); border-radius: 6px; padding: 7px 14px; font-size: 0.8rem; color: var(--text-medium); cursor: pointer; font-family: inherit; }
+    .btn-clear-dates:hover { border-color: var(--gold); color: var(--navy); }
+
+    .search-row { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px; background: var(--white); }
+    .search-row:focus-within { outline: 2px solid var(--gold); outline-offset: 1px; }
+    .search-row svg { flex: 0 0 auto; color: var(--text-light); }
+    .search-row input[type="search"] { flex: 1; border: none; outline: none; background: transparent; font-family: 'Inter', sans-serif; font-size: 0.9rem; color: var(--text-dark); }
+    .search-row input[type="search"]::-webkit-search-decoration,
+    .search-row input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; }
+    .btn-clear-search { display: none; background: none; border: none; cursor: pointer; padding: 2px 6px; font-size: 1.1rem; line-height: 1; color: var(--text-light); font-family: inherit; }
+    .btn-clear-search:hover { color: var(--navy); }
+    .search-row.has-text .btn-clear-search { display: inline-block; }
+
+    .add-request-bar { margin-bottom: 24px; }
+    .btn-add-request { display: inline-flex; align-items: center; gap: 7px; background: var(--navy); color: #fff; border: none; border-radius: 8px; padding: 10px 18px; font-size: 0.86rem; font-weight: 600; cursor: pointer; font-family: inherit; }
+    .btn-add-request:hover { background: var(--gold); color: var(--navy); }
+    .new-request-section.collapsed { display: none; }
+    .new-request-section .btn-close-form { float: right; background: none; border: none; font-size: 1.2rem; line-height: 1; color: var(--text-light); cursor: pointer; }
+
+    .cl-approve-actions { display: flex; gap: 10px; margin: 12px 0 4px; flex-wrap: wrap; }
+    .btn-accept { background: #1f8b4c; color: #fff; border: none; border-radius: 7px; padding: 8px 18px; font-size: 0.83rem; font-weight: 700; cursor: pointer; font-family: inherit; }
+    .btn-accept:hover { background: #176b3a; }
+    .btn-refine { background: none; color: var(--navy); border: 1px solid var(--border); border-radius: 7px; padding: 8px 16px; font-size: 0.83rem; font-weight: 600; cursor: pointer; font-family: inherit; }
+    .btn-refine:hover { border-color: var(--gold); }
+    .badge-awaiting { background: #fff3d6; color: #8a6d1a; border: 1px solid #e6cf8a; }
+    .badge-accepted { background: #e3f4ea; color: #1f8b4c; border: 1px solid #b7e0c6; }
+
+    .cl-title-link { color: var(--navy); text-decoration: none; border-bottom: 1px dashed var(--gold); cursor: pointer; }
+    .cl-title-link:hover { color: var(--gold); }
+    .cl-title-ext { font-size: 0.75em; color: var(--text-light); }
+    .cl-page-line { font-size: 0.78rem; color: var(--text-light); margin-top: 6px; }
+    .cl-page-link { color: var(--navy); font-weight: 600; cursor: pointer; }
+    .cl-item.previewing { outline: 2px solid var(--gold); outline-offset: 2px; }
+
+    .page-preview { border: 1px solid var(--gold); border-radius: 12px; overflow: hidden; margin-bottom: 24px; background: var(--white); box-shadow: 0 6px 24px rgba(0,0,0,0.12); }
+    .page-preview-header { display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: var(--navy); color: #fff; flex-wrap: wrap; }
+    .page-preview-header .pp-title { font-weight: 700; font-size: 0.9rem; flex: 1; min-width: 140px; }
+    .page-preview-header .pp-page { font-size: 0.75rem; color: rgba(255,255,255,0.6); }
+    .page-preview-header a, .page-preview-header button { font-family: inherit; cursor: pointer; }
+    .pp-accept { background: #1f8b4c; color: #fff; border: none; border-radius: 6px; padding: 6px 14px; font-weight: 700; font-size: 0.78rem; }
+    .pp-refine { background: rgba(255,255,255,0.12); color: #fff; border: 1px solid rgba(255,255,255,0.35); border-radius: 6px; padding: 6px 12px; font-size: 0.78rem; }
+    .pp-open { color: var(--gold); font-size: 0.78rem; text-decoration: none; }
+    .pp-close { background: none; border: none; color: #fff; font-size: 1.3rem; line-height: 1; }
+    .page-preview iframe { width: 100%; height: 65vh; border: none; display: block; background: #fff; }
+
+    .new-request-section { background: var(--white); border: 1px solid var(--gold); border-radius: 12px; padding: 24px; margin-bottom: 32px; }
+    .new-request-section h3 { font-family: 'Playfair Display', serif; font-size: 1.1rem; color: var(--navy); margin-bottom: 6px; }
+    .new-request-section p.sub { font-size: 0.84rem; color: var(--text-light); margin-bottom: 18px; }
+    .field-row { margin-bottom: 14px; }
+    .field-row label { display: block; font-size: 0.82rem; font-weight: 600; color: var(--text-dark); margin-bottom: 5px; }
+    .field-row input, .field-row textarea, .field-row select { width: 100%; box-sizing: border-box; border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; font-family: 'Inter', sans-serif; font-size: 0.88rem; color: var(--text-dark); }
+    .field-row input:focus, .field-row textarea:focus, .field-row select:focus { outline: 2px solid var(--gold); outline-offset: 1px; }
+    .field-row textarea { min-height: 90px; resize: vertical; }
+    .btn-submit-request { background: var(--navy); color: var(--gold); border: none; border-radius: 8px; padding: 11px 26px; font-size: 0.9rem; font-weight: 600; cursor: pointer; font-family: inherit; transition: opacity 0.15s; }
+    .btn-submit-request:hover { opacity: 0.85; }
+    .btn-submit-request:disabled { opacity: 0.4; cursor: default; }
+    .request-feedback { margin-top: 12px; font-size: 0.88rem; padding: 10px 14px; border-radius: 8px; }
+    .request-feedback.ok { background: #f0faf0; border: 1px solid #4caf50; color: #1a6b1a; }
+    .request-feedback.err { background: #fff0f0; border: 1px solid #e74c3c; color: #9b2b2b; }
+
+    .setup-note { background: var(--gold-pale, #fffdf5); border: 1px solid var(--gold); border-radius: 8px; padding: 14px 18px; font-size: 0.85rem; line-height: 1.65; margin-top: 16px; color: var(--text-dark); }
+    .setup-note strong { color: var(--navy); }
+    .setup-note pre { font-size: 0.75rem; margin-top: 8px; white-space: pre-wrap; background: #f3f4f6; padding: 10px; border-radius: 6px; }
+    .setup-note a { color: var(--navy); }
+
+    .back-link { display: inline-flex; align-items: center; gap: 6px; color: var(--navy); font-size: 0.85rem; font-weight: 600; text-decoration: none; margin-bottom: 24px; }
+    .back-link:hover { text-decoration: underline; }
+
+    .empty-state { color: var(--text-light); font-size: 0.88rem; padding: 20px 0; }
+    .loading-state { color: var(--text-light); font-size: 0.88rem; padding: 14px 0; }
+  </style>
+</head>
+<body>
+
+<!-- Replace this nav with your site's nav include, or delete it. -->
+<nav>
+  <div class="nav-inner">
+    <a href="/index.html" class="nav-brand">{{SITE_NAME}}</a>
+  </div>
+</nav>
+
+<div class="page-hero">
+  <h1>Site Change Log</h1>
+  <p>All requests and communications about the {{SITE_NAME}} website, with their current status.</p>
+</div>
+
+<div class="page-content">
+
+  <div id="not-logged-in" class="access-denied" style="display:none;">
+    <h2>Login Required</h2>
+    <p>This page is for site administrators only.</p>
+    <button class="btn btn-gold" onclick="window.location.href='{{LOGIN_PATH}}?redirect=/admin-changelog.html'" style="margin-top:16px; background: var(--gold); color: var(--navy); border: none; border-radius: 8px; padding: 12px 28px; font-size: 0.9rem; font-weight: 700; cursor: pointer; font-family: inherit;">Sign In</button>
+  </div>
+
+  <div id="access-denied" class="access-denied" style="display:none;">
+    <h2>Access Restricted</h2>
+    <p>This page is restricted to site administrators.<br>Contact <a href="mailto:{{ADMIN_CONTACT_EMAIL}}" style="color: var(--gold);">{{ADMIN_CONTACT_EMAIL}}</a> for access.</p>
+  </div>
+
+  <div id="main-panel" style="display:none;">
+
+    <a href="{{ADMIN_HOME_PATH}}" class="back-link">&#8592; Back to Admin</a>
+
+    <!-- Stats -->
+    <div class="stats-row">
+      <div class="stat-card"><div class="stat-num" id="stat-total">0</div><div class="stat-label">Total</div></div>
+      <div class="stat-card"><div class="stat-num" id="stat-awaiting">0</div><div class="stat-label">Awaiting Approval</div></div>
+      <div class="stat-card"><div class="stat-num" id="stat-accepted">0</div><div class="stat-label">Accepted</div></div>
+    </div>
+
+    <!-- Add new request (compact toggle) -->
+    <div class="add-request-bar">
+      <button type="button" class="btn-add-request" id="add-request-btn" onclick="toggleRequestForm()">+ New request or refinement</button>
+    </div>
+
+    <!-- Submit new request (collapsed by default) -->
+    <div class="new-request-section collapsed" id="new-request-section">
+      <button type="button" class="btn-close-form" onclick="toggleRequestForm()" aria-label="Close">&times;</button>
+      <h3>Submit a New Request or Refinement</h3>
+      <p class="sub">Use this form to request changes, report issues, or note refinements needed on any part of the site.</p>
+      <form id="new-request-form">
+        <div class="field-row">
+          <label for="req-title">Request title</label>
+          <input type="text" id="req-title" placeholder="Brief description of what you need" required maxlength="200">
+        </div>
+        <div class="field-row">
+          <label for="req-details">Details</label>
+          <textarea id="req-details" placeholder="Describe the change, what page it affects, and what you'd like it to do. The more specific the better." required></textarea>
+        </div>
+        <div class="field-row">
+          <label for="req-priority">Priority</label>
+          <select id="req-priority">
+            <option value="normal">Normal — whenever convenient</option>
+            <option value="high">High — needed soon</option>
+            <option value="low">Low — nice to have</option>
+          </select>
+        </div>
+        <button type="submit" id="req-submit-btn" class="btn-submit-request">Submit Request</button>
+        <div id="req-feedback" style="display:none;" class="request-feedback"></div>
+      </form>
+      <div id="req-setup-note" class="setup-note" style="display:none;">
+        <strong>Database tables not yet set up.</strong> Run <code>sql/schema.sql</code> in the
+        <a href="https://supabase.com/dashboard/project/{{SUPABASE_PROJECT_REF}}/sql/new" target="_blank" rel="noopener">Supabase SQL Editor</a>
+        to enable new requests and notes (creates <code>changelog_requests</code> and <code>changelog_notes</code>).
+      </div>
+    </div>
+
+    <!-- Search -->
+    <div class="search-row" id="search-row">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+      </svg>
+      <input type="search" id="search-input" placeholder="Search the change log…" oninput="applySearch()" aria-label="Search the change log">
+      <button type="button" class="btn-clear-search" onclick="clearSearch()" aria-label="Clear search">&times;</button>
+    </div>
+
+    <!-- Date range filter -->
+    <div class="date-filter-row">
+      <label for="filter-from">From</label>
+      <input type="date" id="filter-from" onchange="applyFilters()">
+      <label for="filter-to">To</label>
+      <input type="date" id="filter-to" onchange="applyFilters()">
+      <button class="btn-clear-dates" onclick="clearDateFilter()">Clear dates</button>
+    </div>
+
+    <!-- Approval tabs -->
+    <div class="tab-bar">
+      <div class="tab active" onclick="showTab('awaiting', this)">Awaiting Approval</div>
+      <div class="tab" onclick="showTab('accepted', this)">Accepted</div>
+      <div class="tab" onclick="showTab('all', this)">All</div>
+    </div>
+
+    <!-- Inline page preview -->
+    <div class="page-preview" id="page-preview" style="display:none;">
+      <div class="page-preview-header">
+        <div>
+          <div class="pp-title" id="preview-title">Preview</div>
+          <div class="pp-page" id="preview-page"></div>
+        </div>
+        <button type="button" class="pp-accept" id="preview-accept" style="display:none;">&#10003; Accept</button>
+        <button type="button" class="pp-refine" id="preview-refine">Needs refinement</button>
+        <a class="pp-open" id="preview-open-tab" href="#" target="_blank" rel="noopener">Open in new tab &#8599;</a>
+        <button type="button" class="pp-close" onclick="closePreview()" aria-label="Close preview">&times;</button>
+      </div>
+      <iframe id="preview-frame" title="Page preview" src="about:blank"></iframe>
+    </div>
+
+    <div class="section-heading">Change History</div>
+    <div class="gold-line"></div>
+
+    <div id="changelog-list">
+      <p class="loading-state">Loading change log…</p>
+    </div>
+
+    <div id="new-requests-section" style="margin-top: 36px; display:none;">
+      <div class="section-heading">Submitted Requests</div>
+      <div class="gold-line"></div>
+      <div id="new-requests-list"></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ── Static change log seed ──────────────────────────────────────────────────
+// Each entry: { id, date, requester, title, summary, status, page?, branch? }
+//   status:  'completed' | 'in-progress' | 'deferred'
+//   page:    (optional) the page this change touched, e.g. 'members.html'
+//            — makes the title clickable and opens the inline iframe preview.
+//   branch:  (optional) preview-deploy branch for a BREAKING change. Presence of
+//            `branch` turns Accept into "Accept & publish", which composes an
+//            approval email to {{PUBLISH_AGENT_EMAIL}} to merge + deploy.
+// Seed with your real history, or leave the single example below and rely on the
+// Supabase-backed "Submitted Requests" flow for everything going forward.
+var CHANGELOG = [
+  {
+    id: 'cl-001',
+    date: '2026-01-01',
+    requester: 'Admin',
+    title: 'Initial site build and deployment',
+    summary: 'Built and deployed the site. Replace this seed entry with your real change history, or remove it.',
+    status: 'completed'
+  }
+];
+
+// ── Auth helpers ──────────────────────────────────────────────────────────────
+var ADMIN_EMAILS = ['{{ADMIN_EMAIL_1}}', '{{ADMIN_EMAIL_2}}'];
+
+function isAdmin(user, role) {
+  return (role === 'admin') || (user && ADMIN_EMAILS.indexOf(user.email) !== -1);
+}
+
+function updateAuthNav(user, role) {
+  // Optional: wire up your site's nav auth state here. Left as a no-op so the
+  // template has no hard dependency on specific nav element ids.
+}
+
+// ── Supabase helpers ──────────────────────────────────────────────────────────
+var _session = null;
+
+function supaRest(path, opts) {
+  var cfg = window.SOMA_AUTH_CONFIG;
+  var headers = Object.assign({
+    'apikey': cfg.anonKey,
+    'Authorization': 'Bearer ' + (_session ? _session.access_token : cfg.anonKey),
+    'Content-Type': 'application/json'
+  }, (opts && opts.headers) || {});
+  return fetch(cfg.url + path, Object.assign({}, opts, { headers: headers }));
+}
+
+// ── Filters ───────────────────────────────────────────────────────────────────
+var _currentTab = 'awaiting';   // default view: review queue
+var _fromDate = '';
+var _toDate = '';
+var _searchTerm = '';
+
+function applySearch() {
+  var input = document.getElementById('search-input');
+  _searchTerm = (input.value || '').trim().toLowerCase();
+  document.getElementById('search-row').classList.toggle('has-text', _searchTerm.length > 0);
+  renderChangelog();
+}
+
+function clearSearch() {
+  _searchTerm = '';
+  var input = document.getElementById('search-input');
+  if (input) input.value = '';
+  document.getElementById('search-row').classList.remove('has-text');
+  renderChangelog();
+}
+
+function itemMatchesSearch(item) {
+  if (!_searchTerm) return true;
+  var hay = [item.title, item.summary, item.details, item.requester, item.date, item.page]
+    .filter(Boolean).join(' ').toLowerCase();
+  return hay.indexOf(_searchTerm) !== -1;
+}
+
+// ── Approval (Accept / Awaiting) ────────────────────────────────────────────────
+// Static history accepts are stored per-browser in localStorage; submitted requests
+// (Supabase) persist their accept as status='accepted' on the server.
+var ACCEPT_KEY = '{{ACCEPT_STORAGE_KEY}}';
+var _previewId = null;
+
+function getAcceptedSet() {
+  try { return JSON.parse(localStorage.getItem(ACCEPT_KEY) || '[]'); }
+  catch (e) { return []; }
+}
+function markStaticAccepted(id) {
+  var s = getAcceptedSet();
+  if (s.indexOf(id) === -1) { s.push(id); }
+  try { localStorage.setItem(ACCEPT_KEY, JSON.stringify(s)); } catch (e) {}
+}
+function isAccepted(item, isNew) {
+  if (isNew) return item.status === 'accepted';
+  return getAcceptedSet().indexOf(item.id) !== -1;
+}
+function itemMatchesApprovalTab(item, isNew) {
+  if (_currentTab === 'all') return true;
+  var accepted = isAccepted(item, isNew);
+  return _currentTab === 'accepted' ? accepted : !accepted;  // default: awaiting
+}
+
+// ── Page association ────────────────────────────────────────────────────────────
+// Explicit item.page wins (the agent that made the change records where). Add
+// keyword fallbacks here if you want older entries to auto-link to a page.
+var _PAGE_KEYWORDS = [
+  // ['change log', 'admin-changelog.html'],
+  // ['home page', 'index.html'],
+];
+function pageForItem(item) {
+  if (item.page) return item.page;
+  var text = ((item.title || '') + ' ' + (item.summary || item.details || '')).toLowerCase();
+  for (var i = 0; i < _PAGE_KEYWORDS.length; i++) {
+    if (text.indexOf(_PAGE_KEYWORDS[i][0]) !== -1) return _PAGE_KEYWORDS[i][1];
+  }
+  return null;
+}
+function findItemById(id) {
+  var f = CHANGELOG.filter(function (i) { return i.id === id; });
+  if (f.length) return { item: f[0], isNew: false };
+  var g = _newRequests.filter(function (i) { return (i.id || ('nr-' + i.created_at)) === id; });
+  if (g.length) return { item: g[0], isNew: true };
+  return null;
+}
+
+// ── Inline page preview ─────────────────────────────────────────────────────────
+function openPreview(page, id) {
+  var found = findItemById(id);
+  // Breaking changes carry an absolute preview-deploy URL (different origin); those
+  // can't be iframed under X-Frame-Options SAMEORIGIN, so open them in a new tab.
+  if (/^https?:\/\//i.test(page)) { window.open(page, '_blank', 'noopener'); return; }
+  _previewId = id;
+  document.getElementById('preview-title').textContent = (found && found.item.title) || page;
+  document.getElementById('preview-page').textContent = page;
+  document.getElementById('preview-open-tab').href = '/' + page;
+  document.getElementById('preview-frame').src = '/' + page;
+
+  var acc = document.getElementById('preview-accept');
+  var accepted = found ? isAccepted(found.item, found.isNew) : true;
+  acc.style.display = accepted ? 'none' : '';
+  acc.innerHTML = (found && found.item.branch) ? '&#10003; Accept &amp; publish' : '&#10003; Accept';
+  acc.onclick = function () { acceptItem(id, found ? found.isNew : false); };
+  document.getElementById('preview-refine').onclick = function () {
+    var form = document.getElementById('note-form-' + id);
+    if (form) { form.classList.add('open'); form.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+  };
+
+  document.getElementById('page-preview').style.display = '';
+  document.querySelectorAll('.cl-item.previewing').forEach(function (e) { e.classList.remove('previewing'); });
+  var itemEl = document.getElementById('item-' + id);
+  if (itemEl) itemEl.classList.add('previewing');
+  document.getElementById('page-preview').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+function closePreview() {
+  _previewId = null;
+  document.getElementById('page-preview').style.display = 'none';
+  document.getElementById('preview-frame').src = 'about:blank';
+  document.querySelectorAll('.cl-item.previewing').forEach(function (e) { e.classList.remove('previewing'); });
+}
+
+// ── Accept ──────────────────────────────────────────────────────────────────────
+// Breaking changes live on a preview branch and must be merged to master to go live.
+// The browser can't merge, so Accept composes an approval email to the build agent
+// ({{PUBLISH_AGENT_EMAIL}}); the daemon dispatches the merge + deploy. Non-breaking
+// changes are already live, so Accept is just sign-off.
+function composePublishEmail(item, branch) {
+  var subject = 'Publish approved change: ' + (item.title || branch);
+  var body = 'Approved for production.\n\n'
+    + 'Please publish this previewed change: merge branch "' + branch + '" into master '
+    + 'and push, so the host deploys it to production. Then confirm the deploy.\n\n'
+    + 'Change: ' + (item.title || '') + '\n'
+    + (item.page ? 'Preview: ' + item.page + '\n' : '')
+    + 'Branch: ' + branch + '\n';
+  window.location.href = 'mailto:{{PUBLISH_AGENT_EMAIL}}?subject=' +
+    encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
+}
+
+function acceptItem(id, isNew) {
+  var found = findItemById(id);
+  var branch = (found && found.item) ? found.item.branch : null;
+  if (branch) {
+    if (!confirm('Publish this change to production?\n\nThis opens an approval email to merge "' +
+        branch + '" into master and deploy it live.')) return;
+    composePublishEmail(found.item, branch);
+  }
+  if (isNew) {
+    if (!_dbAvailable) { alert('Database not set up yet — cannot save acceptance.'); return; }
+    supaRest('/rest/v1/changelog_requests?id=eq.' + encodeURIComponent(id), {
+      method: 'PATCH',
+      headers: { 'Prefer': 'return=minimal' },
+      body: JSON.stringify({ status: 'accepted' })
+    }).then(function (res) {
+      if (res.ok || res.status === 204) {
+        var f = _newRequests.filter(function (i) { return (i.id || ('nr-' + i.created_at)) === id; });
+        if (f.length) f[0].status = 'accepted';
+        _afterAccept(id);
+      } else { alert('Could not accept (server returned ' + res.status + ').'); }
+    }).catch(function () { alert('Could not accept (network error).'); });
+  } else {
+    markStaticAccepted(id);
+    _afterAccept(id);
+  }
+}
+function _afterAccept(id) {
+  if (_previewId === id) {
+    var acc = document.getElementById('preview-accept');
+    if (acc) acc.style.display = 'none';
+  }
+  renderChangelog();
+}
+
+// ── Add-request form toggle ───────────────────────────────────────────────────────
+function toggleRequestForm() {
+  var sec = document.getElementById('new-request-section');
+  var btn = document.getElementById('add-request-btn');
+  var collapsed = sec.classList.toggle('collapsed');
+  if (btn) btn.textContent = collapsed ? '+ New request or refinement' : '− Hide form';
+  if (!collapsed) { sec.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+}
+
+function approvalBadgeHtml(accepted) {
+  return accepted
+    ? '<span class="badge badge-accepted">Accepted</span>'
+    : '<span class="badge badge-awaiting">Awaiting approval</span>';
+}
+
+function showTab(tab, el) {
+  _currentTab = tab;
+  document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+  if (el) el.classList.add('active');
+  renderChangelog();
+}
+
+function applyFilters() {
+  _fromDate = document.getElementById('filter-from').value || '';
+  _toDate = document.getElementById('filter-to').value || '';
+  renderChangelog();
+}
+
+function clearDateFilter() {
+  _fromDate = '';
+  _toDate = '';
+  document.getElementById('filter-from').value = '';
+  document.getElementById('filter-to').value = '';
+  renderChangelog();
+}
+
+function itemMatchesDateFilter(item) {
+  var d = (item.date || item.created_at || '').slice(0, 10);
+  if (_fromDate && d < _fromDate) return false;
+  if (_toDate && d > _toDate) return false;
+  return true;
+}
+
+// ── Notes (Supabase) ──────────────────────────────────────────────────────────
+var _notes = {};
+var _notesLoaded = false;
+var _dbAvailable = true;
+
+function loadNotes() {
+  return supaRest('/rest/v1/changelog_notes?select=*&order=created_at.asc')
+    .then(function(res) {
+      if (res.status === 404 || res.status === 400) { _dbAvailable = false; return []; }
+      return res.json();
+    })
+    .then(function(rows) {
+      _notes = {};
+      if (!Array.isArray(rows)) { _dbAvailable = false; return; }
+      rows.forEach(function(r) {
+        if (!_notes[r.request_id]) _notes[r.request_id] = [];
+        _notes[r.request_id].push(r);
+      });
+      _notesLoaded = true;
+    })
+    .catch(function() { _dbAvailable = false; });
+}
+
+function saveNote(requestId, noteText, authorEmail, callback) {
+  supaRest('/rest/v1/changelog_notes', {
+    method: 'POST',
+    headers: { 'Prefer': 'return=representation' },
+    body: JSON.stringify({ request_id: requestId, note: noteText, author: authorEmail })
+  })
+  .then(function(res) {
+    if (!res.ok) { return res.json().then(function(e) { callback(false, e); }); }
+    return res.json().then(function(rows) {
+      var row = Array.isArray(rows) ? rows[0] : rows;
+      if (!_notes[requestId]) _notes[requestId] = [];
+      _notes[requestId].push(row);
+      callback(true, null);
+    });
+  })
+  .catch(function(e) { callback(false, e); });
+}
+
+// ── New request form (Supabase) ───────────────────────────────────────────────
+var _newRequests = [];
+
+function loadNewRequests(authorEmail) {
+  return supaRest('/rest/v1/changelog_requests?select=*&order=created_at.desc')
+    .then(function(res) {
+      if (res.status === 404 || res.status === 400) { return []; }
+      return res.json();
+    })
+    .then(function(rows) {
+      _newRequests = Array.isArray(rows) ? rows : [];
+    })
+    .catch(function() { _newRequests = []; });
+}
+
+function submitNewRequest(title, details, priority, authorEmail, callback) {
+  supaRest('/rest/v1/changelog_requests', {
+    method: 'POST',
+    headers: { 'Prefer': 'return=representation' },
+    body: JSON.stringify({ title: title, details: details, priority: priority, requester: authorEmail, status: 'open' })
+  })
+  .then(function(res) {
+    if (!res.ok) {
+      return res.json().then(function(e) { callback(false, e); });
+    }
+    return res.json().then(function(rows) {
+      var row = Array.isArray(rows) ? rows[0] : rows;
+      _newRequests.unshift(row);
+      callback(true, null);
+    });
+  })
+  .catch(function(e) { callback(false, e); });
+}
+
+// ── Rendering ─────────────────────────────────────────────────────────────────
+
+function statusBadgeHtml(status) {
+  var map = {
+    'completed': '<span class="badge badge-completed">Completed</span>',
+    'in-progress': '<span class="badge badge-in-progress">In Progress</span>',
+    'deferred': '<span class="badge badge-deferred">Deferred</span>',
+    'open': '<span class="badge badge-in-progress">Open</span>'
+  };
+  return map[status] || '<span class="badge">' + status + '</span>';
+}
+
+function requesterBadgeHtml(r) {
+  // Generic two-tone requester badge. Customize per your team if you like.
+  return '<span class="badge badge-mike">' + escHtml(String(r || 'Admin')) + '</span>';
+}
+
+function formatDate(d) {
+  var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var parts = d.split('-');
+  if (parts.length === 3) {
+    return months[parseInt(parts[1], 10) - 1] + ' ' + parseInt(parts[2], 10) + ', ' + parts[0];
+  }
+  var dt = new Date(d);
+  return months[dt.getMonth()] + ' ' + dt.getDate() + ', ' + dt.getFullYear();
+}
+
+function renderNotesFor(requestId) {
+  var notes = _notes[requestId] || [];
+  if (!notes.length) return '';
+  var html = '<div class="cl-responses">';
+  notes.forEach(function(n) {
+    html += '<div class="cl-response-item">';
+    html += '<div class="cl-response-meta">' + (n.author || 'Admin') + ' &middot; ' + formatDate(n.created_at) + '</div>';
+    html += '<div class="cl-response-text">' + escHtml(n.note) + '</div>';
+    html += '</div>';
+  });
+  html += '</div>';
+  return html;
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/\n/g,'<br>');
+}
+
+function renderItem(item, isNew, authorEmail) {
+  var id = item.id || ('nr-' + item.created_at);
+  var statusKey = isNew ? (item.status || 'open') : item.status;
+  var accepted = isAccepted(item, isNew);
+  var page = pageForItem(item);
+  var requesterLabel = isNew ? (item.requester || 'Admin') : item.requester;
+  var requesterBadge = isNew
+    ? '<span class="badge badge-greg">' + escHtml(String(requesterLabel).split('@')[0]) + '</span>'
+    : requesterBadgeHtml(item.requester);
+
+  var titleHtml;
+  if (page) {
+    titleHtml = '<a class="cl-title-link" href="javascript:void(0)" onclick="openPreview(\'' +
+      page + '\',\'' + id + '\')">' + escHtml(item.title) +
+      ' <span class="cl-title-ext">&#8599;</span></a>';
+  } else {
+    titleHtml = escHtml(item.title);
+  }
+
+  var html = '<div class="cl-item" id="item-' + id + '" data-status="' + statusKey + '">';
+  html += '<div class="cl-item-header">';
+  html += '<div class="cl-date">' + formatDate(item.date || item.created_at) + '</div>';
+  html += '<div class="cl-title">' + titleHtml + '</div>';
+  html += requesterBadge + '&nbsp;' + statusBadgeHtml(statusKey) + '&nbsp;' + approvalBadgeHtml(accepted);
+  html += '</div>';
+  html += '<div class="cl-summary">' + escHtml(item.summary || item.details || '') + '</div>';
+
+  if (page) {
+    html += '<div class="cl-page-line">On: <a class="cl-page-link" href="javascript:void(0)" onclick="openPreview(\'' +
+      page + '\',\'' + id + '\')">' + escHtml(page) + '</a></div>';
+  }
+
+  if (!accepted) {
+    var acceptLabel = item.branch ? '&#10003; Accept &amp; publish' : '&#10003; Accept';
+    html += '<div class="cl-approve-actions">';
+    html += '<button class="btn-accept" onclick="acceptItem(\'' + id + '\',' + (isNew ? 'true' : 'false') + ')">' + acceptLabel + '</button>';
+    html += '<button class="btn-refine" onclick="toggleNoteForm(\'' + id + '\')">Needs refinement</button>';
+    html += '</div>';
+  }
+
+  html += renderNotesFor(id);
+
+  html += '<button class="cl-add-note-toggle" onclick="toggleNoteForm(\'' + id + '\')">' +
+    ((_notes[id] && _notes[id].length) ? 'Add another note' : '+ Add refinement note') +
+    '</button>';
+  html += '<div class="cl-note-form" id="note-form-' + id + '">';
+  html += '<textarea class="cl-note-textarea" id="note-text-' + id + '" placeholder="Describe what still needs refinement, what didn\'t land, or any follow-up needed..."></textarea>';
+  html += '<div class="cl-note-actions">';
+  html += '<button class="btn-save-note" onclick="submitNote(\'' + id + '\', \'' + escHtml(authorEmail) + '\')">Save Note</button>';
+  html += '<button class="btn-cancel-note" onclick="toggleNoteForm(\'' + id + '\')">Cancel</button>';
+  html += '<span class="note-status" id="note-status-' + id + '"></span>';
+  html += '</div></div>';
+
+  html += '</div>';
+  return html;
+}
+
+function renderChangelog() {
+  var list = document.getElementById('changelog-list');
+
+  var combined = _newRequests.map(function (i) { return { item: i, isNew: true }; })
+    .concat(CHANGELOG.slice().reverse().map(function (i) { return { item: i, isNew: false }; }));
+
+  var total = combined.length;
+  var awaiting = combined.filter(function (e) { return !isAccepted(e.item, e.isNew); }).length;
+  document.getElementById('stat-total').textContent = total;
+  document.getElementById('stat-awaiting').textContent = awaiting;
+  document.getElementById('stat-accepted').textContent = total - awaiting;
+
+  var filtered = combined.filter(function (e) {
+    return itemMatchesApprovalTab(e.item, e.isNew)
+      && itemMatchesDateFilter(e.item)
+      && itemMatchesSearch(e.item);
+  });
+
+  if (!filtered.length) {
+    list.innerHTML = '<p class="empty-state">' +
+      (_currentTab === 'awaiting' ? 'All caught up — nothing awaiting approval.' : 'No items match this filter.') +
+      '</p>';
+  } else {
+    var authorEmail = (_session && _session.user) ? _session.user.email : 'Admin';
+    list.innerHTML = filtered.map(function (e) {
+      return renderItem(e.item, e.isNew, authorEmail);
+    }).join('');
+  }
+
+  if (_previewId) {
+    var el = document.getElementById('item-' + _previewId);
+    if (el) el.classList.add('previewing');
+  }
+}
+
+// ── Interaction handlers ──────────────────────────────────────────────────────
+
+function toggleNoteForm(id) {
+  var form = document.getElementById('note-form-' + id);
+  if (!form) return;
+  form.classList.toggle('open');
+}
+
+function submitNote(requestId, authorEmail) {
+  var textarea = document.getElementById('note-text-' + requestId);
+  var statusEl = document.getElementById('note-status-' + requestId);
+  var saveBtn = document.querySelector('#note-form-' + requestId + ' .btn-save-note');
+  if (!textarea || !textarea.value.trim()) return;
+
+  if (!_dbAvailable) {
+    if (statusEl) { statusEl.textContent = 'Database not set up yet — run sql/schema.sql.'; statusEl.className = 'note-status err'; }
+    return;
+  }
+
+  if (saveBtn) saveBtn.disabled = true;
+  if (statusEl) { statusEl.textContent = 'Saving…'; statusEl.className = 'note-status'; }
+
+  saveNote(requestId, textarea.value.trim(), authorEmail, function(ok, err) {
+    if (saveBtn) saveBtn.disabled = false;
+    if (ok) {
+      if (statusEl) { statusEl.textContent = 'Saved!'; statusEl.className = 'note-status ok'; }
+      textarea.value = '';
+      var itemEl = document.getElementById('item-' + requestId);
+      if (itemEl) {
+        var resp = itemEl.querySelector('.cl-responses');
+        var newHtml = renderNotesFor(requestId);
+        if (resp) {
+          resp.outerHTML = newHtml || '';
+        } else if (newHtml) {
+          var addBtn = itemEl.querySelector('.cl-add-note-toggle');
+          if (addBtn) addBtn.insertAdjacentHTML('beforebegin', newHtml);
+        }
+        var toggle = itemEl.querySelector('.cl-add-note-toggle');
+        if (toggle) toggle.textContent = 'Add another note';
+      }
+      setTimeout(function() {
+        if (statusEl) statusEl.textContent = '';
+        var form = document.getElementById('note-form-' + requestId);
+        if (form) form.classList.remove('open');
+      }, 1500);
+    } else {
+      if (statusEl) { statusEl.textContent = 'Error saving note.'; statusEl.className = 'note-status err'; }
+    }
+  });
+}
+
+// ── New request form ──────────────────────────────────────────────────────────
+
+document.addEventListener('DOMContentLoaded', function() {
+  var form = document.getElementById('new-request-form');
+  if (!form) return;
+  form.addEventListener('submit', function(e) {
+    e.preventDefault();
+    var title = document.getElementById('req-title').value.trim();
+    var details = document.getElementById('req-details').value.trim();
+    var priority = document.getElementById('req-priority').value;
+    var feedback = document.getElementById('req-feedback');
+    var btn = document.getElementById('req-submit-btn');
+    var authorEmail = (_session && _session.user) ? _session.user.email : 'Unknown';
+
+    if (!_dbAvailable) {
+      feedback.className = 'request-feedback err';
+      feedback.textContent = 'Database not set up yet. Run sql/schema.sql, then try again.';
+      feedback.style.display = '';
+      document.getElementById('req-setup-note').style.display = '';
+      return;
+    }
+
+    btn.disabled = true;
+    feedback.style.display = 'none';
+
+    submitNewRequest(title, details, priority, authorEmail, function(ok, err) {
+      btn.disabled = false;
+      if (ok) {
+        feedback.className = 'request-feedback ok';
+        feedback.textContent = 'Request submitted. It now appears under Awaiting Approval above.';
+        feedback.style.display = '';
+        form.reset();
+        loadNewRequests(authorEmail).then(function () {
+          renderChangelog();
+          setTimeout(function () {
+            feedback.style.display = 'none';
+            var sec = document.getElementById('new-request-section');
+            if (sec && !sec.classList.contains('collapsed')) toggleRequestForm();
+          }, 1400);
+        });
+      } else {
+        feedback.className = 'request-feedback err';
+        var msg = (err && (err.message || JSON.stringify(err))) || 'Unknown error.';
+        if (msg.indexOf('does not exist') !== -1 || msg.indexOf('relation') !== -1) {
+          feedback.textContent = 'Database table not set up yet. Run sql/schema.sql.';
+          document.getElementById('req-setup-note').style.display = '';
+        } else {
+          feedback.textContent = 'Error submitting request: ' + msg;
+        }
+        feedback.style.display = '';
+      }
+    });
+  });
+});
+
+// ── Auth init ─────────────────────────────────────────────────────────────────
+
+SomaAuth.onAuthStateChange(function(event, session) {
+  var user = session ? session.user : null;
+  if (event === 'SIGNED_OUT') {
+    window.location.replace('{{LOGIN_PATH}}?redirect=' + encodeURIComponent(window.location.pathname));
+    return;
+  }
+  if (event === 'TOKEN_REFRESHED' && session) { _session = session; return; }
+  if (event !== 'INITIAL_SESSION' && event !== 'SIGNED_IN') return;
+
+  _session = session;
+
+  if (!user) {
+    document.getElementById('not-logged-in').style.display = '';
+    document.documentElement.style.visibility = 'visible';
+    return;
+  }
+
+  SomaAuth.getRole(user).then(function(role) {
+    updateAuthNav(user, role);
+
+    if (!isAdmin(user, role)) {
+      document.getElementById('access-denied').style.display = '';
+      document.documentElement.style.visibility = 'visible';
+      return;
+    }
+
+    document.getElementById('main-panel').style.display = '';
+    document.documentElement.style.visibility = 'visible';
+
+    Promise.all([loadNotes(), loadNewRequests(user.email)])
+      .then(function() {
+        if (!_dbAvailable) {
+          document.getElementById('req-setup-note').style.display = '';
+        }
+        renderChangelog();
+      });
+  });
+});
+
+SomaAuth.init(window.SOMA_AUTH_CONFIG.url, window.SOMA_AUTH_CONFIG.anonKey);
+
+// Hide page until auth resolves
+document.documentElement.style.visibility = 'hidden';
+</script>
+
+</body>
+</html>
