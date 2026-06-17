@@ -968,11 +968,23 @@
    * they're used; a "What can <name> do?" chip expands the full list on demand. */
   SomaGuide.prototype._openShell = function () {
     this._setMode('text');
-    if (!this.introduced) {
-      var greeting = this.cfg.persona.greeting || '';
-      if (greeting) this._appendMessage('agent', greeting);
+    if (!this._greeted) {
+      this._greeted = true;
+      this._syncAccount();
+      var idv = this._identityVars();
+      if (idv.opening_line) this._appendMessage('agent', idv.opening_line);
       this._lsSet('introduced', '1');
       this.introduced = true;
+      this._lsSet('last-seen', String(Date.now()));
+      /* First contact with no name → run the same capture the voice agent does. */
+      if (idv.visitor_state === 'present') this._maybeStartCapture();
+      /* Logged in under a different account than this browser's default → ask. */
+      else if (this._accountMismatch) {
+        this._appendMessage('agent', 'You’re logged in as ' + this._accountMismatch.current +
+          ', but this browser usually defaults to ' + this._accountMismatch.def +
+          '. Make ' + this._accountMismatch.current + ' the default here, or just for this tab?');
+        this._identityStage = 'account_switch';
+      }
     }
     this._renderSuggestions(false);
     /* Voice affordance: announce "you can talk to me" on first encounter by
@@ -1808,21 +1820,23 @@
           return 'Done — I opened and filled the on-page control for: ' + request + '. Review it on screen and tell me if anything needs changing.';
         } catch (e) { return 'I hit a problem using that control.'; }
       },
-      /* Remember who we're talking to: associate a name (and optional email) with this
-       * browser, and persist via the profile seam. Used during the first-run greeting. */
+      /* Remember who we're talking to (shared persistence with the text flow). */
       set_identity: function (params) {
         var name = (params && (params.name || params.display_name) || '').trim();
         var email = (params && params.email || '').trim();
-        if (name) self._lsSet('visitor-name', name);
-        self._profile = Object.assign({}, self._profile,
-          name ? { display_name: name } : {}, email ? { email: email } : {});
-        try {
-          if (self.cfg.identity && typeof self.cfg.identity.recordSeen === 'function') {
-            self.cfg.identity.recordSeen({ display_name: name || null, email: email || null });
-          }
-        } catch (e) {}
-        self._log('identity_set', { has_name: !!name, has_email: !!email });
-        return 'Thanks' + (name ? ', ' + name.split(' ')[0] : '') + ' — I’ve got you.';
+        var declined = !!(params && (params.declined || /unnamed/i.test(name)));
+        if (name) self._applyName(name, { declined: declined });
+        if (email) self._applyEmail(email);
+        return 'Thanks' + (name && !declined ? ', ' + name.split(' ')[0] : '') + ' — I’ve got you.';
+      },
+      /* Bill's metaknowledge: tell the user what's known about them. */
+      whoami: function () {
+        return self._describeIdentity();
+      },
+      /* "Reset the cookies" / "forget me" → clear this browser's identity. */
+      reset_identity: function (params) {
+        self._resetIdentity((params && params.scope) === 'name' ? 'name' : 'all');
+        return 'Done — I’ve forgotten what I knew about you on this browser.';
       },
       /* The user is done: stop the voice connection and close the widget. */
       end_session: function () {
@@ -1881,48 +1895,252 @@
       .catch(function () { return 'I tried to file it but couldn’t reach the queue just now; it’s saved in this session.'; });
   };
 
-  /* Compute the identity-aware opening + facts for the default agent. Per-app today
-   * (keyed by the localStorage anon id / 'introduced' flag); designed to swap in a
-   * cross-site SOMA identity later without changing the agent contract. */
-  SomaGuide.prototype._identityVars = function () {
-    var persona = this.cfg.persona || {};
-    var introduced = this._lsGet('introduced') === '1';
-    var name = (this._profile && this._profile.display_name) || this._lsGet('visitor-name') || '';
-    var member = false;
+  /* ══════════════════════════════════════════════════════════════════════════
+   * IDENTITY  (see docs/SOMA-IDENTITY-STATES.md)
+   * Facets: name · email(claimed) · account · session(login). Resolution order
+   * per tab: SomaAuth session → sessionStorage tab-override → localStorage home.
+   * localStorage = sticky device default; sessionStorage = this tab; login per-tab.
+   * ══════════════════════════════════════════════════════════════════════════ */
+
+  /* The effective identity for THIS tab right now. */
+  SomaGuide.prototype._resolveIdentity = function () {
+    /* 1. authenticated session in this tab (source of truth for logged-in) */
     try {
       var s = (window.SomaAuth && SomaAuth.session) ? SomaAuth.session : null;
       if (s && s.user) {
-        member = true;
-        name = name || (s.user.user_metadata && s.user.user_metadata.full_name) || (s.user.email || '');
+        var nm = (s.user.user_metadata && s.user.user_metadata.full_name) || s.user.email || '';
+        return { state: 'logged_in', name: nm, email: s.user.email || '', account: s.user.email || '',
+                 loggedIn: true, source: 'somaauth' };
       }
     } catch (e) {}
+    /* 2. per-tab override (e.g. "just this tab" account) */
+    var tn = this._ssGet('tab-name'), te = this._ssGet('tab-email');
+    if (tn || te) {
+      return { state: te ? 'identified' : 'named', name: tn || '', email: te || '',
+               account: te || '', loggedIn: false, source: 'session' };
+    }
+    /* 3. localStorage home identity (device default) */
+    var name = this._lsGet('name') || this._lsGet('visitor-name') || '';
+    var email = this._lsGet('email') || '';
+    var st = email ? 'identified' : (name ? 'named' : 'present');
+    return { state: st, name: name, email: email,
+             account: this._lsGet('default-account') || email || '',
+             loggedIn: false, source: (name || email) ? 'local' : 'present' };
+  };
+
+  /* Persist a name. Writes to the home (localStorage) by default, or this tab's
+   * override if one is active. opts.declined records that the user declined. */
+  SomaGuide.prototype._applyName = function (name, opts) {
+    name = String(name == null ? '' : name).trim();
+    if (!name) return false;
+    if (this._ssGet('tab-name') || this._ssGet('tab-email')) { this._ssSet('tab-name', name); }
+    else { this._lsSet('name', name); }
+    if (opts && opts.declined) this._lsSet('name-declined', '1');
+    this._profile = Object.assign({}, this._profile, { display_name: name });
+    try { if (this.cfg.identity && this.cfg.identity.recordSeen) this.cfg.identity.recordSeen({ display_name: name }); } catch (e) {}
+    this._log('identity_set', { field: 'name', declined: !!(opts && opts.declined) });
+    return true;
+  };
+
+  /* Persist a claimed (unverified) email → moves to 'identified'. */
+  SomaGuide.prototype._applyEmail = function (email) {
+    email = String(email == null ? '' : email).trim();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return false;
+    if (this._ssGet('tab-name') || this._ssGet('tab-email')) { this._ssSet('tab-email', email); }
+    else { this._lsSet('email', email); }
+    this._profile = Object.assign({}, this._profile, { email: email });
+    try { if (this.cfg.identity && this.cfg.identity.recordSeen) this.cfg.identity.recordSeen({ email: email }); } catch (e) {}
+    this._log('identity_set', { field: 'email' });
+    return true;
+  };
+
+  /* "reset the cookies" / "forget me". scope 'name' clears just the name; default clears all. */
+  SomaGuide.prototype._resetIdentity = function (scope) {
+    var keys = scope === 'name'
+      ? ['name', 'name-declined', 'visitor-name']
+      : ['name', 'name-declined', 'visitor-name', 'email', 'soma-id', 'default-account', 'introduced', 'last-seen'];
+    var self = this;
+    keys.forEach(function (k) { self._lsSet(k, ''); });
+    ['tab-name', 'tab-email', 'tab-account'].forEach(function (k) { self._ssDel(k); });
+    this._profile = null;
+    this.introduced = false;
+    this._identityStage = null;
+    this._nameAskCount = 0;
+    this._log('identity_reset', { scope: scope || 'all' });
+  };
+
+  /* Track which account is this browser's sticky default. First login becomes the
+   * default; a later login under a different account sets a mismatch flag so Bill can
+   * ask whether to make it the new default. (True per-tab login isolation additionally
+   * requires SomaAuth to persist its session per-tab — tracked separately.) */
+  SomaGuide.prototype._syncAccount = function () {
+    var id = this._resolveIdentity();
+    if (!id.loggedIn || !id.account) { this._accountMismatch = null; return; }
+    var def = this._lsGet('default-account');
+    if (!def) { this._lsSet('default-account', id.account); this._accountMismatch = null; return; }
+    this._accountMismatch = (def !== id.account) ? { current: id.account, def: def } : null;
+  };
+
+  /* Plain-language summary for Bill's metaknowledge ("what do you know about me"). */
+  SomaGuide.prototype._describeIdentity = function () {
+    var id = this._resolveIdentity();
+    var parts = [];
+    parts.push(id.name ? ('I’ve got you as ' + id.name) : 'I don’t have your name yet');
+    if (id.email) parts.push('with the email ' + id.email + (id.loggedIn ? '' : ' (not verified)'));
+    parts.push(id.loggedIn ? ('you’re logged in as ' + id.account + ' on this tab')
+                           : 'you’re not logged in on this tab');
+    var def = this._lsGet('default-account') || this._lsGet('email');
+    if (def && this._ssGet('tab-email') && def !== this._ssGet('tab-email')) {
+      parts.push('this browser’s default is ' + def + ', but this tab is set to ' + this._ssGet('tab-email'));
+    }
+    return parts.join('; ') + '.';
+  };
+
+  /* Compute the identity-aware opening + facts for the default agent / shell. */
+  SomaGuide.prototype._identityVars = function () {
+    var persona = this.cfg.persona || {};
+    var id = this._resolveIdentity();
+    var name = id.name;
     var first = name ? String(name).split(' ')[0] : '';
-    /* humanize time since last seen */
-    var since = '';  /* bare duration phrase (no "ago"), reads after "it's been " */
+    var since = '';  /* bare duration (no "ago"), reads after "it's been " */
     var last = Number(this._lsGet('last-seen') || 0);
     if (last) {
       var d = Math.floor((Date.now() - last) / 86400000);
       since = d <= 0 ? '' : d === 1 ? 'a day' : d < 7 ? (d + ' days')
             : d < 14 ? 'about a week' : d < 31 ? (Math.round(d / 7) + ' weeks') : 'a while';
     }
-    var state, opening;
-    if (!introduced) {
-      state = 'new';
-      opening = persona.greeting || 'Hi! I’m here to help.';
-    } else if (first) {
-      state = member ? 'member' : 'returning_named';
+    var declined = this._lsGet('name-declined') === '1';
+    var opening;
+    if (first) {
       opening = since
         ? 'Hey ' + first + ' — good to see you again, it’s been ' + since + '.'
-        : 'Good to see you again, ' + first + '.';
+        : 'Hi, ' + first + '.';
+    } else if (declined) {
+      opening = persona.shortGreeting || 'Hi again — how can I help?';
     } else {
-      state = 'returning_anon';
-      opening = (persona.shortGreeting || 'Good to see you again!') + ' Remind me your name?';
+      /* first contact, no name: the short opener — role intro comes after they name themselves */
+      opening = persona.greeting || 'I’m Bill. Have we met before?';
     }
     return {
-      opening_line: opening, visitor_state: state,
+      opening_line: opening, visitor_state: id.state,
       display_name: name || '', last_seen: since || '',
-      registered: member ? 'yes' : 'unknown'
+      registered: id.loggedIn ? 'yes' : (id.email ? 'claimed' : 'unknown')
     };
+  };
+
+  /* ── Text-mode identity capture (mirrors what the voice agent does via tools) ── */
+  SomaGuide.prototype._maybeStartCapture = function () {
+    var id = this._resolveIdentity();
+    if (id.name || id.loggedIn) return false;             /* already known */
+    if (this._lsGet('name-declined') === '1') return false; /* asked before; don't nag */
+    this._identityStage = 'awaiting_name';
+    this._nameAskCount = 0;
+    return true;
+  };
+
+  SomaGuide.prototype._extractEmail = function (text) {
+    var m = String(text || '').match(/[^@\s]+@[^@\s]+\.[^@\s]+/);
+    return m ? m[0].replace(/[.,;]$/, '') : '';
+  };
+
+  SomaGuide.prototype._extractName = function (text) {
+    var t = String(text || '').trim();
+    if (/\b(no|nope|nah|not really|rather not|prefer not|won'?t|skip|anonymous|none of your|don'?t want)\b/i.test(t) && t.split(/\s+/).length <= 4) return '';
+    /* strip common lead-ins */
+    t = t.replace(/^(no[,\s]+|yes[,\s]+|sure[,\s]+|ok[,\s]+|well[,\s]+)/i, '');
+    t = t.replace(/\b(i'?m|i am|it'?s|this is|call me|my name'?s?( is)?|name'?s|you can call me)\b\s*/i, '');
+    t = t.replace(/[.!?]+$/, '').trim();
+    if (!t) return '';
+    var words = t.split(/\s+/);
+    if (words.length > 4) return '';                     /* probably a sentence, not a name */
+    if (/[@\d]/.test(t)) return '';                      /* email/number, not a name here */
+    return words.slice(0, 3).join(' ');
+  };
+
+  /* Returns true if the message was consumed by the identity flow. */
+  SomaGuide.prototype._handleIdentityReply = function (text) {
+    var stage = this._identityStage;
+    if (!stage) return false;
+    var roleIntro = (this.cfg.persona && this.cfg.persona.roleIntro) ||
+      'I’m Bill — I help run this site for Greg Foster and the team: I can show you around, answer questions, and take bug reports or feature requests.';
+    if (stage === 'awaiting_name') {
+      var name = this._extractName(text);
+      if (name) {
+        this._applyName(name);
+        this._identityStage = 'offer_identify';
+        this._appendMessage('agent', 'Hi, ' + name.split(' ')[0] + '! ' + roleIntro +
+          ' If you share your email I’ll recognize you next time and tie any requests you make to you — or you can log in for full access. Want to share an email, or skip for now?');
+        return true;
+      }
+      this._nameAskCount = (this._nameAskCount || 0) + 1;
+      if (this._nameAskCount >= 2) {
+        this._applyName('unnamed user', { declined: true });
+        this._identityStage = null;
+        this._appendMessage('agent', 'No problem — I’ll just call you “friend” for now. Tell me your name anytime. How can I help?');
+      } else {
+        this._appendMessage('agent', 'No worries — what should I call you? Even just a first name is fine.');
+      }
+      return true;
+    }
+    if (stage === 'offer_identify') {
+      var email = this._extractEmail(text);
+      if (email) {
+        this._applyEmail(email);
+        this._identityStage = null;
+        this._appendMessage('agent', 'Got it — thanks. I’ll remember you. What can I help you with?');
+        return true;
+      }
+      if (/\b(no|nope|skip|later|not now|rather not)\b/i.test(text)) {
+        this._identityStage = null;
+        this._appendMessage('agent', 'No problem — you can share it anytime. What can I help you with?');
+        return true;
+      }
+      this._appendMessage('agent', 'Sure — what’s the best email for you? (Or say “skip”.)');
+      return true;
+    }
+    if (stage === 'account_switch') {
+      this._identityStage = null;
+      if (/\b(default|browser|make it|yes|switch|change)\b/i.test(text) && !/just this tab|only this tab/i.test(text)) {
+        if (this._accountMismatch) this._lsSet('default-account', this._accountMismatch.current);
+        this._accountMismatch = null;
+        this._appendMessage('agent', 'Done — this is your default on this browser now. What can I help with?');
+      } else {
+        this._appendMessage('agent', 'Okay — just this tab. Your default stays the same. What can I help with?');
+      }
+      return true;
+    }
+    return false;
+  };
+
+  /* Metaknowledge: let the user ask/act on their identity in text. Returns true if handled. */
+  SomaGuide.prototype._handleIdentityMeta = function (text) {
+    var t = String(text || '').toLowerCase();
+    if (/\b(reset|clear|forget)\b.*\b(cookie|identity|me|my (data|name|info))\b|\bforget me\b/.test(t)) {
+      this._resetIdentity('all');
+      this._appendMessage('agent', 'Done — I’ve forgotten what I knew about you on this browser. I’m Bill. Have we met before?');
+      this._identityStage = 'awaiting_name'; this._nameAskCount = 0;
+      return true;
+    }
+    if (/\b(switch back|use my default|back to my default|undo the switch)\b/.test(t)) {
+      this._ssDel('tab-name'); this._ssDel('tab-email'); this._ssDel('tab-account');
+      this._appendMessage('agent', 'Okay — back to this browser’s default identity. ' + this._describeIdentity());
+      return true;
+    }
+    if (/\bmake (this|it) (my|the) default\b|\bset as default\b/.test(t)) {
+      var id = this._resolveIdentity();
+      if (id.loggedIn && id.account) {
+        this._lsSet('default-account', id.account); this._accountMismatch = null;
+        this._appendMessage('agent', 'Done — ' + id.account + ' is your default on this browser now.');
+      } else {
+        this._appendMessage('agent', 'You’d need to be logged in for me to set a default account.');
+      }
+      return true;
+    }
+    if (/\b(what do you know about me|who am i|am i logged in|what'?s my (name|identity|email)|do you know who i am)\b/.test(t)) {
+      this._appendMessage('agent', this._describeIdentity());
+      return true;
+    }
+    return false;
   };
 
   SomaGuide.prototype._stopConversation = function () {
@@ -1953,6 +2171,12 @@
     if (input) input.value = '';
 
     this._appendMessage('user', text);
+
+    /* ── Identity: metaknowledge ("what do you know about me", "reset cookies")
+     * and an in-progress name/email capture both pre-empt normal routing, so the
+     * typed flow matches the voice flow. ── */
+    if (this._handleIdentityMeta(text)) return;
+    if (this._identityStage && this._handleIdentityReply(text)) return;
 
     /* ── Tell → Show ladder ──────────────────────────────────────
      * A how-to question that matches a walkthrough gets an OFFER to show
