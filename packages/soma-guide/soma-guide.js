@@ -26,7 +26,7 @@
   const TTS_MS_PER_CHAR  = 85;     /* generous estimate; used for fallback timer */
   const TTS_FLOOR_MS     = 6000;   /* minimum fallback when TTS enabled */
   const TTS_BUFFER_MS    = 3500;   /* extra buffer added to known audio duration */
-  const SOMA_GUIDE_VERSION = '2026-0617b'; /* bump each build; used for stale-state guard */
+  const SOMA_GUIDE_VERSION = '2026-0617c'; /* bump each build; used for stale-state guard */
 
   /* ── SomaGuide class ────────────────────────────────────────────────────── */
   function SomaGuide(cfg) {
@@ -1678,16 +1678,19 @@
     });
   };
 
-  SomaGuide.prototype._startConversation = function (textOnly) {
+  SomaGuide.prototype._startConversation = function (textOnly, opts) {
     var self = this;
-    var agentId = this.cfg.voiceAgentId;
+    opts = opts || {};
+    /* Prefer an explicit agent, then the active persona's agent (set on handoff),
+     * then the default. This is what lets a specialist persona speak in its own voice. */
+    var agentId = opts.agentId || this._activeVoiceAgentId || this.cfg.voiceAgentId;
     if (!agentId) return Promise.reject(new Error('No voiceAgentId configured'));
 
     self._convConnected = false;
     self._convBuffer = null;
 
     return this._loadConvClass().then(function (Conversation) {
-      return Conversation.startSession({
+      var sessionCfg = {
         agentId: agentId,
         textOnly: textOnly === true ? true : undefined,
         clientTools: self._buildClientTools(),
@@ -1732,7 +1735,11 @@
             if (status) status.textContent = 'Tap to speak';
           }
         }
-      });
+      };
+      /* Per-session change context (e.g. for the reviewer persona) → ElevenLabs
+       * dynamic variables the agent's first_message / prompt can reference. */
+      if (opts.dynamicVariables) sessionCfg.dynamicVariables = opts.dynamicVariables;
+      return Conversation.startSession(sessionCfg);
     }).then(function (conv) {
       self.conversation = conv;
       return conv;
@@ -2257,19 +2264,49 @@
 
   /* Show a brief acknowledgement then render an inline capture form. */
   /* ── Intake specialist (persona handoff + observer context) ──────────────── */
-  SomaGuide.prototype._handoffTo = function (key) {
+  SomaGuide.prototype._handoffTo = function (key, skipReconnect) {
     var p = (this.cfg.personas && this.cfg.personas[key]) ||
             { name: (this.cfg.persona.name || 'Bill') + ' · Support', avatar: '🛠', greeting: '' };
     this._activePersona = key;
     var av = this._$('.sg-persona-avatar'); if (av && p.avatar) av.textContent = p.avatar;
     var nm = this._$('.sg-persona-name');  if (nm && p.name) nm.textContent = p.name;
-    /* If the specialist has its own voice agent and we're in voice mode, reconnect. */
-    if (p.voiceAgentId && this.mode === 'voice') {
-      this._activeVoiceAgentId = p.voiceAgentId;
+    if (p.voiceAgentId) this._activeVoiceAgentId = p.voiceAgentId;
+    /* If the specialist has its own voice agent and we're in voice mode, reconnect —
+     * unless the caller will start the session itself (e.g. with change context). */
+    if (!skipReconnect && p.voiceAgentId && this.mode === 'voice') {
       try { this._stopConversation(); this._startConversation(false); } catch (e) {}
     }
     this._log('handoff', { to: key, persona: p.name });
     return p;
+  };
+
+  /* Review work — hand the walkthrough to the reviewer teammate (their own voice),
+   * open the changed page, and let them narrate what shipped and converse about
+   * whether it's right. Called from the Change Log's "Review work" button. */
+  SomaGuide.prototype.reviewChange = function (info) {
+    info = info || {};
+    var summary = info.summary || info.description || info.title || 'the latest change';
+    var page = info.page || (typeof location !== 'undefined' ? location.href : '');
+    this.open();
+    var p = (this.cfg.personas && this.cfg.personas.review) || null;
+    if (!p || !p.voiceAgentId || !this.cfg.voiceAgentId) {
+      /* No reviewer voice configured (or no voice at all) — narrate in text. */
+      this._handoffTo('review', true);
+      this._appendMessage('agent', 'Here’s what we changed' + (info.title ? ' — “' + info.title + '”' : '') +
+        '. It’s on the page in front of you — take a look and tell me if it’s right, or what to adjust.');
+      this._log('review_start', { mode: 'text', title: info.title || null });
+      return;
+    }
+    this._log('review_start', { mode: 'voice', title: info.title || null });
+    this._openVoice();
+    this._handoffTo('review', true);  /* set name/avatar/_activeVoiceAgentId; we start the session below */
+    var orb = this._$('.sg-orb'); if (orb) orb.classList.add('sg-orb--active');
+    var st = this._$('.sg-voice-status'); if (st) st.textContent = 'Connecting…';
+    this._stopConversation();
+    this._startConversation(false, {
+      agentId: p.voiceAgentId,
+      dynamicVariables: { change_summary: summary, change_page: page, change_title: info.title || '' }
+    }).catch(function () {});
   };
   SomaGuide.prototype._restorePersona = function () {
     this._activePersona = null;
