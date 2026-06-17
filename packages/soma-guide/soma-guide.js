@@ -26,7 +26,7 @@
   const TTS_MS_PER_CHAR  = 85;     /* generous estimate; used for fallback timer */
   const TTS_FLOOR_MS     = 6000;   /* minimum fallback when TTS enabled */
   const TTS_BUFFER_MS    = 3500;   /* extra buffer added to known audio duration */
-  const SOMA_GUIDE_VERSION = '2026-0617f'; /* bump each build; used for stale-state guard */
+  const SOMA_GUIDE_VERSION = '2026-0617g'; /* bump each build; used for stale-state guard */
 
   /* ── SomaGuide class ────────────────────────────────────────────────────── */
   function SomaGuide(cfg) {
@@ -1701,6 +1701,13 @@
     var agentId = opts.agentId || this._activeVoiceAgentId || this.cfg.voiceAgentId;
     if (!agentId) return Promise.reject(new Error('No voiceAgentId configured'));
 
+    /* Identity-aware opening: the engine owns who-we've-met (cookie/introduced) and
+     * passes the agent a computed opening line + identity facts as dynamic variables.
+     * The default (Bill) agent gets these every connect so it greets appropriately and
+     * never re-reads the full intro to a returning visitor. */
+    var isDefaultAgent = (agentId === this.cfg.voiceAgentId) && !this._activePersona;
+    var idVars = isDefaultAgent ? this._identityVars() : {};
+
     self._convConnected = false;
     self._convBuffer = null;
 
@@ -1712,6 +1719,11 @@
         onConnect: function () {
           self._convConnected = true;
           self._convStartTs = Date.now();   /* start metering voice-conversation minutes */
+          if (isDefaultAgent) {             /* the intro has now happened; suppress it next time */
+            self._lsSet('introduced', '1');
+            self.introduced = true;
+            self._lsSet('last-seen', String(Date.now()));
+          }
           if (self._convBuffer) {
             var buffered = self._convBuffer;
             self._convBuffer = null;
@@ -1753,9 +1765,10 @@
           }
         }
       };
-      /* Per-session change context (e.g. for the reviewer persona) → ElevenLabs
-       * dynamic variables the agent's first_message / prompt can reference. */
-      if (opts.dynamicVariables) sessionCfg.dynamicVariables = opts.dynamicVariables;
+      /* Dynamic variables: identity/opening for the default agent, plus any per-session
+       * context (e.g. the reviewer's change summary). opts wins on key collisions. */
+      var dynVars = Object.assign({}, idVars, opts.dynamicVariables || {});
+      if (Object.keys(dynVars).length) sessionCfg.dynamicVariables = dynVars;
       return Conversation.startSession(sessionCfg);
     }).then(function (conv) {
       self.conversation = conv;
@@ -1795,8 +1808,33 @@
           return 'Done — I opened and filled the on-page control for: ' + request + '. Review it on screen and tell me if anything needs changing.';
         } catch (e) { return 'I hit a problem using that control.'; }
       },
+      /* Remember who we're talking to: associate a name (and optional email) with this
+       * browser, and persist via the profile seam. Used during the first-run greeting. */
+      set_identity: function (params) {
+        var name = (params && (params.name || params.display_name) || '').trim();
+        var email = (params && params.email || '').trim();
+        if (name) self._lsSet('visitor-name', name);
+        self._profile = Object.assign({}, self._profile,
+          name ? { display_name: name } : {}, email ? { email: email } : {});
+        try {
+          if (self.cfg.identity && typeof self.cfg.identity.recordSeen === 'function') {
+            self.cfg.identity.recordSeen({ display_name: name || null, email: email || null });
+          }
+        } catch (e) {}
+        self._log('identity_set', { has_name: !!name, has_email: !!email });
+        return 'Thanks' + (name ? ', ' + name.split(' ')[0] : '') + ' — I’ve got you.';
+      },
+      /* The user is done: stop the voice connection and close the widget. */
+      end_session: function () {
+        self._log('session_end', { via: 'voice' });
+        try { self._stopConversation(); } catch (e) {}
+        try { self._ttsStop && self._ttsStop(); } catch (e) {}
+        setTimeout(function () { try { (self.minimize ? self.minimize() : (self.close && self.close())); } catch (e) {} }, 250);
+        return 'Talk soon!';
+      },
       /* Hand the user off to the intake specialist (Dana — own voice) to take a bug
-       * report or change request. Bill calls this instead of taking the report itself. */
+       * report or change request. Bill calls this; if it doesn't connect, Bill can
+       * still file directly with submit_request (his fallback). */
       report_bug: function (params) {
         var type = (params && params.type === 'change') ? 'change' : 'bug';
         self._startVoiceIntake({ type: type });
@@ -1841,6 +1879,50 @@
       .then(function (r) { if (!r.ok) throw new Error('bad status'); return r.json().catch(function () { return {}; }); })
       .then(function () { return 'Filed. I queued this with your page and recent steps as context — the team will pick it up and you’ll hear back when it’s done.'; })
       .catch(function () { return 'I tried to file it but couldn’t reach the queue just now; it’s saved in this session.'; });
+  };
+
+  /* Compute the identity-aware opening + facts for the default agent. Per-app today
+   * (keyed by the localStorage anon id / 'introduced' flag); designed to swap in a
+   * cross-site SOMA identity later without changing the agent contract. */
+  SomaGuide.prototype._identityVars = function () {
+    var persona = this.cfg.persona || {};
+    var introduced = this._lsGet('introduced') === '1';
+    var name = (this._profile && this._profile.display_name) || this._lsGet('visitor-name') || '';
+    var member = false;
+    try {
+      var s = (window.SomaAuth && SomaAuth.session) ? SomaAuth.session : null;
+      if (s && s.user) {
+        member = true;
+        name = name || (s.user.user_metadata && s.user.user_metadata.full_name) || (s.user.email || '');
+      }
+    } catch (e) {}
+    var first = name ? String(name).split(' ')[0] : '';
+    /* humanize time since last seen */
+    var since = '';
+    var last = Number(this._lsGet('last-seen') || 0);
+    if (last) {
+      var d = Math.floor((Date.now() - last) / 86400000);
+      since = d <= 0 ? 'today' : d === 1 ? 'yesterday' : d < 7 ? (d + ' days ago')
+            : d < 14 ? 'about a week ago' : d < 31 ? (Math.round(d / 7) + ' weeks ago') : 'a while ago';
+    }
+    var state, opening;
+    if (!introduced) {
+      state = 'new';
+      opening = persona.greeting || 'Hi! I’m here to help.';
+    } else if (first) {
+      state = member ? 'member' : 'returning_named';
+      opening = (since && since !== 'today')
+        ? 'Hey ' + first + ' — good to see you again, it’s been ' + since + '.'
+        : 'Good to see you again, ' + first + '.';
+    } else {
+      state = 'returning_anon';
+      opening = (persona.shortGreeting || 'Good to see you again!') + ' Remind me your name?';
+    }
+    return {
+      opening_line: opening, visitor_state: state,
+      display_name: name || '', last_seen: since || '',
+      registered: member ? 'yes' : 'unknown'
+    };
   };
 
   SomaGuide.prototype._stopConversation = function () {
