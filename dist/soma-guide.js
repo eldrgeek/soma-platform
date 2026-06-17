@@ -26,7 +26,7 @@
   const TTS_MS_PER_CHAR  = 85;     /* generous estimate; used for fallback timer */
   const TTS_FLOOR_MS     = 6000;   /* minimum fallback when TTS enabled */
   const TTS_BUFFER_MS    = 3500;   /* extra buffer added to known audio duration */
-  const SOMA_GUIDE_VERSION = '2026-0617i'; /* bump each build; used for stale-state guard */
+  const SOMA_GUIDE_VERSION = '2026-0617j'; /* bump each build; used for stale-state guard */
 
   /* ── SomaGuide class ────────────────────────────────────────────────────── */
   function SomaGuide(cfg) {
@@ -1966,6 +1966,7 @@
     this.introduced = false;
     this._identityStage = null;
     this._nameAskCount = 0;
+    this._metAnswered = false;
     this._log('identity_reset', { scope: scope || 'all' });
   };
 
@@ -2035,6 +2036,7 @@
     if (this._lsGet('name-declined') === '1') return false; /* asked before; don't nag */
     this._identityStage = 'awaiting_name';
     this._nameAskCount = 0;
+    this._metAnswered = false;
     return true;
   };
 
@@ -2045,12 +2047,13 @@
 
   SomaGuide.prototype._extractName = function (text) {
     var t = String(text || '').trim();
-    if (/\b(no|nope|nah|not really|rather not|prefer not|won'?t|skip|anonymous|none of your|don'?t want)\b/i.test(t) && t.split(/\s+/).length <= 4) return '';
-    /* strip common lead-ins */
-    t = t.replace(/^(no[,\s]+|yes[,\s]+|sure[,\s]+|ok[,\s]+|well[,\s]+)/i, '');
+    /* Strip a leading yes/no answer to "have we met?" and common name lead-ins FIRST,
+     * then judge what's left — so "No, I'm Greg" yields "Greg", not a refusal. */
+    t = t.replace(/^(no|yes|nope|yeah|yep|sure|ok|okay|well|hi|hello|hey)[,!.\s]+/i, '');
     t = t.replace(/\b(i'?m|i am|it'?s|this is|call me|my name'?s?( is)?|name'?s|you can call me)\b\s*/i, '');
     t = t.replace(/[.!?]+$/, '').trim();
     if (!t) return '';
+    if (/^(no|nope|nah|not really|rather not|prefer not|won'?t|skip|anonymous|none|nobody|no one|i'?d rather not|i don'?t want)\b/i.test(t)) return '';
     var words = t.split(/\s+/);
     if (words.length > 4) return '';                     /* probably a sentence, not a name */
     if (/[@\d]/.test(t)) return '';                      /* email/number, not a name here */
@@ -2070,6 +2073,13 @@
         this._identityStage = 'offer_identify';
         this._appendMessage('agent', 'Hi, ' + name.split(' ')[0] + '! ' + roleIntro +
           ' If you share your email I’ll recognize you next time and tie any requests you make to you — or you can log in for full access. Want to share an email, or skip for now?');
+        return true;
+      }
+      /* A bare yes/no is just answering "have we met?" — ask for the name once
+       * without counting it as a refusal. */
+      if (/^(no|nope|nah|yes|yeah|yep|maybe)[.!?\s]*$/i.test(String(text).trim()) && !this._metAnswered) {
+        this._metAnswered = true;
+        this._appendMessage('agent', 'What should I call you? Even just a first name is fine.');
         return true;
       }
       this._nameAskCount = (this._nameAskCount || 0) + 1;
@@ -2118,7 +2128,7 @@
     if (/\b(reset|clear|forget)\b.*\b(cookie|identity|me|my (data|name|info))\b|\bforget me\b/.test(t)) {
       this._resetIdentity('all');
       this._appendMessage('agent', 'Done — I’ve forgotten what I knew about you on this browser. I’m Bill. Have we met before?');
-      this._identityStage = 'awaiting_name'; this._nameAskCount = 0;
+      this._identityStage = 'awaiting_name'; this._nameAskCount = 0; this._metAnswered = false;
       return true;
     }
     if (/\b(switch back|use my default|back to my default|undo the switch)\b/.test(t)) {
