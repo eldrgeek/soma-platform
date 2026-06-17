@@ -26,7 +26,7 @@
   const TTS_MS_PER_CHAR  = 85;     /* generous estimate; used for fallback timer */
   const TTS_FLOOR_MS     = 6000;   /* minimum fallback when TTS enabled */
   const TTS_BUFFER_MS    = 3500;   /* extra buffer added to known audio duration */
-  const SOMA_GUIDE_VERSION = '2026-0617a'; /* bump each build; used for stale-state guard */
+  const SOMA_GUIDE_VERSION = '2026-0617b'; /* bump each build; used for stale-state guard */
 
   /* ── SomaGuide class ────────────────────────────────────────────────────── */
   function SomaGuide(cfg) {
@@ -1690,6 +1690,7 @@
       return Conversation.startSession({
         agentId: agentId,
         textOnly: textOnly === true ? true : undefined,
+        clientTools: self._buildClientTools(),
         onConnect: function () {
           self._convConnected = true;
           if (self._convBuffer) {
@@ -1736,6 +1737,77 @@
       self.conversation = conv;
       return conv;
     });
+  };
+
+  /* Client tools the ElevenLabs voice agent can invoke to reach Bill's on-page
+   * capabilities. These names must match the tool declarations on the agent config.
+   * Each returns a short string (or a Promise of one) that the agent speaks back. */
+  SomaGuide.prototype._buildClientTools = function () {
+    var self = this;
+    return {
+      /* Launch the on-page guided tour / walkthrough. */
+      start_tour: function () {
+        try {
+          var wts = self.cfg.walkthroughs || [];
+          if (!wts.length) return 'There isn’t a guided tour configured for this page.';
+          self.open();
+          var id = self.cfg.tourWalkthroughId || wts[0].id;
+          self._wtStart(id, 0, -1);
+          self._log('voice_tool', { tool: 'start_tour', id: id });
+          return 'Starting the guided tour now — watch the page and I’ll talk you through it.';
+        } catch (e) { return 'I couldn’t start the tour just now.'; }
+      },
+      /* Operate a real on-page control (add a member, link a user to a room, etc.)
+       * by routing the user's request through Bill's action matcher. */
+      operate_site: function (params) {
+        var request = (params && (params.request || params.text || params.intent)) || '';
+        try {
+          var a = self._matchAction(request);
+          self._log('voice_tool', { tool: 'operate_site', request: request, matched: a ? a.id : null });
+          if (!a) return 'I couldn’t find an on-page control for that. I can add a member, link a user to a room, or file a change request.';
+          if (a.requiresAdmin && !self._isAdmin()) return 'That control is only available to site admins, so I can’t run it for you here.';
+          self.open();
+          self._startDoFlow(a, request);
+          return 'Done — I opened and filled the on-page control for: ' + request + '. Review it on screen and tell me if anything needs changing.';
+        } catch (e) { return 'I hit a problem using that control.'; }
+      },
+      /* File a bug report or change request into the unified intake queue, with the
+       * current page + recent on-page activity attached as context. */
+      submit_request: function (params) {
+        var type = (params && params.type === 'change') ? 'change' : 'bug';
+        var description = (params && (params.description || params.summary || params.text)) || '';
+        if (!description) return 'Tell me what the problem or request is and I’ll file it for the team.';
+        return self._voiceSubmitRequest(type, description);
+      }
+    };
+  };
+
+  SomaGuide.prototype._voiceSubmitRequest = function (type, description) {
+    var self = this;
+    var req = {
+      type: type,
+      description: description,
+      name: (self._profile && self._profile.display_name) || null,
+      email: (self._profile && self._profile.email) || null,
+      page: (typeof location !== 'undefined') ? location.href : null,
+      recent_activity: self.getRecentActivity ? self.getRecentActivity(6) : []
+    };
+    self._log('voice_tool', { tool: 'submit_request', type: type });
+    self._log('intake_complete', req);
+    if (!self.cfg.intakeUrl) return Promise.resolve('I’ve noted it: ' + description);
+    var payload = {
+      source: 'bill-voice',
+      type: req.type,
+      description: req.description,
+      requester_name: req.name,
+      requester_email: req.email,
+      page: req.page,
+      context: { recent_activity: req.recent_activity, session: self._session && self._session.id, via: 'voice' }
+    };
+    return fetch(self.cfg.intakeUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+      .then(function (r) { if (!r.ok) throw new Error('bad status'); return r.json().catch(function () { return {}; }); })
+      .then(function () { return 'Filed. I queued this with your page and recent steps as context — the team will pick it up and you’ll hear back when it’s done.'; })
+      .catch(function () { return 'I tried to file it but couldn’t reach the queue just now; it’s saved in this session.'; });
   };
 
   SomaGuide.prototype._stopConversation = function () {
