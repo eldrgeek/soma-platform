@@ -1795,8 +1795,17 @@
           return 'Done — I opened and filled the on-page control for: ' + request + '. Review it on screen and tell me if anything needs changing.';
         } catch (e) { return 'I hit a problem using that control.'; }
       },
+      /* Hand the user off to the intake specialist (Dana — own voice) to take a bug
+       * report or change request. Bill calls this instead of taking the report itself. */
+      report_bug: function (params) {
+        var type = (params && params.type === 'change') ? 'change' : 'bug';
+        self._startVoiceIntake({ type: type });
+        return 'Bringing in Dana from Member Services to take your ' +
+          (type === 'change' ? 'change request' : 'bug report') + ' — one moment.';
+      },
       /* File a bug report or change request into the unified intake queue, with the
-       * current page + recent on-page activity attached as context. */
+       * current page + recent on-page activity attached as context. (Used by the
+       * intake specialist once she's collected the details.) */
       submit_request: function (params) {
         var type = (params && params.type === 'change') ? 'change' : 'bug';
         var description = (params && (params.description || params.summary || params.text)) || '';
@@ -2296,6 +2305,33 @@
     }
     this._log('handoff', { to: key, persona: p.name });
     return p;
+  };
+
+  /* Bug/change report — hand the user off to the intake specialist (Dana, own voice)
+   * who collects the details and files them, rather than Bill taking the report. */
+  SomaGuide.prototype._startVoiceIntake = function (info) {
+    info = info || {};
+    var type = info.type === 'change' ? 'change' : 'bug';
+    this.open();
+    var p = (this.cfg.personas && this.cfg.personas.intake) || null;
+    if (!p || !p.voiceAgentId || !this.cfg.voiceAgentId) {
+      /* No intake voice configured — fall back to the text intake flow (still Dana). */
+      this._startIntake(type, info.text || '');
+      return;
+    }
+    this._log('intake_handoff', { mode: 'voice', type: type });
+    this._openVoice();
+    this._handoffTo('intake', true);  /* name/avatar/_activeVoiceAgentId; we start the session below */
+    var orb = this._$('.sg-orb'); if (orb) orb.classList.add('sg-orb--active');
+    var st = this._$('.sg-voice-status'); if (st) st.textContent = 'Connecting…';
+    this._stopConversation();
+    this._startConversation(false, {
+      agentId: p.voiceAgentId,
+      dynamicVariables: {
+        report_type: type,
+        current_page: (typeof location !== 'undefined' ? location.href : '')
+      }
+    }).catch(function () {});
   };
 
   /* Review work — hand the walkthrough to the reviewer teammate (their own voice),
