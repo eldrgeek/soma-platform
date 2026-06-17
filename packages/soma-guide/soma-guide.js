@@ -26,7 +26,7 @@
   const TTS_MS_PER_CHAR  = 85;     /* generous estimate; used for fallback timer */
   const TTS_FLOOR_MS     = 6000;   /* minimum fallback when TTS enabled */
   const TTS_BUFFER_MS    = 3500;   /* extra buffer added to known audio duration */
-  const SOMA_GUIDE_VERSION = '2026-0617c'; /* bump each build; used for stale-state guard */
+  const SOMA_GUIDE_VERSION = '2026-0617d'; /* bump each build; used for stale-state guard */
 
   /* ── SomaGuide class ────────────────────────────────────────────────────── */
   function SomaGuide(cfg) {
@@ -1156,7 +1156,7 @@
     }
 
     /* ── 2. Update narration / instruction text (synchronous — tests check here) ── */
-    this._$('.sg-wt-narration').textContent  = step.narration || '';
+    this._$('.sg-wt-narration').textContent  = this._stripCues(step.narration);
     this._$('.sg-wt-instruction').textContent = step.instruction || '';
 
     var flatIdx   = this._wtFlatIndex(wt, this.wt.stepIndex, this.wt.subStepIndex);
@@ -2820,8 +2820,16 @@
    *    Replaced with duration-based timer once loadedmetadata fires.
    *    Cancelled entirely when 'ended' fires naturally.
    */
+  /* Strip inline [[cue]] choreography markup before it's ever spoken, displayed, or
+   * hashed. MUST match stripCues in scripts/gen-tour-audio.mjs so the prerendered-audio
+   * hash matches (otherwise every static lookup misses and live TTS reads the cues aloud). */
+  SomaGuide.prototype._stripCues = function (raw) {
+    return String(raw == null ? '' : raw).replace(/\s*\[\[(.*?)\]\](?!\])/g, '').replace(/^\s+/, '');
+  };
+
   SomaGuide.prototype._ttsSpeak = function (text, onEnded) {
     var self = this;
+    text = this._stripCues(text);
     this._ttsStop();
 
     var fallbackMs = Math.max(TTS_FLOOR_MS, (text || '').length * TTS_MS_PER_CHAR);
@@ -2965,7 +2973,7 @@
     var prefetchAppId = this.cfg.tenantId || this.cfg.persona.id || this.cfg.persona.name || 'unknown';
     var url = this.cfg.ttsProxyUrl +
       '?action=tts' +
-      '&text=' + encodeURIComponent(nextStep.narration) +
+      '&text=' + encodeURIComponent(this._stripCues(nextStep.narration)) +
       '&agent_id=' + encodeURIComponent(this.cfg.voiceAgentId) +
       '&app_id=' + encodeURIComponent(prefetchAppId);
 
