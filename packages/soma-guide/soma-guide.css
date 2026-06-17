@@ -84,7 +84,7 @@
 .sg--voice .sg-fab  { display: none; }
 .sg--voice .sg-panel {
   display: flex;
-  width: 220px;
+  width: 248px;
 }
 
 /* Mode containers (idle / voice / text / walkthrough / tour bar) are switched
@@ -129,13 +129,23 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  /* Let the persona block shrink so a long name (e.g. "Quinn · Review") can never
+   * push the header buttons — including Close (×) — off the edge of a narrow panel. */
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
 }
-.sg-persona-avatar { font-size: 1.1rem; }
+.sg-persona-avatar { font-size: 1.1rem; flex-shrink: 0; }
 .sg-persona-name {
   font-size: 0.9rem;
   font-weight: 600;
   letter-spacing: 0.04em;
   color: #c9a84c;
+  /* Truncate instead of overflowing the header. */
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .sg-version {
   font-size: 0.6rem;
@@ -150,6 +160,10 @@
 .sg-header-btns {
   display: flex;
   gap: 4px;
+  /* Never shrink or wrap — keep all controls (incl. Close ×) visible at any width. */
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  margin-left: 8px;
 }
 .sg-header-btns button {
   background: none;

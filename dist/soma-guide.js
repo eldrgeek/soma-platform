@@ -26,7 +26,7 @@
   const TTS_MS_PER_CHAR  = 85;     /* generous estimate; used for fallback timer */
   const TTS_FLOOR_MS     = 6000;   /* minimum fallback when TTS enabled */
   const TTS_BUFFER_MS    = 3500;   /* extra buffer added to known audio duration */
-  const SOMA_GUIDE_VERSION = '2026-0617h'; /* bump each build; used for stale-state guard */
+  const SOMA_GUIDE_VERSION = '2026-0617i'; /* bump each build; used for stale-state guard */
 
   /* ── SomaGuide class ────────────────────────────────────────────────────── */
   function SomaGuide(cfg) {
@@ -2419,9 +2419,32 @@
   /* Review work — hand the walkthrough to the reviewer teammate (their own voice),
    * open the changed page, and let them narrate what shipped and converse about
    * whether it's right. Called from the Change Log's "Review work" button. */
+  /* Condense a change description to a short brief so the reviewer SUMMARIZES the
+   * work rather than reading the full details verbatim. Keeps the first 1–2
+   * sentences, capped at ~220 chars. */
+  SomaGuide.prototype._briefSummary = function (text, max) {
+    text = String(text || '').replace(/\s+/g, ' ').trim();
+    max = max || 220;
+    if (!text) return '';
+    /* Take whole sentences up to the cap. */
+    var sentences = text.match(/[^.!?]+[.!?]+|\S+$/g) || [text];
+    var out = '';
+    for (var i = 0; i < sentences.length; i++) {
+      var next = (out + sentences[i]).trim();
+      if (next.length > max && out) break;
+      out = next;
+      if (out.length >= max) break;
+    }
+    if (!out) out = text.slice(0, max);
+    if (out.length < text.length) out = out.replace(/[.!?]*$/, '') + '…';
+    return out;
+  };
+
   SomaGuide.prototype.reviewChange = function (info) {
     info = info || {};
-    var summary = info.summary || info.description || info.title || 'the latest change';
+    var fullSummary = info.summary || info.description || info.title || 'the latest change';
+    /* Feed the reviewer a SHORT brief, not the whole change log entry (#6). */
+    var summary = this._briefSummary(fullSummary, 220) || fullSummary;
     var page = info.page || (typeof location !== 'undefined' ? location.href : '');
     this.open();
     var p = (this.cfg.personas && this.cfg.personas.review) || null;
@@ -2441,7 +2464,13 @@
     this._stopConversation();
     this._startConversation(false, {
       agentId: p.voiceAgentId,
-      dynamicVariables: { change_summary: summary, change_page: page, change_title: info.title || '' }
+      dynamicVariables: {
+        change_summary: summary,            /* already condensed (#6) */
+        change_page: page,
+        change_title: info.title || '',
+        /* Style hint the agent prompt can reference: summarize, don't read verbatim. */
+        review_style: 'Briefly summarize what changed in one or two sentences, then ask if it looks right. Do not read the full change details aloud.'
+      }
     }).catch(function () {});
   };
   SomaGuide.prototype._restorePersona = function () {
@@ -3256,12 +3285,34 @@
   /* ── Auto-init ── */
   global.SomaGuide = SomaGuide;
 
+  /* Are we running inside another page's <iframe>? (e.g. the Change Log's inline
+   * page-preview, which loads a full site page — itself guide-bearing — in a frame.)
+   * If so, a second widget would auto-init inside the preview and you'd get two
+   * assistants talking over each other. Suppress auto-init when framed.
+   *
+   * Exceptions:
+   *   - cfg.delivery === 'iframe': the guide's *own* cross-origin host iframe — that
+   *     IS the widget and must initialize.
+   *   - window.SomaGuideAllowFramed === true: explicit host opt-in.
+   *   - ?embed=1 already signals "embedded, hide chrome"; treat it as suppress too. */
+  var isFramed = function () {
+    try { return typeof window !== 'undefined' && window.self !== window.top; }
+    catch (e) { return true; } /* cross-origin access threw → we ARE framed */
+  };
+
   if (typeof document !== 'undefined') {
     var init = function () {
       var cfg = global.SomaGuideConfig;
-      if (cfg && !global.somaGuide) {
-        global.somaGuide = new SomaGuide(cfg);
+      if (!cfg || global.somaGuide) return;
+      var framed = isFramed();
+      var embedded = false;
+      try { embedded = new URLSearchParams(location.search).get('embed') === '1'; } catch (e) {}
+      var allowFramed = cfg.delivery === 'iframe' || global.SomaGuideAllowFramed === true;
+      if ((framed || embedded) && !allowFramed) {
+        console.log('[SomaGuide] suppressed inside embedded/iframe context — not instantiating a second widget');
+        return;
       }
+      global.somaGuide = new SomaGuide(cfg);
     };
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', init);
