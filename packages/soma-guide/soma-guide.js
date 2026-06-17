@@ -2248,6 +2248,16 @@
       nameInput.placeholder = 'e.g. Greg Foster';
       wrap.appendChild(nameInput);
     }
+    /* Email — so we can notify when it's done or declined (asked when unknown). */
+    var emailInput = null;
+    if (!known) {
+      var eLbl = document.createElement('label'); eLbl.className = 'sg-feedback-label';
+      eLbl.textContent = 'Email (optional — to hear back)';
+      wrap.appendChild(eLbl);
+      emailInput = document.createElement('input'); emailInput.type = 'email'; emailInput.className = 'sg-feedback-input';
+      emailInput.placeholder = 'you@example.com';
+      wrap.appendChild(emailInput);
+    }
 
     var row = document.createElement('div'); row.className = 'sg-feedback-btn-row';
     var go = document.createElement('button'); go.className = 'sg-feedback-submit'; go.textContent = 'Next';
@@ -2271,6 +2281,7 @@
         type: type,
         description: d,
         name: known ? self._profile.display_name : (nameInput ? nameInput.value.trim() : ''),
+        email: emailInput ? emailInput.value.trim() : ((self._profile && self._profile.email) || ''),
         page: nav ? (nav.url) : (typeof location !== 'undefined' ? location.href : null),
         recent_activity: self.getRecentActivity(5)
       };
@@ -2306,13 +2317,31 @@
   };
 
   SomaGuide.prototype._finishIntake = function (req) {
-    /* Phase 1: assemble + record the structured request. Routing (safety vet →
-     * dev-worker | manager approval) + notify is Phase 2. */
+    var self = this;
     this._log('intake_complete', req);
     var who = req.name ? (', ' + req.name.split(' ')[0]) : '';
-    this._appendMessage('agent',
-      'Got it' + who + '. I’ve logged this with the context — your page and what you’d just done. ' +
-      'The team will pick it up from here.');
+    var payload = {
+      source: 'bill',
+      type: req.type,
+      description: req.description,
+      requester_name: req.name || (this._profile && this._profile.display_name) || null,
+      requester_email: req.email || null,
+      page: req.page,
+      context: { recent_activity: req.recent_activity, session: this._session && this._session.id }
+    };
+    /* Submit into the unified change-request queue; the daemon vets + routes it. */
+    if (this.cfg.intakeUrl) {
+      fetch(this.cfg.intakeUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+        .then(function (r) { return r.ok ? r.json().catch(function () { return {}; }) : Promise.reject(); })
+        .then(function () {
+          self._appendMessage('agent', 'Got it' + who + '. I’ve queued this with the full context — the team will pick it up, and you’ll hear back when it’s done.');
+        })
+        .catch(function () {
+          self._appendMessage('agent', 'Got it' + who + '. I’ve noted it (couldn’t reach the queue just now — it’s saved in this session).');
+        });
+    } else {
+      this._appendMessage('agent', 'Got it' + who + '. I’ve logged this with the context.');
+    }
     this._restorePersona();
   };
 
