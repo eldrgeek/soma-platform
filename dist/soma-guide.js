@@ -26,7 +26,7 @@
   const TTS_MS_PER_CHAR  = 85;     /* generous estimate; used for fallback timer */
   const TTS_FLOOR_MS     = 6000;   /* minimum fallback when TTS enabled */
   const TTS_BUFFER_MS    = 3500;   /* extra buffer added to known audio duration */
-  const SOMA_GUIDE_VERSION = '2026-0615c'; /* bump each build; used for stale-state guard */
+  const SOMA_GUIDE_VERSION = '2026-0617a'; /* bump each build; used for stale-state guard */
 
   /* ── SomaGuide class ────────────────────────────────────────────────────── */
   function SomaGuide(cfg) {
@@ -1703,7 +1703,16 @@
           }
         },
         onMessage: function (data) {
-          if (data && data.source === 'ai') self._onAgentMessage(data.message || data.text || '');
+          if (!data) return;
+          var text = data.message || data.text || '';
+          /* Record voice turns to the transcript (server + local) so voice-mode
+           * conversations are diagnosable, not just typed ones. */
+          if (data.source === 'ai') {
+            self._log('agent_message', { text: text, via: 'voice' });
+            self._onAgentMessage(text);
+          } else if (data.source === 'user') {
+            self._log('user_message', { text: text, via: 'voice' });
+          }
         },
         onError: function (msg) { console.warn('[SomaGuide]', msg); },
         onModeChange: function (data) {
