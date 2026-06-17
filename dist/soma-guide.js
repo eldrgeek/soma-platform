@@ -26,7 +26,7 @@
   const TTS_MS_PER_CHAR  = 85;     /* generous estimate; used for fallback timer */
   const TTS_FLOOR_MS     = 6000;   /* minimum fallback when TTS enabled */
   const TTS_BUFFER_MS    = 3500;   /* extra buffer added to known audio duration */
-  const SOMA_GUIDE_VERSION = '2026-0617e'; /* bump each build; used for stale-state guard */
+  const SOMA_GUIDE_VERSION = '2026-0617f'; /* bump each build; used for stale-state guard */
 
   /* ── SomaGuide class ────────────────────────────────────────────────────── */
   function SomaGuide(cfg) {
@@ -211,7 +211,9 @@
         self.introduced = true;
         self._openAsk();
       }, 500);
-    } else if (!this.introduced) {
+    } else if (!this.introduced && !this.cfg.conversationalShell) {
+      /* conversationalShell: stay minimized so the FAB (chiclet) is always
+       * visible. User clicks the FAB to open the conversational shell. */
       setTimeout(function () { self._openIdle(true); }, 500);
     }
   };
