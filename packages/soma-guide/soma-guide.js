@@ -26,7 +26,7 @@
   const TTS_MS_PER_CHAR  = 85;     /* generous estimate; used for fallback timer */
   const TTS_FLOOR_MS     = 6000;   /* minimum fallback when TTS enabled */
   const TTS_BUFFER_MS    = 3500;   /* extra buffer added to known audio duration */
-  const SOMA_GUIDE_VERSION = '2026-0617g'; /* bump each build; used for stale-state guard */
+  const SOMA_GUIDE_VERSION = '2026-0617h'; /* bump each build; used for stale-state guard */
 
   /* ── SomaGuide class ────────────────────────────────────────────────────── */
   function SomaGuide(cfg) {
@@ -1898,12 +1898,12 @@
     } catch (e) {}
     var first = name ? String(name).split(' ')[0] : '';
     /* humanize time since last seen */
-    var since = '';
+    var since = '';  /* bare duration phrase (no "ago"), reads after "it's been " */
     var last = Number(this._lsGet('last-seen') || 0);
     if (last) {
       var d = Math.floor((Date.now() - last) / 86400000);
-      since = d <= 0 ? 'today' : d === 1 ? 'yesterday' : d < 7 ? (d + ' days ago')
-            : d < 14 ? 'about a week ago' : d < 31 ? (Math.round(d / 7) + ' weeks ago') : 'a while ago';
+      since = d <= 0 ? '' : d === 1 ? 'a day' : d < 7 ? (d + ' days')
+            : d < 14 ? 'about a week' : d < 31 ? (Math.round(d / 7) + ' weeks') : 'a while';
     }
     var state, opening;
     if (!introduced) {
@@ -1911,7 +1911,7 @@
       opening = persona.greeting || 'Hi! I’m here to help.';
     } else if (first) {
       state = member ? 'member' : 'returning_named';
-      opening = (since && since !== 'today')
+      opening = since
         ? 'Hey ' + first + ' — good to see you again, it’s been ' + since + '.'
         : 'Good to see you again, ' + first + '.';
     } else {
