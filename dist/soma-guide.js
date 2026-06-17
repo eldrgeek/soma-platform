@@ -26,7 +26,7 @@
   const TTS_MS_PER_CHAR  = 85;     /* generous estimate; used for fallback timer */
   const TTS_FLOOR_MS     = 6000;   /* minimum fallback when TTS enabled */
   const TTS_BUFFER_MS    = 3500;   /* extra buffer added to known audio duration */
-  const SOMA_GUIDE_VERSION = '2026-0617d'; /* bump each build; used for stale-state guard */
+  const SOMA_GUIDE_VERSION = '2026-0617e'; /* bump each build; used for stale-state guard */
 
   /* ── SomaGuide class ────────────────────────────────────────────────────── */
   function SomaGuide(cfg) {
@@ -80,6 +80,18 @@
     if (!this._anonId) { this._anonId = 'a-' + Math.random().toString(36).slice(2, 10); this._lsSet('anon-id', this._anonId); }
     this._session = { id: 's-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), turns: [] };
     this._profile = null;
+
+    /* Running cost estimate (turn-by-turn feel; tunable rates). ElevenLabs TTS is
+     * per-character (Creator tier ≈ $0.22/1k); conversational voice is per-minute;
+     * the text-inference fallback is per-call. Prerendered tour audio is already
+     * paid for, so it counts $0 incrementally. Override via cfg.costRates. */
+    this._rates = Object.assign(
+      { ttsPerKChar: 0.22, convaiPerMin: 0.10, askPerCall: 0.01 },
+      this.cfg && this.cfg.costRates ? this.cfg.costRates : {}
+    );
+    this._cost = { ttsLiveChars: 0, ttsPrerenderedChars: 0, convaiMs: 0, asks: 0 };
+    this._convStartTs = null;
+    this._costExpanded = false;
 
     /* Host adapter — "Bill's hands". All reach into the host page goes through
      * this one object, so a future iframe build can swap in a postMessage-backed
@@ -284,6 +296,7 @@
       '      <button class="sg-wt-home">← Menu</button>',
       '    </div>',
       '  </div>',
+      '  <div class="sg-cost" hidden role="button" tabindex="0" title="Estimated session cost — tap for a breakdown"></div>',
       '</div>'
     ].join('');
 
@@ -1696,6 +1709,7 @@
         clientTools: self._buildClientTools(),
         onConnect: function () {
           self._convConnected = true;
+          self._convStartTs = Date.now();   /* start metering voice-conversation minutes */
           if (self._convBuffer) {
             var buffered = self._convBuffer;
             self._convBuffer = null;
@@ -1728,6 +1742,7 @@
           if (status) status.textContent = speaking ? 'Speaking…' : 'Listening…';
         },
         onDisconnect: function () {
+          if (self._convStartTs) { self._recordCost('convai', Date.now() - self._convStartTs); self._convStartTs = null; }
           if (self.mode === 'voice') {
             var orb = self._$('.sg-orb');
             if (orb) orb.classList.remove('sg-orb--active');
@@ -1818,6 +1833,7 @@
   };
 
   SomaGuide.prototype._stopConversation = function () {
+    if (this._convStartTs) { this._recordCost('convai', Date.now() - this._convStartTs); this._convStartTs = null; }
     this._convConnected = false;
     this._convBuffer = null;
     if (this.conversation) {
@@ -2629,6 +2645,7 @@
   /* POST to cfg.inferenceUrl, render the grounded answer in the chat. */
   SomaGuide.prototype._askInference = function (text) {
     var self = this;
+    this._recordCost('ask');   /* one text-inference call */
 
     /* Show typing indicator */
     var msgs = this._$('.sg-messages');
@@ -2820,6 +2837,57 @@
    *    Replaced with duration-based timer once loadedmetadata fires.
    *    Cancelled entirely when 'ended' fires naturally.
    */
+  /* ── Cost estimate ───────────────────────────────────────────────────────
+   * A running, turn-by-turn dollar estimate so the spend is visible. Rates are
+   * tunable (cfg.costRates) and labelled an estimate. getCost() exposes the raw
+   * numbers; each event is also logged to telemetry as a 'cost' event. */
+  SomaGuide.prototype._recordCost = function (kind, delta) {
+    delta = delta || 0;
+    if (!this._cost) return;
+    if (kind === 'tts-live')      this._cost.ttsLiveChars += delta;
+    else if (kind === 'tts-pre')  this._cost.ttsPrerenderedChars += delta;
+    else if (kind === 'convai')   this._cost.convaiMs += delta;
+    else if (kind === 'ask')      this._cost.asks += 1;
+    var b = this._costBreakdown();
+    this._log('cost', { event: kind, delta: delta, est_usd: Number(b.total.toFixed(5)) });
+    this._updateCostMeter(b);
+  };
+  SomaGuide.prototype._costBreakdown = function () {
+    var r = this._rates, c = this._cost;
+    var tts    = (c.ttsLiveChars / 1000) * r.ttsPerKChar;   /* prerendered already paid → $0 incremental */
+    var convai = (c.convaiMs / 60000) * r.convaiPerMin;
+    var ask    = c.asks * r.askPerCall;
+    return {
+      tts: tts, convai: convai, ask: ask, total: tts + convai + ask,
+      units: { ttsLiveChars: c.ttsLiveChars, ttsPrerenderedChars: c.ttsPrerenderedChars,
+               voiceMinutes: c.convaiMs / 60000, asks: c.asks }
+    };
+  };
+  SomaGuide.prototype.getCost = function () { return this._costBreakdown(); };
+  SomaGuide.prototype._updateCostMeter = function (b) {
+    var el = this._$ && this._$('.sg-cost'); if (!el) return;
+    if (this.cfg.costMeter === false) { el.hidden = true; return; }
+    b = b || this._costBreakdown();
+    if (!el._sgBound) {
+      el._sgBound = true;
+      el.style.cssText = 'font-size:11px;opacity:.72;padding:5px 12px;cursor:pointer;' +
+        'border-top:1px solid rgba(0,0,0,.08);text-align:center;line-height:1.5;color:inherit';
+      var self = this;
+      el.addEventListener('click', function () { self._costExpanded = !self._costExpanded; self._updateCostMeter(); });
+    }
+    el.hidden = false;
+    if (this._costExpanded) {
+      el.innerHTML =
+        '<strong>≈ $' + b.total.toFixed(4) + '</strong> this session' +
+        '<br>· voice generation: $' + b.tts.toFixed(4) + ' (' + b.units.ttsLiveChars + ' chars live; ' + b.units.ttsPrerenderedChars + ' prerendered/free)' +
+        '<br>· voice conversation: $' + b.convai.toFixed(4) + ' (' + b.units.voiceMinutes.toFixed(1) + ' min)' +
+        '<br>· text inference: $' + b.ask.toFixed(4) + ' (' + b.units.asks + ' calls)' +
+        '<br><em>estimate · tap to collapse</em>';
+    } else {
+      el.textContent = '≈ $' + b.total.toFixed(4) + ' this session';
+    }
+  };
+
   /* Strip inline [[cue]] choreography markup before it's ever spoken, displayed, or
    * hashed. MUST match stripCues in scripts/gen-tour-audio.mjs so the prerendered-audio
    * hash matches (otherwise every static lookup misses and live TTS reads the cues aloud). */
@@ -2882,9 +2950,11 @@
 
     /* Try pre-generated static clip first; fall through to live TTS on miss. */
     fetchFn(staticUrl).then(function (r) {
-      if (r.ok) return r.blob().then(playBlob);
+      if (r.ok) { self._recordCost('tts-pre', (text || '').length); return r.blob().then(playBlob); }
 
-      /* Static miss — use prefetch cache if available, else fetch live TTS. */
+      /* Static miss — use prefetch cache if available, else fetch live TTS. Either
+       * way this is freshly synthesized audio that costs money (per character). */
+      self._recordCost('tts-live', (text || '').length);
       if (cached) {
         self._ttsPrefetchCache = null;
         self._ttsPrefetchUrl   = null;
