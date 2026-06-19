@@ -100,13 +100,17 @@ soma_app:
       enabled: true
       owner_email: "owner@acme.com"
 
-    # --- community tier (Room) — confirm requirements from FrontRow/campus source ---
-    room:
+    # --- community tier: Atlas + Room (model locked 2026-06-18; room-state svc pending) ---
+    rooms:
       enabled: false
-      channels: { floor: true, private: ["consigliere"] }
-      personas: [ ... ]
-      presence: true
-      live_av:  true             # LiveKit; false = text presence only
+      atlas:                      # optional place graph; omit for a single standalone Room
+        - { path: "campus", type: "Campus", dimensionality: "2D" }
+        - { path: "campus/booth", type: "Booth", dimensionality: "dual", tool: "audio", persona: "Sona" }
+      defaults:
+        dimensionality: "2D"      # 2D | 3D | dual (renderer over shared room-state)
+        personas: [ ... ]         # resident personas (ConvAI: persona .md as system prompt)
+        access: "gated"           # public | gated (auth)
+        consigliere: { presence: "earpiece" }  # earpiece | second-seat | per-room (schema decision)
 
   # --- provenance ---
   meta:
@@ -170,5 +174,8 @@ soma_app:
 
 ## Still open
 
-- **Room field shape.** Grounded in FrontRow primitives (see AFFORDANCES.md) but the
-  unified channel/persona schema is finalized as the Room converges.
+- **Room/Atlas field shape.** The model is locked (Atlas place-graph + Room with
+  `2D/3D/dual` over shared state; see AFFORDANCES.md), but the concrete `rooms` schema
+  firms up once the shared **room-state service** is extracted from the campus and
+  FrontRow apps. The dyad/consigliere occupancy model (one seat vs two) is a schema
+  decision still open.

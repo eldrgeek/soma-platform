@@ -164,64 +164,85 @@ env only. A GET to each function returns 405 (alive); missing key returns 503.
 
 ---
 
-# Tier 2 — Community affordances (Room)
+# Tier 2 — Community affordances: Atlas + Room
 
-> **Status: converging — Room is a target architecture, not yet a unified
-> primitive.** Confirmed from FrontRow source (`front-row-vite/` + `server/`):
-> FrontRow today models a **theater venue**, not a generalized Room — its concepts
-> are seats, stage, shows, a `BackstageRoom`, a `HouseManagerApp`, and Socket.io
-> events like `select-seat` / `release-seat` / `start-countdown` / `question-response`
-> / WebRTC `offer`. A/V runs on **LiveKit** (`wss://` on the VPS); the backend is
-> Socket.io at `:4001`; deploy is `frontrowtheater.netlify.app`. The **campus** is a
-> separate branch-deploy off FrontRow that adds **per-persona public ConvAI dialogue**.
-> Per the Unified Room model these converge into one **Room** with a public floor
-> channel + private channels + the dyad/consigliere pattern. The entries below are
-> the intended menu; the FrontRow theater primitives (LiveKit rooms, Socket.io
-> presence, the seat/stage/backstage model) are what they generalize from.
+> **Status: the model is locked (SOMA architecture session, 2026-06-18); the
+> renderers are live; the shared room-state service is the key not-yet-built piece.**
+> Two things exist today and converge into one primitive:
+> - **Campus** — a React+Vite app (`soma-campus` branch → **soma-campus.netlify.app**)
+>   built in the SOMA office app (a FrontRow worktree, `office/` with `Campus.tsx`,
+>   per-building components, desks, `scripts/sync-canon.mjs`). It's a **2D SVG map**
+>   of buildings; each houses personas at desks; **all 24 personas have per-character
+>   ElevenLabs ConvAI dialogue (voice orb + text)** openable from the map, a desk, or
+>   the org chart (The Atrium). "Meet the character, anywhere" is live. Persona chat
+>   uses the persona `.md` as system prompt via a server-side proxy, with a strict
+>   **no-tasks guardrail** (personas converse, they don't act).
+> - **FrontRow** — the **3D venue** (`front-row-vite/`, R3F/Three.js, LiveKit A/V on
+>   the VPS `wss://`, Socket.io presence): real 3D rooms with seats, presence, and a
+>   *reconfigurable* layout (Theater ↔ Round-Table switch live; cabaret/classroom
+>   stubbed), plus async message drops.
+>
+> The unification: **state is dimension-agnostic; dimension is a client.** The campus
+> SVG and the FrontRow R3F scene are two *views* over the same room state.
 
-## Room
-**What.** A shared presence space members enter together — the convergence of
-FrontRow's venue and the campus's per-persona spaces. One Room with a public **floor
-channel** and **private channels**.
+## Room (the single primitive)
+**What.** A persistent, named, gated place. Properties: **dimensionality**
+(`2D | 3D | dual` — a rendering choice over shared state, not different objects);
+**participants** (humans, AI personas, or both); **tools** (an optional mounted app
+surface keyed to the room's purpose); **access + schedule** (auth-gated; runs sync
+and async).
 
-**Why / when.** Apps that are gatherings, not just sites: live events, cohorts,
-communities, multi-persona spaces. Also the substrate for the build observation
-surface (see BUILD-MODEL.md).
+**Why / when.** Apps that are gatherings or workspaces, not just sites: live events,
+cohorts, communities, multi-persona spaces — and the build observation surface
+(BUILD-MODEL.md). The campus building you can talk to becomes a **workroom** when it
+mounts a tool: Booth = audio (Sona), Studio = editing (Drew), Library = canon/RAG
+(Mem), Forge = estimation (Cal/Skip/Sol). That's the shift from "campus as showcase"
+to "campus as where work happens."
 
-**Choices.** Channels (floor + which private channels); which personas inhabit the
-Room; live A/V vs text presence; public vs members-only.
+**Choices.** Dimensionality (2D/3D/dual); which personas are resident; mounted tool
+(if any); participants/capacity; access (public vs gated) + schedule.
 
-**Requirements (to confirm from source).** LiveKit (`wss://` on the VPS), the
-Socket.io backend (`:4001`), the FrontRow frontend; identity/auth for membership.
+**Requirements.** Identity/Auth for gating; the persona registry (canonical
+`~/Projects/SOMA/personas/`, synced via `sync-canon.mjs`); ElevenLabs ConvAI per
+persona for voice+text; for 3D: LiveKit + the FrontRow renderer. **The not-yet-built
+piece:** a shared **room-state service** extracted out of both apps (who's here,
+what's said, what's scheduled, what's on screen) so 2D and 3D are clients of it.
 
-**Source.** `FrontRow/` (esp. `front-row-vite/`, `server/`); campus branch
-(deploys from FrontRow); Unified Room model notes.
+**Source.** `soma-campus` branch / office app (`office/src/components/Campus.tsx`);
+`FrontRow/front-row-vite/`; SOMA architecture session 2026-06-18 (Room/Atlas model).
+
+## Atlas (the place graph)
+**What.** The place registry + scene graph that Rooms hang on — game-engine prefab
+typing applied to a persistent multi-app world, and a SOMA component in its own right
+alongside guide/auth/changelog. A **type catalog** (Room types: Theater, Round-Table,
+Booth, Library, Forge; container types: Campus, Village, Town, City, Country) plus an
+**instance tree** (the live world). A `Place` node is recursive — a `scale` tag, a
+type reference, and children down to rooms and areas — so "an area within a room"
+(backstage, breakout table) is the same machinery at a smaller scale. Addressing is a
+**path**: `soma/campus/booth/iso-booth`. Dimensionality and access live at *every*
+enterable node, so a campus can have a 2D map and a 3D flythrough of the same node.
+
+**Why / when.** Any app that has more than one place, or wants the campus/overworld
+model. A standalone app can be a single Room with no Atlas above it; SOMA fills the
+campus level.
+
+**Choices.** Which levels you instantiate (vocabulary, not a mandatory ladder); the
+type for each place; shared-live-state vs overworld-with-enterable-rooms (the former
+needs the room-state service first — prove it on one room).
+
+**Source.** SOMA architecture session 2026-06-18 ("Atlas" is the working name).
 
 ## Dyad / consigliere
-**What.** A private 1:1 with a persona running alongside the floor — a member can
-step into a side channel with a guide/advisor while the shared space continues.
+**What.** The unit of attendance: the atom is **a human + their consigliere** (an AI
+that attends *with* them), not a lone human. The consigliere is what carries memory
+**across** rooms — the through-line that makes the Atlas feel like one place rather
+than 24 disconnected chat widgets.
 
-**Choices.** Which persona acts as consigliere; floor-vs-private boundary behavior.
+**Choices (open design decisions, per the 2026-06-18 session).** Does the dyad occupy
+one seat or two? Is the consigliere a visible second body or a private earpiece? Per-
+room configurable? These are **schema** decisions (one occupant vs two), not polish.
 
-**Source.** Unified Room model; FrontRow channel model (to pull from source).
-
-## Per-persona public dialogue
-**What.** The campus pattern: each persona has a public space where anyone can hold a
-voice+text ConvAI dialogue with it.
-
-**Choices.** Which personas; public vs gated; voice on/off (ElevenLabs agent per
-persona).
-
-**Source.** Campus branch off FrontRow; ties to the same ElevenLabs ConvAI wiring
-the Guide uses.
-
-## Presence
-**What.** Live "who is here and what they're doing" within a Room — the ambient
-awareness layer.
-
-**Choices.** What presence shows (identity, activity, status); privacy defaults.
-
-**Source.** FrontRow real-time layer (Socket.io presence) — confirm from source.
+**Source.** SOMA architecture session 2026-06-18.
 
 ---
 

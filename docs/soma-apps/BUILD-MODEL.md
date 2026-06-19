@@ -82,11 +82,14 @@ This is not new infrastructure. It's three existing layers pointed at one surfac
 - **`soma-console`**'s fleet panel already launches dispatches and watches
   status/transcripts — the raw observability.
 - **The Room** (community tier) turns that fleet telemetry into a *watchable place* —
-  presence and ambient activity — instead of a developer console.
+  presence and ambient activity — instead of a developer console. Concretely it's a
+  **workroom**: a Room whose mounted tool is the fleet view (status board + drill-in),
+  with the workers present as participants — an instance in the Atlas
+  (e.g. `soma/campus/factory`).
 
 So the observation surface for building a Soma app is itself a **Soma Room**. The
 recursion closes: the thing that builds Soma apps is a Soma app, and the place you
-watch it build is a Soma Room. Build that Room well once and it serves both as a
+watch it build is a Soma workroom. Build that Room well once and it serves both as a
 community affordance apps can include and as the factory's glass wall.
 
 ## Decisions

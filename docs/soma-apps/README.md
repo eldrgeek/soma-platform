@@ -40,7 +40,7 @@ menu, and the build agents' job is to assemble the chosen parts. Open-ended
 | Tier | Scope | What it provides | Source |
 |------|-------|------------------|--------|
 | **Solo** | 1:1, person ↔ app | Guide/Bill, Auth, Identity, Intake, Change Log, Feedback | `soma-platform/` (live) |
-| **Community** | many ↔ many, shared presence | Room (floor + private channels), dyad/consigliere, per-persona public dialogue, live presence | FrontRow + campus (converging) |
+| **Community** | many ↔ many, shared presence | Atlas (place graph) + Room (`2D/3D/dual`, participants, mounted tools), dyad/consigliere, per-persona ConvAI | campus live (`soma-campus.netlify.app`, 24 personas) + FrontRow (3D venue) |
 
 See [AFFORDANCES.md](AFFORDANCES.md) for the full catalog.
 
