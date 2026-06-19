@@ -68,7 +68,7 @@
         "admin_home_path": "/admin.html"
       },
       "feedback": { "enabled": true, "owner_email": "greg@example.com" },
-      "room": { "enabled": false }
+      "rooms": { "enabled": false }
     },
     "meta": { "spec_version": "0.1", "status": "live", "intake_transcript": "bill_transcripts/legends-seed" }
   }

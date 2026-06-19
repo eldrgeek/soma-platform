@@ -39,6 +39,24 @@ const errors = validate(doc);          // [] = valid
 if (!errors.length) scaffold(doc, { outDir: "./acme-soma" });
 ```
 
+## The meta-app (dogfood)
+
+`examples/soma-builder.soma.json` is the spec for **Soma Builder itself** — the
+app-for-building-Soma-apps, expressed as a Soma app (guide "Ada" + auth + identity +
+intake + changelog + feedback). It scaffolds like any other app, which is the proof
+that the meta-app is a Soma app.
+
+`tools/build-guide-knowledge.mjs` compiles `docs/soma-apps/*.md` + the schema into a
+`window.SiteKnowledge` `knowledge.js` so Ada is grounded in the full knowledge base
+(what a Soma app is, the affordance menu, the choices, the exact spec fields):
+
+```bash
+node tools/build-guide-knowledge.mjs /path/to/soma-builder/js/knowledge.js
+```
+
+Still the human/next step for the meta-app: the ElevenLabs ConvAI agent for Ada, the
+intake→app-spec conversation logic, and the HTML pages.
+
 ## Spec format
 
 JSON (YAML authorable, converts 1:1). The canonical contract is

@@ -123,16 +123,35 @@
                 "owner_email": { "type": "string" }
               }
             },
-            "room": {
+            "rooms": {
               "type": "object",
               "required": ["enabled"],
-              "description": "community tier; schema finalizes as the Room converges (see AFFORDANCES.md)",
+              "description": "community tier: Atlas place-graph + Room (see AFFORDANCES.md); concrete shape firms up with the shared room-state service",
               "properties": {
                 "enabled": { "type": "boolean" },
-                "channels": { "type": "object" },
-                "personas": { "type": "array" },
-                "presence": { "type": "boolean" },
-                "live_av": { "type": "boolean" }
+                "atlas": {
+                  "type": "array",
+                  "description": "optional place graph; omit for a single standalone Room",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "path": { "type": "string" },
+                      "type": { "type": "string" },
+                      "dimensionality": { "enum": ["2D", "3D", "dual"] },
+                      "tool": { "type": "string" },
+                      "persona": { "type": "string" }
+                    }
+                  }
+                },
+                "defaults": {
+                  "type": "object",
+                  "properties": {
+                    "dimensionality": { "enum": ["2D", "3D", "dual"] },
+                    "personas": { "type": "array" },
+                    "access": { "enum": ["public", "gated"] },
+                    "consigliere": { "type": "object" }
+                  }
+                }
               }
             }
           }
