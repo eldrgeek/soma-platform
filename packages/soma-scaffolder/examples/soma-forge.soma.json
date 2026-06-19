@@ -1,17 +1,17 @@
 {
   "soma_app": {
-    "name": "Soma Builder",
-    "slug": "soma-builder",
-    "description": "The app for building Soma apps. A person registers, meets a guide specialized in Soma apps that explains them and the choices, and through conversation produces an app spec; a team (agents + human manager) then builds and deploys it.",
+    "name": "Soma Forge",
+    "slug": "soma-forge",
+    "description": "The app for building Soma apps. A person registers, meets Ada — a guide specialized in Soma apps that explains them and the choices — and through conversation produces an app spec; a team (agents + human manager) then builds and deploys it in the dark factory.",
     "owner": { "name": "Mike Wolf", "email": "mw@mike-wolf.com" },
     "human_manager": { "name": "Mike Wolf", "email": "mw@mike-wolf.com" },
     "requester_skill": "low",
     "targets": {
-      "repo": "github.com/eldrgeek/soma-builder",
-      "netlify_site": "soma-builder",
+      "repo": "github.com/eldrgeek/soma-forge",
+      "netlify_site": "soma-forge",
       "supabase": {
         "identity_project": "shared-soma",
-        "app_project": { "ref": "somabuilderref", "shared": false }
+        "app_project": { "ref": "somaforgeref", "shared": false }
       },
       "delivery": "embedded"
     },
@@ -21,22 +21,21 @@
         "persona": {
           "name": "Ada",
           "avatar": "🧭",
-          "assistant_id": "soma-builder-guide",
+          "assistant_id": "soma-forge-guide",
           "greeting": "Hi — I'm Ada, your guide to building a Soma app. I can explain what a Soma app is, walk you through the choices, and help you spec yours out. What are you hoping to build?",
-          "short_greeting": "Welcome back. Want to pick up your app spec, or explore the menu of building blocks?"
+          "short_greeting": "Welcome back. Want to pick up your app spec, or explore the building blocks?"
         },
-        "voice": { "enabled": true, "agent_id": "agent_REPLACE_WITH_ADA_CONVAI" },
+        "voice": { "enabled": true, "agent_id": "agent_0501kvgs3f8mf33vcmsh5t1p0yg8" },
         "narration": { "enabled": false, "tts_proxy_url": null },
         "ask": { "enabled": true, "inference_url": "https://vpsmikewolf.duckdns.org:4001/ask" },
         "knowledge_pack": {
-          "org": "Soma Builder — the meta-app for building Soma apps.",
+          "org": "Soma Forge — the meta-app for building Soma apps.",
           "sections": ["what-is-a-soma-app", "affordance-menu", "the-choices", "app-spec", "build-model"],
           "soma": "Generated from soma-platform/docs/soma-apps via build-guide-knowledge.mjs; the guide is grounded in the full knowledge base."
         },
         "site_map": [
           { "id": "home", "label": "Home", "path": "index.html", "description": "Register and meet Ada." },
-          { "id": "menu", "label": "Building blocks", "path": "menu.html", "description": "The affordance menu (solo + community)." },
-          { "id": "spec", "label": "Your spec", "path": "spec.html", "description": "The app spec you build with Ada." }
+          { "id": "spec", "label": "Your spec", "path": "spec.html", "description": "The spec builder you fill with Ada." }
         ],
         "walkthroughs": [
           {
@@ -51,7 +50,7 @@
         ],
         "scope_guard": {
           "deflect": "I'm here to help you design and build a Soma app — let's keep us on that.",
-          "context_note": "Soma Builder: explain Soma apps, walk the affordance menu and the choices, and produce an app spec."
+          "context_note": "Soma Forge: explain Soma apps, walk the affordance menu and the choices, and produce an app spec."
         },
         "actions": [
           "Help the visitor specify a new Soma app — capture name, purpose, which affordances they want and their config, and produce a draft app spec (the app-spec schema) they can review",
@@ -64,17 +63,17 @@
         "admin_emails": ["mw@mike-wolf.com"],
         "login_path": "/login.html"
       },
-      "identity": { "enabled": true, "app_id": "soma-builder", "cross_domain_link": true },
+      "identity": { "enabled": true, "app_id": "soma-forge", "cross_domain_link": true },
       "intake": { "enabled": true, "observer": true, "specialist_handoff": true, "routing": "change_requests_table" },
       "changelog": {
         "enabled": true,
         "publish_agent_email": "claude@mike-wolf.com",
-        "accept_storage_key": "soma_builder_changelog_accepted",
+        "accept_storage_key": "soma_forge_changelog_accepted",
         "admin_home_path": "/admin.html"
       },
       "feedback": { "enabled": true, "owner_email": "mw@mike-wolf.com" },
       "rooms": { "enabled": false }
     },
-    "meta": { "spec_version": "0.1", "status": "draft", "intake_transcript": "bill_transcripts/soma-builder-seed" }
+    "meta": { "spec_version": "0.1", "status": "draft", "intake_transcript": "bill_transcripts/soma-forge-seed" }
   }
 }
