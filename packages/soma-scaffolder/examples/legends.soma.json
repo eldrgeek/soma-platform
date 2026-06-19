@@ -1,0 +1,75 @@
+{
+  "soma_app": {
+    "name": "Legends Membership",
+    "slug": "legends",
+    "description": "Membership site for the Legends committee.",
+    "owner": { "name": "Greg", "email": "greg@example.com" },
+    "human_manager": { "name": "Mike Wolf", "email": "mw@mike-wolf.com" },
+    "requester_skill": "high",
+    "targets": {
+      "repo": "github.com/eldrgeek/legends-membership",
+      "netlify_site": "legends-membership-site",
+      "supabase": {
+        "identity_project": "shared-soma",
+        "app_project": { "ref": "legendsref", "shared": true }
+      },
+      "delivery": "embedded"
+    },
+    "affordances": {
+      "guide": {
+        "enabled": true,
+        "persona": {
+          "name": "Bill",
+          "avatar": "🏀",
+          "assistant_id": "legends-bill",
+          "greeting": "Hi, I'm Bill — your guide to the Legends committee site. Want a quick tour?",
+          "short_greeting": "Welcome back. Ask me anything or tap a topic."
+        },
+        "voice": { "enabled": true, "agent_id": "agent_2401ks53q6t8e2drt1h7va3f2c52" },
+        "narration": { "enabled": false, "tts_proxy_url": null },
+        "ask": { "enabled": true, "inference_url": "https://vpsmikewolf.duckdns.org:4001/ask" },
+        "knowledge_pack": {
+          "org": "The Legends committee.",
+          "sections": ["home", "committee", "minutes", "membership"],
+          "soma": "This site is a Soma app; Bill is the SOMA-Guide."
+        },
+        "site_map": [
+          { "id": "home", "label": "Home", "path": "index.html", "description": "Landing page." },
+          { "id": "members", "label": "Members", "path": "members.html", "description": "Member area." }
+        ],
+        "walkthroughs": [
+          {
+            "id": "site-tour",
+            "label": "Site Tour",
+            "keywords": ["tour", "show me"],
+            "steps": [
+              { "target": "nav", "label": "Navigation", "narration": "This is the main nav.", "instruction": "Click Committee to browse members." }
+            ]
+          }
+        ],
+        "scope_guard": { "deflect": "I can only help with the Legends site.", "context_note": "Legends committee membership site." },
+        "actions": [
+          "Members should be able to RSVP to an event",
+          { "id": "publish-update", "risk": "high" }
+        ]
+      },
+      "auth": {
+        "enabled": true,
+        "roles": ["admin", "member"],
+        "admin_emails": ["greg@example.com", "mw@mike-wolf.com"],
+        "login_path": "/login.html"
+      },
+      "identity": { "enabled": true, "app_id": "legends", "cross_domain_link": false },
+      "intake": { "enabled": true, "observer": true, "specialist_handoff": true, "routing": "change_requests_table" },
+      "changelog": {
+        "enabled": true,
+        "publish_agent_email": "claude@mike-wolf.com",
+        "accept_storage_key": "legends_changelog_accepted",
+        "admin_home_path": "/admin.html"
+      },
+      "feedback": { "enabled": true, "owner_email": "greg@example.com" },
+      "room": { "enabled": false }
+    },
+    "meta": { "spec_version": "0.1", "status": "live", "intake_transcript": "bill_transcripts/legends-seed" }
+  }
+}

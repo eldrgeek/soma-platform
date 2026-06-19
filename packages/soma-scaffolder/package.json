@@ -1,0 +1,18 @@
+{
+  "name": "@soma/scaffolder",
+  "version": "0.0.1",
+  "description": "Scaffold a Soma app from an app spec: validate the spec, then emit the per-app files the enabled affordances need from templates/soma-affordances.",
+  "type": "module",
+  "bin": {
+    "soma-scaffold": "bin/soma-scaffold.mjs"
+  },
+  "exports": {
+    ".": "./src/scaffold.mjs",
+    "./spec": "./src/spec.mjs"
+  },
+  "scripts": {
+    "validate": "node bin/soma-scaffold.mjs validate examples/legends.soma.json",
+    "scaffold": "node bin/soma-scaffold.mjs scaffold examples/legends.soma.json"
+  },
+  "license": "UNLICENSED"
+}

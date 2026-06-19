@@ -1,0 +1,163 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://soma-guide.netlify.app/schema/soma-app.schema.json",
+  "title": "Soma App Spec",
+  "description": "The structured spec the Guide fills and the build agents scaffold from. See docs/soma-apps/APP-SPEC.md. Machine format is JSON (YAML is authorable and converts 1:1).",
+  "type": "object",
+  "required": ["soma_app"],
+  "additionalProperties": false,
+  "properties": {
+    "soma_app": {
+      "type": "object",
+      "required": ["name", "slug", "targets", "affordances", "meta"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "slug": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$", "description": "app_id / namespace" },
+        "description": { "type": "string" },
+        "owner": { "$ref": "#/$defs/person" },
+        "human_manager": { "$ref": "#/$defs/person", "description": "human guide/manager alongside the AI guide" },
+        "requester_skill": { "enum": ["low", "medium", "high"], "default": "low", "description": "drives review/autonomy; see BUILD-MODEL.md" },
+
+        "targets": {
+          "type": "object",
+          "required": ["supabase", "delivery"],
+          "additionalProperties": false,
+          "properties": {
+            "repo": { "type": "string" },
+            "netlify_site": { "type": "string" },
+            "supabase": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "identity_project": { "type": "string", "default": "shared-soma", "description": "soma_profiles is ALWAYS shared" },
+                "app_project": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "ref": { "type": "string" },
+                    "shared": { "type": "boolean", "default": false }
+                  }
+                }
+              }
+            },
+            "delivery": { "enum": ["embedded", "vendored", "iframe"], "default": "embedded" }
+          }
+        },
+
+        "affordances": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "guide": {
+              "type": "object",
+              "required": ["enabled"],
+              "additionalProperties": true,
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "persona": {
+                  "type": "object",
+                  "required": ["name", "assistant_id"],
+                  "properties": {
+                    "name": { "type": "string" },
+                    "avatar": { "type": "string" },
+                    "assistant_id": { "type": "string" },
+                    "greeting": { "type": "string" },
+                    "short_greeting": { "type": "string" }
+                  }
+                },
+                "voice": { "type": "object", "properties": { "enabled": { "type": "boolean" }, "agent_id": { "type": ["string", "null"] } } },
+                "narration": { "type": "object", "properties": { "enabled": { "type": "boolean" }, "tts_proxy_url": { "type": ["string", "null"] } } },
+                "ask": { "type": "object", "properties": { "enabled": { "type": "boolean" }, "inference_url": { "type": ["string", "null"] } } },
+                "knowledge_pack": { "type": "object" },
+                "site_map": { "type": "array" },
+                "walkthroughs": { "type": "array" },
+                "scope_guard": { "type": "object" },
+                "actions": { "type": "array", "description": "intent strings OR concrete action objects; build agent expands intent" }
+              }
+            },
+            "auth": {
+              "type": "object",
+              "required": ["enabled"],
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "roles": { "type": "array", "items": { "type": "string" } },
+                "admin_emails": { "type": "array", "items": { "type": "string" } },
+                "login_path": { "type": "string" }
+              }
+            },
+            "identity": {
+              "type": "object",
+              "required": ["enabled"],
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "app_id": { "type": "string" },
+                "cross_domain_link": { "type": "boolean" }
+              }
+            },
+            "intake": {
+              "type": "object",
+              "required": ["enabled"],
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "observer": { "type": "boolean" },
+                "specialist_handoff": { "type": "boolean" },
+                "routing": { "type": "string" }
+              }
+            },
+            "changelog": {
+              "type": "object",
+              "required": ["enabled"],
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "publish_agent_email": { "type": "string" },
+                "accept_storage_key": { "type": "string" },
+                "admin_home_path": { "type": "string" }
+              }
+            },
+            "feedback": {
+              "type": "object",
+              "required": ["enabled"],
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "owner_email": { "type": "string" }
+              }
+            },
+            "room": {
+              "type": "object",
+              "required": ["enabled"],
+              "description": "community tier; schema finalizes as the Room converges (see AFFORDANCES.md)",
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "channels": { "type": "object" },
+                "personas": { "type": "array" },
+                "presence": { "type": "boolean" },
+                "live_av": { "type": "boolean" }
+              }
+            }
+          }
+        },
+
+        "meta": {
+          "type": "object",
+          "required": ["spec_version", "status"],
+          "additionalProperties": false,
+          "properties": {
+            "spec_version": { "type": "string" },
+            "status": { "enum": ["draft", "approved", "building", "preview", "live"] },
+            "intake_transcript": { "type": "string" }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "person": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string" }
+      }
+    }
+  }
+}
