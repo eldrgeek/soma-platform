@@ -104,8 +104,12 @@ community affordance apps can include and as the factory's glass wall.
 
 1. **The trace shape `cc-dispatch` emits** and how the Room renders status + drill-in
    (summarize for the glass wall; keep the full trace addressable underneath).
-2. **The `soma-scaffolder` package** — the first real build target (validate by
-   round-tripping a known app from its spec).
+2. **The `soma-scaffolder` package** — ✅ v0 built (`packages/soma-scaffolder/`).
+   `validate` + `scaffold` (spec → per-affordance files, round-tripped on Legends) +
+   `provision` (emits a reviewable, dry-run-by-default `provision.sh`: repo → push →
+   Netlify site + env → Supabase SQL → deploy; secrets stay in the environment).
+   Next: intent→action expansion for the Do registry; ajv-backed validation; actually
+   wiring `provision.sh` execution into the dispatch fleet.
 3. **Room/fleet wiring** — FrontRow today is a theater, not a generalized Room, and
    `soma-console` (the fleet panel) is at design-v0; both need build-out before the
    glass wall is real. Grounded in source (see AFFORDANCES.md); flagged honestly.
