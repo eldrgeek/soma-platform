@@ -26,7 +26,7 @@
   const TTS_MS_PER_CHAR  = 85;     /* generous estimate; used for fallback timer */
   const TTS_FLOOR_MS     = 6000;   /* minimum fallback when TTS enabled */
   const TTS_BUFFER_MS    = 3500;   /* extra buffer added to known audio duration */
-  const SOMA_GUIDE_VERSION = '2026-0617j'; /* bump each build; used for stale-state guard */
+  const SOMA_GUIDE_VERSION = '2026-0703a'; /* bump each build; used for stale-state guard */
 
   /* ── SomaGuide class ────────────────────────────────────────────────────── */
   function SomaGuide(cfg) {
@@ -248,11 +248,15 @@
       '      <button class="sg-btn-close" title="Close" aria-label="Close">×</button>',
       '    </div>',
       '  </div>',
+      /* io-toggle lives OUTSIDE .sg-body: the body is overflow-y:auto and gets
+       * auto-scrolled, so anything inside it can scroll out of the clip box
+       * (pills were losing 9–19px at the top on Legends). As a sibling flex
+       * strip between header and body it is always fully visible. */
+      '  <div class="sg-io-toggle" hidden role="group" aria-label="Response mode">',
+      '    <button class="sg-io-btn sg-io-text" aria-pressed="true">💬 Text</button>',
+      '    <button class="sg-io-btn sg-io-voice" aria-pressed="false">🎙 Voice</button>',
+      '  </div>',
       '  <div class="sg-body">',
-      '    <div class="sg-io-toggle" hidden role="group" aria-label="Response mode">',
-      '      <button class="sg-io-btn sg-io-text" aria-pressed="true">💬 Text</button>',
-      '      <button class="sg-io-btn sg-io-voice" aria-pressed="false">🎙 Voice</button>',
-      '    </div>',
       '    <div class="sg-idle-ui">',
       '      <p class="sg-greeting"></p>',
       '      <div class="sg-topic-list"></div>',
@@ -2020,7 +2024,7 @@
       opening = persona.shortGreeting || 'Hi again — how can I help?';
     } else {
       /* first contact, no name: the short opener — role intro comes after they name themselves */
-      opening = persona.greeting || 'I’m Bill. Have we met before?';
+      opening = persona.greeting || ('I’m ' + (persona.name || 'your guide') + '. Have we met before?');
     }
     return {
       opening_line: opening, visitor_state: id.state,
@@ -2127,7 +2131,9 @@
     var t = String(text || '').toLowerCase();
     if (/\b(reset|clear|forget)\b.*\b(cookie|identity|me|my (data|name|info))\b|\bforget me\b/.test(t)) {
       this._resetIdentity('all');
-      this._appendMessage('agent', 'Done — I’ve forgotten what I knew about you on this browser. I’m Bill. Have we met before?');
+      var rp = this.cfg.persona || {};
+      var reintro = rp.greeting || ('I’m ' + (rp.name || 'your guide') + '. Have we met before?');
+      this._appendMessage('agent', 'Done — I’ve forgotten what I knew about you on this browser. ' + reintro);
       this._identityStage = 'awaiting_name'; this._nameAskCount = 0; this._metAnswered = false;
       return true;
     }

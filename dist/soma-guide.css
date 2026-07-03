@@ -278,8 +278,10 @@
 
 /* Output-mode toggle (Text / Voice) — the explicit "how should Bill answer" choice.
  * On first encounter the Voice option pulses to announce "you can talk to me",
- * then quiets once the user has engaged. */
-.sg-io-toggle { display: flex; gap: 6px; padding: 10px 14px 4px; }
+ * then quiets once the user has engaged.
+ * Lives at panel level (sibling of .sg-header / .sg-body), NOT inside the
+ * scrollable .sg-body — pinned so it can never scroll out of the clip box. */
+.sg-io-toggle { display: flex; gap: 6px; padding: 10px 14px 0; flex: 0 0 auto; }
 .sg-io-btn {
   flex: 1;
   border: 1px solid #d9d5c8;

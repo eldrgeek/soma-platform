@@ -3048,3 +3048,69 @@ describe('SOMA Guide — askFirst mode', function () {
     }, 800);
   });
 });
+
+/* ── io-toggle placement (pill-clipping regression, 2026-07-03) ──
+ * The Text/Voice pills must live OUTSIDE the scrollable .sg-body: when they
+ * were its first child, engine auto-scroll pushed them out of the clip box
+ * (measured on Legends: scrollHeight 405 vs clientHeight 354, scrollTop 35). */
+describe('SOMA Guide — io-toggle placement', function () {
+  test('io-toggle is NOT inside the scrollable .sg-body', function () {
+    const win = makeWindow();
+    new win.SomaGuide(TEST_CONFIG);
+    const inBody = win.document.querySelector('.sg-body .sg-io-toggle');
+    assert.equal(inBody, null, '.sg-io-toggle must not be a descendant of .sg-body');
+  });
+
+  test('io-toggle is a direct child of .sg-panel, before .sg-body', function () {
+    const win = makeWindow();
+    new win.SomaGuide(TEST_CONFIG);
+    const tog = win.document.querySelector('.sg-panel > .sg-io-toggle');
+    assert.ok(tog, '.sg-io-toggle should be a direct child of .sg-panel');
+    const body = win.document.querySelector('.sg-panel > .sg-body');
+    assert.ok(
+      tog.compareDocumentPosition(body) & win.Node.DOCUMENT_POSITION_FOLLOWING,
+      '.sg-io-toggle should precede .sg-body'
+    );
+  });
+
+  test('io-toggle hidden in idle, visible in text and voice modes', function () {
+    const win = makeWindow();
+    const g = new win.SomaGuide(TEST_CONFIG);
+    const tog = win.document.querySelector('.sg-io-toggle');
+    g._setMode('idle');
+    assert.equal(tog.hidden, true, 'hidden in idle mode');
+    g._setMode('text');
+    assert.equal(tog.hidden, false, 'visible in text mode');
+    g._setMode('voice');
+    assert.equal(tog.hidden, false, 'visible in voice mode');
+  });
+});
+
+/* ── "forget me" reset reply uses the persona's configured greeting ── */
+describe('SOMA Guide — forget-me reply greeting', function () {
+  test('reset reply reuses persona.greeting (no hard-coded Bill)', function () {
+    const win = makeWindow();
+    const g = new win.SomaGuide(TEST_CONFIG);
+    g._setMode('text');
+    const handled = g._handleIdentityMeta('forget me');
+    assert.equal(handled, true);
+    const msgs = win.document.querySelectorAll('.sg-msg--agent');
+    const last = msgs[msgs.length - 1].textContent;
+    assert.ok(last.includes(TEST_CONFIG.persona.greeting),
+      'reply should include the configured greeting: got "' + last + '"');
+    assert.ok(!last.includes('I’m Bill'), 'reply must not hard-code Bill');
+  });
+
+  test('reset reply falls back to persona name when no greeting configured', function () {
+    const win = makeWindow();
+    const cfg = JSON.parse(JSON.stringify(TEST_CONFIG));
+    delete cfg.persona.greeting;
+    const g = new win.SomaGuide(cfg);
+    g._setMode('text');
+    g._handleIdentityMeta('forget me');
+    const msgs = win.document.querySelectorAll('.sg-msg--agent');
+    const last = msgs[msgs.length - 1].textContent;
+    assert.ok(last.includes('I’m ' + cfg.persona.name),
+      'fallback should use persona name: got "' + last + '"');
+  });
+});
