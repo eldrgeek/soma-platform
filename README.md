@@ -22,4 +22,10 @@ The `dist/` directory contains the latest built artifacts ready for CDN/static h
 
 ## Contributing
 
-Update the engine in `packages/soma-guide/`, copy to `dist/`, commit and push. The CDN picks up the new dist automatically.
+Update the engine in `packages/soma-guide/` (bump `SOMA_GUIDE_VERSION`), then run:
+
+```bash
+scripts/deploy-guide.sh   # syncs package → dist, deploys, verifies the CDN
+```
+
+**`git push` does NOT deploy.** The soma-guide Netlify site is not linked to this repo (verified 2026-07-03: `build_settings.repo_url: None`). The only thing that updates the CDN is `netlify deploy --prod --dir dist`, which the script wraps with the site id pinned and a post-deploy CDN version check. Commit and push after deploying, for history.

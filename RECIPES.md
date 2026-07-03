@@ -14,17 +14,16 @@ curl -I https://soma-guide.netlify.app/soma-guide.js
 **Fix:**
 1. Ensure `~/Projects/soma-platform/netlify.toml` exists with `publish = "dist"`.
 2. Ensure `dist/soma-guide.js` and `dist/soma-guide.css` exist and are up to date.
-3. Push to the branch Netlify is tracking (typically `main` or the connected branch):
+3. Deploy — **pushing does nothing; the site is not repo-linked in Netlify:**
 ```bash
 cd ~/Projects/soma-platform
-git push origin fix/ask-bill   # then merge PR
-# or if already on main:
-git push origin main
+scripts/deploy-guide.sh   # deploys dist/ to the pinned site + verifies the CDN
 ```
-4. Netlify will auto-deploy. Verify:
+4. The script polls the CDN for the new `SOMA_GUIDE_VERSION` itself. Manual check:
 ```bash
 curl -I https://soma-guide.netlify.app/soma-guide.js   # expect 200
 ```
+5. Commit + push afterward so git history matches what's live.
 
 **Root cause history:** 2026-06-08 — `.netlify/netlify.toml` (local CLI state, not committed)
 had publish set to repo root. Repo-tracked `netlify.toml` was missing. Added and fixed on
