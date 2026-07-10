@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Assist Fleet — Instances</title>
+  <link rel="stylesheet" href="css/fleet.css" />
+  <script>document.documentElement.style.visibility = 'hidden';</script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="js/soma-auth-config.js"></script>
+  <script src="js/soma-auth.js"></script>
+  <script src="js/fleet-data.js"></script>
+  <script src="js/fleet-gate.js"></script>
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar" data-fleet-topbar></header>
+    <section class="stats" id="stats"></section>
+    <div class="toolbar">
+      <label class="muted" for="app-filter">App</label>
+      <select id="app-filter">
+        <option value="all">All apps</option>
+        <option value="yeshie">Yeshie</option>
+        <option value="soma-guide">Adrian / soma-guide</option>
+        <option value="common">Common</option>
+      </select>
+      <button class="btn" type="button" id="refresh">Refresh</button>
+      <span class="muted" id="status-line">Loading…</span>
+    </div>
+    <div class="card">
+      <table>
+        <thead>
+          <tr>
+            <th>App</th>
+            <th>Install</th>
+            <th>Version</th>
+            <th>Last seen</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="rows">
+          <tr><td colspan="5" class="empty">Loading instances…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <script>
+    (function () {
+      var client = null;
+      var filter = document.getElementById('app-filter');
+      var rows = document.getElementById('rows');
+      var stats = document.getElementById('stats');
+      var statusLine = document.getElementById('status-line');
+
+      function fmtTime(iso) {
+        if (!iso) return '—';
+        try { return new Date(iso).toLocaleString(); } catch (_) { return iso; }
+      }
+
+      async function load() {
+        statusLine.textContent = 'Refreshing…';
+        try {
+          var appId = filter.value === 'all' ? null : filter.value;
+          var instances = await client.listInstances({ appId: appId });
+          var byApp = {};
+          instances.forEach(function (row) {
+            byApp[row.app_id] = (byApp[row.app_id] || 0) + 1;
+          });
+          var live = instances.filter(function (r) { return r.derived_status === 'online' || r.derived_status === r.status; }).length;
+          stats.innerHTML = [
+            '<div class="stat"><div class="label">Instances</div><div class="value">' + instances.length + '</div></div>',
+            '<div class="stat"><div class="label">Live-ish</div><div class="value">' + live + '</div></div>',
+            '<div class="stat"><div class="label">App ids</div><div class="value">' + Object.keys(byApp).length + '</div></div>'
+          ].join('');
+          if (!instances.length) {
+            rows.innerHTML = '<tr><td colspan="5" class="empty">No heartbeats yet. Open Yeshie or Adrian with heartbeat enabled.</td></tr>';
+          } else {
+            rows.innerHTML = instances.map(function (row) {
+              return [
+                '<tr>',
+                '<td><span class="badge">' + row.app_id + '</span></td>',
+                '<td class="mono">' + String(row.install_uuid).slice(0, 8) + '…</td>',
+                '<td>' + (row.version || '—') + '</td>',
+                '<td>' + fmtTime(row.last_seen) + '</td>',
+                '<td><span class="badge ' + row.derived_status + '">' + row.derived_status + '</span></td>',
+                '</tr>'
+              ].join('');
+            }).join('');
+          }
+          statusLine.textContent = 'Updated ' + new Date().toLocaleTimeString() +
+            ' · apps: ' + (Object.keys(byApp).join(', ') || 'none');
+        } catch (err) {
+          statusLine.textContent = (err && err.message) || 'Failed to load';
+          rows.innerHTML = '<tr><td colspan="5" class="empty">' + statusLine.textContent + '</td></tr>';
+        }
+      }
+
+      AssistFleetGate.requireSession(function (session) {
+        AssistFleetGate.renderShell('instances', session.user && session.user.email);
+        client = AssistFleetGate.createDataClient(session);
+        filter.addEventListener('change', load);
+        document.getElementById('refresh').addEventListener('click', load);
+        load();
+        setInterval(load, 15000);
+      });
+    })();
+  </script>
+</body>
+</html>

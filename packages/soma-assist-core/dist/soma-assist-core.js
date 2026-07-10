@@ -1,7 +1,7 @@
 (function (global) {
   'use strict';
 
-  var CORE_CSS = ":host { all: initial; color-scheme: light; font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif; }\n*, *::before, *::after { box-sizing: border-box; }\nbutton, textarea { font: inherit; }\n.assist-layer { position: fixed; inset: 0; z-index: 2147483646; pointer-events: none; }\n.assist-chip { position: fixed; right: 24px; bottom: 24px; display: flex; align-items: center; gap: 9px; min-height: 52px; max-width: min(260px, calc(100vw - 32px)); padding: 8px 17px 8px 9px; border: 1px solid rgba(255,255,255,.5); border-radius: 999px; background: linear-gradient(145deg, #183451, #0b1d30); color: #fff; box-shadow: 0 12px 34px rgba(8,25,43,.28); cursor: pointer; pointer-events: auto; transition: transform .16s ease, box-shadow .16s ease; }\n.assist-chip:hover { transform: translateY(-2px); box-shadow: 0 16px 40px rgba(8,25,43,.34); }\n.assist-chip:focus-visible, .assist-minimize:focus-visible, .assist-send:focus-visible, .assist-input:focus-visible { outline: 3px solid #e2ad4a; outline-offset: 2px; }\n.assist-chip[hidden], .assist-window[hidden] { display: none; }\n.assist-avatar { display: grid; place-items: center; width: 36px; height: 36px; flex: 0 0 36px; overflow: hidden; border-radius: 50%; background: #f0bd58; color: #10283f; font-size: 20px; font-weight: 750; }\n.assist-avatar img { width: 100%; height: 100%; object-fit: cover; }\n.assist-chip-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 680; }\n.assist-window { position: fixed; display: flex; flex-direction: column; width: 380px; height: 520px; min-width: 290px; min-height: 320px; overflow: hidden; border: 1px solid rgba(17,44,69,.16); border-radius: 18px; background: #f8fafc; color: #172434; box-shadow: 0 24px 70px rgba(6,22,38,.3); pointer-events: auto; }\n.assist-header { display: flex; align-items: center; gap: 10px; min-height: 62px; padding: 10px 10px 10px 13px; background: linear-gradient(135deg, #102c47, #173b5c); color: #fff; cursor: move; touch-action: none; user-select: none; }\n.assist-heading { min-width: 0; flex: 1; }\n.assist-title { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; font-weight: 720; }\n.assist-status { display: block; margin-top: 2px; color: #b9cad9; font-size: 11px; }\n.assist-minimize { display: grid; place-items: center; width: 36px; height: 36px; border: 0; border-radius: 10px; background: rgba(255,255,255,.09); color: #fff; cursor: pointer; font-size: 22px; line-height: 1; }\n.assist-minimize:hover { background: rgba(255,255,255,.18); }\n.assist-messages { display: flex; flex: 1; flex-direction: column; gap: 10px; min-height: 0; margin: 0; padding: 16px; overflow: auto; list-style: none; }\n.assist-message { max-width: 84%; padding: 10px 12px; border-radius: 13px; font-size: 14px; line-height: 1.42; white-space: pre-wrap; overflow-wrap: anywhere; }\n.assist-message--assistant { align-self: flex-start; border: 1px solid #e2e8ee; border-bottom-left-radius: 4px; background: #fff; color: #27384a; }\n.assist-message--user { align-self: flex-end; border-bottom-right-radius: 4px; background: #173b5c; color: #fff; }\n.assist-message--system { align-self: center; max-width: 94%; padding: 4px 8px; background: transparent; color: #647487; font-size: 12px; text-align: center; }\n.assist-composer { display: flex; align-items: flex-end; gap: 8px; padding: 12px; border-top: 1px solid #e0e7ed; background: #fff; }\n.assist-input { flex: 1; min-height: 42px; max-height: 112px; resize: none; border: 1px solid #cbd6df; border-radius: 12px; padding: 10px 12px; background: #f8fafc; color: #172434; font-size: 14px; line-height: 20px; }\n.assist-input::placeholder { color: #778697; }\n.assist-send { width: 42px; height: 42px; flex: 0 0 42px; border: 0; border-radius: 12px; background: #e5ae44; color: #10283f; cursor: pointer; font-size: 19px; font-weight: 800; }\n.assist-send:hover { background: #efbd5b; }\n.assist-send:disabled { cursor: default; opacity: .55; }\n.assist-resize { position: absolute; z-index: 3; touch-action: none; }\n.assist-resize[data-edge=\"n\"] { top: -4px; left: 12px; right: 12px; height: 9px; cursor: ns-resize; }\n.assist-resize[data-edge=\"s\"] { bottom: -4px; left: 12px; right: 12px; height: 9px; cursor: ns-resize; }\n.assist-resize[data-edge=\"e\"] { top: 12px; right: -4px; bottom: 12px; width: 9px; cursor: ew-resize; }\n.assist-resize[data-edge=\"w\"] { top: 12px; left: -4px; bottom: 12px; width: 9px; cursor: ew-resize; }\n.assist-resize[data-edge=\"ne\"], .assist-resize[data-edge=\"nw\"], .assist-resize[data-edge=\"se\"], .assist-resize[data-edge=\"sw\"] { width: 18px; height: 18px; }\n.assist-resize[data-edge=\"ne\"] { top: -4px; right: -4px; cursor: nesw-resize; }\n.assist-resize[data-edge=\"nw\"] { top: -4px; left: -4px; cursor: nwse-resize; }\n.assist-resize[data-edge=\"se\"] { right: -4px; bottom: -4px; cursor: nwse-resize; }\n.assist-resize[data-edge=\"sw\"] { left: -4px; bottom: -4px; cursor: nesw-resize; }\n@media (max-width: 520px) { .assist-chip { right: 16px; bottom: 16px; } .assist-window { min-width: 260px; min-height: 280px; border-radius: 15px; } }\n@media (prefers-reduced-motion: reduce) { .assist-chip { transition: none; } }\n";
+  var CORE_CSS = ":host { all: initial; color-scheme: light; font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif; }\n*, *::before, *::after { box-sizing: border-box; }\nbutton, textarea { font: inherit; }\n.assist-layer { position: fixed; inset: 0; z-index: 2147483646; pointer-events: none; }\n.assist-chip { position: fixed; right: 24px; bottom: 24px; display: flex; align-items: center; gap: 9px; min-height: 52px; max-width: min(260px, calc(100vw - 32px)); padding: 8px 17px 8px 9px; border: 1px solid rgba(255,255,255,.5); border-radius: 999px; background: linear-gradient(145deg, #183451, #0b1d30); color: #fff; box-shadow: 0 12px 34px rgba(8,25,43,.28); cursor: pointer; pointer-events: auto; transition: transform .16s ease, box-shadow .16s ease; }\n.assist-chip:hover { transform: translateY(-2px); box-shadow: 0 16px 40px rgba(8,25,43,.34); }\n.assist-chip:focus-visible, .assist-minimize:focus-visible, .assist-send:focus-visible, .assist-input:focus-visible { outline: 3px solid #e2ad4a; outline-offset: 2px; }\n.assist-chip[hidden], .assist-window[hidden] { display: none; }\n.assist-avatar { display: grid; place-items: center; width: 36px; height: 36px; flex: 0 0 36px; overflow: hidden; border-radius: 50%; background: #f0bd58; color: #10283f; font-size: 20px; font-weight: 750; }\n.assist-avatar img { width: 100%; height: 100%; object-fit: cover; }\n.assist-chip-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 680; }\n.assist-window { position: fixed; display: flex; flex-direction: column; width: 380px; height: 520px; min-width: 290px; min-height: 320px; overflow: hidden; border: 1px solid rgba(17,44,69,.16); border-radius: 18px; background: #f8fafc; color: #172434; box-shadow: 0 24px 70px rgba(6,22,38,.3); pointer-events: auto; }\n.assist-header { display: flex; align-items: center; gap: 10px; min-height: 62px; padding: 10px 10px 10px 13px; background: linear-gradient(135deg, #102c47, #173b5c); color: #fff; cursor: move; touch-action: none; user-select: none; }\n.assist-heading { min-width: 0; flex: 1; }\n.assist-title { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; font-weight: 720; }\n.assist-status { display: block; margin-top: 2px; color: #b9cad9; font-size: 11px; }\n.assist-minimize, .assist-feedback-btn { display: grid; place-items: center; width: 36px; height: 36px; border: 0; border-radius: 10px; background: rgba(255,255,255,.09); color: #fff; cursor: pointer; font-size: 18px; line-height: 1; }\n.assist-minimize { font-size: 22px; }\n.assist-minimize:hover, .assist-feedback-btn:hover { background: rgba(255,255,255,.18); }\n.assist-feedback-btn:focus-visible { outline: 3px solid #e2ad4a; outline-offset: 2px; }\n.assist-feedback-form { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-top: 1px solid #e0e7ed; background: #fff7e8; }\n.assist-feedback-form[hidden] { display: none; }\n.assist-feedback-label { font-size: 12px; font-weight: 650; color: #5a4630; }\n.assist-feedback-input { width: 100%; min-height: 72px; resize: vertical; border: 1px solid #d7c4a0; border-radius: 10px; padding: 10px 12px; background: #fff; color: #172434; font-size: 14px; line-height: 1.4; }\n.assist-feedback-actions { display: flex; justify-content: flex-end; gap: 8px; }\n.assist-feedback-cancel, .assist-feedback-submit { border: 0; border-radius: 10px; padding: 8px 12px; cursor: pointer; font-size: 13px; font-weight: 650; }\n.assist-feedback-cancel { background: #e8eef3; color: #314456; }\n.assist-feedback-submit { background: #e5ae44; color: #10283f; }\n.assist-feedback-submit:hover { background: #efbd5b; }\n.assist-messages { display: flex; flex: 1; flex-direction: column; gap: 10px; min-height: 0; margin: 0; padding: 16px; overflow: auto; list-style: none; }\n.assist-message { max-width: 84%; padding: 10px 12px; border-radius: 13px; font-size: 14px; line-height: 1.42; white-space: pre-wrap; overflow-wrap: anywhere; }\n.assist-message--assistant { align-self: flex-start; border: 1px solid #e2e8ee; border-bottom-left-radius: 4px; background: #fff; color: #27384a; }\n.assist-message--user { align-self: flex-end; border-bottom-right-radius: 4px; background: #173b5c; color: #fff; }\n.assist-message--system { align-self: center; max-width: 94%; padding: 4px 8px; background: transparent; color: #647487; font-size: 12px; text-align: center; }\n.assist-composer { display: flex; align-items: flex-end; gap: 8px; padding: 12px; border-top: 1px solid #e0e7ed; background: #fff; }\n.assist-input { flex: 1; min-height: 42px; max-height: 112px; resize: none; border: 1px solid #cbd6df; border-radius: 12px; padding: 10px 12px; background: #f8fafc; color: #172434; font-size: 14px; line-height: 20px; }\n.assist-input::placeholder { color: #778697; }\n.assist-send { width: 42px; height: 42px; flex: 0 0 42px; border: 0; border-radius: 12px; background: #e5ae44; color: #10283f; cursor: pointer; font-size: 19px; font-weight: 800; }\n.assist-send:hover { background: #efbd5b; }\n.assist-send:disabled { cursor: default; opacity: .55; }\n.assist-resize { position: absolute; z-index: 3; touch-action: none; }\n.assist-resize[data-edge=\"n\"] { top: -4px; left: 12px; right: 12px; height: 9px; cursor: ns-resize; }\n.assist-resize[data-edge=\"s\"] { bottom: -4px; left: 12px; right: 12px; height: 9px; cursor: ns-resize; }\n.assist-resize[data-edge=\"e\"] { top: 12px; right: -4px; bottom: 12px; width: 9px; cursor: ew-resize; }\n.assist-resize[data-edge=\"w\"] { top: 12px; left: -4px; bottom: 12px; width: 9px; cursor: ew-resize; }\n.assist-resize[data-edge=\"ne\"], .assist-resize[data-edge=\"nw\"], .assist-resize[data-edge=\"se\"], .assist-resize[data-edge=\"sw\"] { width: 18px; height: 18px; }\n.assist-resize[data-edge=\"ne\"] { top: -4px; right: -4px; cursor: nesw-resize; }\n.assist-resize[data-edge=\"nw\"] { top: -4px; left: -4px; cursor: nwse-resize; }\n.assist-resize[data-edge=\"se\"] { right: -4px; bottom: -4px; cursor: nwse-resize; }\n.assist-resize[data-edge=\"sw\"] { left: -4px; bottom: -4px; cursor: nesw-resize; }\n@media (max-width: 520px) { .assist-chip { right: 16px; bottom: 16px; } .assist-window { min-width: 260px; min-height: 280px; border-radius: 15px; } }\n@media (prefers-reduced-motion: reduce) { .assist-chip { transition: none; } }\n";
   var MIN_WIDTH = 290;
   var MIN_HEIGHT = 320;
   var VIEWPORT_GAP = 12;
@@ -104,9 +104,18 @@
       '  <header class="assist-header" data-assist-drag-handle>',
       '    <span class="assist-avatar" data-assist-header-avatar></span>',
       '    <span class="assist-heading"><span class="assist-title"></span><span class="assist-status" role="status">Ready</span></span>',
+      '    <button class="assist-feedback-btn" data-assist-feedback type="button" aria-label="Send feedback" title="Send feedback">✎</button>',
       '    <button class="assist-minimize" data-assist-minimize type="button" aria-label="Minimize">−</button>',
       '  </header>',
       '  <ol class="assist-messages" data-assist-messages aria-live="polite"></ol>',
+      '  <form class="assist-feedback-form" data-assist-feedback-form hidden>',
+      '    <label class="assist-feedback-label" for="assist-feedback-text-' + appId + '">Feedback for the build queue</label>',
+      '    <textarea id="assist-feedback-text-' + appId + '" class="assist-feedback-input" data-assist-feedback-input rows="3" placeholder="Describe a bug or improvement…"></textarea>',
+      '    <div class="assist-feedback-actions">',
+      '      <button type="button" class="assist-feedback-cancel" data-assist-feedback-cancel>Cancel</button>',
+      '      <button type="submit" class="assist-feedback-submit" data-assist-feedback-submit>Submit feedback</button>',
+      '    </div>',
+      '  </form>',
       '  <form class="assist-composer" data-assist-composer>',
       '    <textarea class="assist-input" data-assist-input rows="1" aria-label="Message" placeholder="Type a message…"></textarea>',
       '    <button class="assist-send" data-assist-send type="submit" aria-label="Send message">↑</button>',
@@ -124,6 +133,10 @@
     var form = shadow.querySelector('[data-assist-composer]');
     var messages = shadow.querySelector('[data-assist-messages]');
     var status = shadow.querySelector('.assist-status');
+    var feedbackBtn = shadow.querySelector('[data-assist-feedback]');
+    var feedbackForm = shadow.querySelector('[data-assist-feedback-form]');
+    var feedbackInput = shadow.querySelector('[data-assist-feedback-input]');
+    var feedbackCancel = shadow.querySelector('[data-assist-feedback-cancel]');
     shadow.querySelector('.assist-chip-label').textContent = title;
     shadow.querySelector('.assist-title').textContent = title;
     shadow.querySelector('[data-assist-chip-avatar]').appendChild(avatarMarkup(options.avatar));
@@ -134,6 +147,7 @@
     var opened = false;
     var destroyed = false;
     var gesture = null;
+    var heartbeatClient = null;
 
     function applyGeometry() {
       geometry = normalizeGeometry(geometry);
@@ -182,9 +196,57 @@
 
     function setStatus(value) { if (!destroyed) status.textContent = String(value || ''); }
 
+    function setFeedbackOpen(open) {
+      if (destroyed) return;
+      feedbackForm.hidden = !open;
+      form.hidden = !!open;
+      if (open) {
+        global.setTimeout(function () { if (!destroyed) feedbackInput.focus(); }, 0);
+      } else {
+        feedbackInput.value = '';
+      }
+    }
+
+    function submitFeedback(text) {
+      text = String(text || '').trim();
+      if (!text) return Promise.resolve(null);
+      setStatus('Submitting feedback…');
+      var payload = {
+        description: text,
+        sourceApp: appId,
+        appId: appId,
+        pageContext: (global.location && global.location.href) || '',
+        area: options.feedbackArea || title,
+        type: 'feedback'
+      };
+      var handler = options.onFeedbackSubmit;
+      var result;
+      try {
+        result = typeof handler === 'function' ? handler(payload, api) : null;
+      } catch (err) {
+        setStatus('Feedback failed');
+        addMessage('Could not submit feedback: ' + (err && err.message ? err.message : err), 'system');
+        return Promise.reject(err);
+      }
+      return Promise.resolve(result).then(function (value) {
+        setFeedbackOpen(false);
+        setStatus('Feedback submitted');
+        var route = value && value.classification && value.classification.route;
+        addMessage('Thanks — feedback filed' + (route ? ' → ' + route : '') + '.', 'system');
+        return value;
+      }).catch(function (err) {
+        setStatus('Feedback failed');
+        addMessage('Could not submit feedback: ' + (err && err.message ? err.message : err), 'system');
+        throw err;
+      });
+    }
+
     function destroy() {
       if (destroyed) return;
       destroyed = true;
+      if (heartbeatClient && typeof heartbeatClient.stop === 'function') {
+        try { heartbeatClient.stop(); } catch (_) {}
+      }
       global.removeEventListener('pointermove', onPointerMove);
       global.removeEventListener('pointerup', onPointerUp);
       global.removeEventListener('resize', onViewportResize);
@@ -235,6 +297,15 @@
 
     chip.addEventListener('click', open);
     shadow.querySelector('[data-assist-minimize]').addEventListener('click', close);
+    feedbackBtn.addEventListener('click', function (event) {
+      event.stopPropagation();
+      setFeedbackOpen(feedbackForm.hidden);
+    });
+    feedbackCancel.addEventListener('click', function () { setFeedbackOpen(false); });
+    feedbackForm.addEventListener('submit', function (event) {
+      event.preventDefault();
+      submitFeedback(feedbackInput.value);
+    });
     header.addEventListener('pointerdown', function (event) {
       if (event.target.closest('button')) return;
       onPointerDown(event, 'drag');
@@ -271,11 +342,40 @@
     });
 
     applyGeometry();
-    var api = { open: open, close: close, addMessage: addMessage, setStatus: setStatus, destroy: destroy };
+    var api = {
+      open: open,
+      close: close,
+      addMessage: addMessage,
+      setStatus: setStatus,
+      destroy: destroy,
+      openFeedback: function () { open(); setFeedbackOpen(true); },
+      submitFeedback: submitFeedback
+    };
     Object.defineProperty(api, 'element', { value: host });
     Object.defineProperty(api, 'shadowRoot', { value: shadow });
     host.__somaAssistApi = api;
     if (options.initialMessage) addMessage(options.initialMessage, 'assistant');
+
+    // Optional fleet heartbeat: start on mount when supabase config is provided.
+    if (options.heartbeat && global.SomaAssistHeartbeat && typeof global.SomaAssistHeartbeat.createHeartbeatClient === 'function') {
+      try {
+        heartbeatClient = global.SomaAssistHeartbeat.createHeartbeatClient({
+          url: options.heartbeat.url,
+          anonKey: options.heartbeat.anonKey,
+          appId: options.heartbeat.appId || appId,
+          version: options.heartbeat.version || options.version || '0.0.0',
+          intervalMs: options.heartbeat.intervalMs,
+          installUuid: options.heartbeat.installUuid,
+          storage: options.heartbeat.storage,
+          fetch: options.heartbeat.fetch,
+          onError: options.heartbeat.onError
+        });
+        heartbeatClient.start();
+        api.heartbeat = heartbeatClient;
+      } catch (_) {
+        /* heartbeat is best-effort */
+      }
+    }
     return api;
   }
 

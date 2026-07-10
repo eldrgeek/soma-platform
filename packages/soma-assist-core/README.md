@@ -20,14 +20,32 @@ assist.addMessage('Welcome!', 'assistant');
 assist.setStatus('Ready');
 ```
 
-Build and test with `npm run build` and `npm test`. The build produces
-`dist/soma-assist-core.js` (self-contained IIFE) and
-`dist/soma-assist-core.css` (the corresponding standalone stylesheet).
+Build and test with `npm run build` and `npm test`. The build produces:
 
-`SomaScriptRuntime` is the companion dependency-free registry/runtime API used
-by browser assistants. It provides a Supabase hostname client with a 15-minute
-cache, lightweight version validation, offline fallback, and a storage-backed
-multi-page flow state machine suitable for MV3 service workers.
+- `dist/soma-assist-core.js` / `.css` — chip/chat shell (now with ✎ feedback form)
+- `dist/soma-script-runtime.js` — Supabase script registry + multi-page flows
+- `dist/soma-assist-feedback.js` — route classifier + `assist_submit_feedback` client
+- `dist/soma-assist-heartbeat.js` — install heartbeat client (`assist_record_heartbeat`)
+
+### Feedback + routing
+
+```js
+const client = SomaAssistFeedback.createFeedbackClient({
+  url: SUPABASE_URL,
+  anonKey: SUPABASE_ANON_KEY,
+  boardWriter: async (card) => { /* optional local inbox write */ }
+});
+
+SomaAssistCore.createAssistChip({
+  appId: 'yeshie',
+  onFeedbackSubmit: (payload) => client.submit(payload),
+  heartbeat: { url: SUPABASE_URL, anonKey: SUPABASE_ANON_KEY, appId: 'yeshie', version: '1.0.0' }
+});
+```
+
+Classification routes each item to `yeshie`, `soma-guide` (Adrian), or `common`.
+
+Authorship update: Mike Wolf + OpenAI Codex, 2026-07-10 WP3 feedback + fleet heartbeats.
 
 Authorship update: Mike Wolf + OpenAI Codex, 2026-07-10 WP2 Supabase scripts
 and multi-page navigation pass.
