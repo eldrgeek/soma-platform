@@ -1,7 +1,7 @@
 (function (global) {
   'use strict';
 
-  var CORE_CSS = ":host { all: initial; color-scheme: light; font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif; }\n*, *::before, *::after { box-sizing: border-box; }\nbutton, textarea { font: inherit; }\n.assist-layer { position: fixed; inset: 0; z-index: 2147483646; pointer-events: none; }\n.assist-chip { position: fixed; right: 24px; bottom: 24px; display: flex; align-items: center; gap: 9px; min-height: 52px; max-width: min(260px, calc(100vw - 32px)); padding: 8px 17px 8px 9px; border: 1px solid rgba(255,255,255,.5); border-radius: 999px; background: linear-gradient(145deg, #183451, #0b1d30); color: #fff; box-shadow: 0 12px 34px rgba(8,25,43,.28); cursor: pointer; pointer-events: auto; transition: transform .16s ease, box-shadow .16s ease; }\n.assist-chip:hover { transform: translateY(-2px); box-shadow: 0 16px 40px rgba(8,25,43,.34); }\n.assist-chip:focus-visible, .assist-minimize:focus-visible, .assist-send:focus-visible, .assist-input:focus-visible { outline: 3px solid #e2ad4a; outline-offset: 2px; }\n.assist-chip[hidden], .assist-window[hidden] { display: none; }\n.assist-avatar { display: grid; place-items: center; width: 36px; height: 36px; flex: 0 0 36px; overflow: hidden; border-radius: 50%; background: #f0bd58; color: #10283f; font-size: 20px; font-weight: 750; }\n.assist-avatar img { width: 100%; height: 100%; object-fit: cover; }\n.assist-chip-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 680; }\n.assist-window { position: fixed; display: flex; flex-direction: column; width: 380px; height: 520px; min-width: 290px; min-height: 320px; overflow: hidden; border: 1px solid rgba(17,44,69,.16); border-radius: 18px; background: #f8fafc; color: #172434; box-shadow: 0 24px 70px rgba(6,22,38,.3); pointer-events: auto; }\n.assist-header { display: flex; align-items: center; gap: 10px; min-height: 62px; padding: 10px 10px 10px 13px; background: linear-gradient(135deg, #102c47, #173b5c); color: #fff; cursor: move; touch-action: none; user-select: none; }\n.assist-heading { min-width: 0; flex: 1; }\n.assist-title { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; font-weight: 720; }\n.assist-status { display: block; margin-top: 2px; color: #b9cad9; font-size: 11px; }\n.assist-minimize, .assist-feedback-btn { display: grid; place-items: center; width: 36px; height: 36px; border: 0; border-radius: 10px; background: rgba(255,255,255,.09); color: #fff; cursor: pointer; font-size: 18px; line-height: 1; }\n.assist-minimize { font-size: 22px; }\n.assist-minimize:hover, .assist-feedback-btn:hover { background: rgba(255,255,255,.18); }\n.assist-feedback-btn:focus-visible { outline: 3px solid #e2ad4a; outline-offset: 2px; }\n.assist-feedback-form { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-top: 1px solid #e0e7ed; background: #fff7e8; }\n.assist-feedback-form[hidden] { display: none; }\n.assist-feedback-label { font-size: 12px; font-weight: 650; color: #5a4630; }\n.assist-feedback-input { width: 100%; min-height: 72px; resize: vertical; border: 1px solid #d7c4a0; border-radius: 10px; padding: 10px 12px; background: #fff; color: #172434; font-size: 14px; line-height: 1.4; }\n.assist-feedback-actions { display: flex; justify-content: flex-end; gap: 8px; }\n.assist-feedback-cancel, .assist-feedback-submit { border: 0; border-radius: 10px; padding: 8px 12px; cursor: pointer; font-size: 13px; font-weight: 650; }\n.assist-feedback-cancel { background: #e8eef3; color: #314456; }\n.assist-feedback-submit { background: #e5ae44; color: #10283f; }\n.assist-feedback-submit:hover { background: #efbd5b; }\n.assist-messages { display: flex; flex: 1; flex-direction: column; gap: 10px; min-height: 0; margin: 0; padding: 16px; overflow: auto; list-style: none; }\n.assist-message { max-width: 84%; padding: 10px 12px; border-radius: 13px; font-size: 14px; line-height: 1.42; white-space: pre-wrap; overflow-wrap: anywhere; }\n.assist-message--assistant { align-self: flex-start; border: 1px solid #e2e8ee; border-bottom-left-radius: 4px; background: #fff; color: #27384a; }\n.assist-message--user { align-self: flex-end; border-bottom-right-radius: 4px; background: #173b5c; color: #fff; }\n.assist-message--system { align-self: center; max-width: 94%; padding: 4px 8px; background: transparent; color: #647487; font-size: 12px; text-align: center; }\n.assist-composer { display: flex; align-items: flex-end; gap: 8px; padding: 12px; border-top: 1px solid #e0e7ed; background: #fff; }\n.assist-input { flex: 1; min-height: 42px; max-height: 112px; resize: none; border: 1px solid #cbd6df; border-radius: 12px; padding: 10px 12px; background: #f8fafc; color: #172434; font-size: 14px; line-height: 20px; }\n.assist-input::placeholder { color: #778697; }\n.assist-send { width: 42px; height: 42px; flex: 0 0 42px; border: 0; border-radius: 12px; background: #e5ae44; color: #10283f; cursor: pointer; font-size: 19px; font-weight: 800; }\n.assist-send:hover { background: #efbd5b; }\n.assist-send:disabled { cursor: default; opacity: .55; }\n.assist-resize { position: absolute; z-index: 3; touch-action: none; }\n.assist-resize[data-edge=\"n\"] { top: -4px; left: 12px; right: 12px; height: 9px; cursor: ns-resize; }\n.assist-resize[data-edge=\"s\"] { bottom: -4px; left: 12px; right: 12px; height: 9px; cursor: ns-resize; }\n.assist-resize[data-edge=\"e\"] { top: 12px; right: -4px; bottom: 12px; width: 9px; cursor: ew-resize; }\n.assist-resize[data-edge=\"w\"] { top: 12px; left: -4px; bottom: 12px; width: 9px; cursor: ew-resize; }\n.assist-resize[data-edge=\"ne\"], .assist-resize[data-edge=\"nw\"], .assist-resize[data-edge=\"se\"], .assist-resize[data-edge=\"sw\"] { width: 18px; height: 18px; }\n.assist-resize[data-edge=\"ne\"] { top: -4px; right: -4px; cursor: nesw-resize; }\n.assist-resize[data-edge=\"nw\"] { top: -4px; left: -4px; cursor: nwse-resize; }\n.assist-resize[data-edge=\"se\"] { right: -4px; bottom: -4px; cursor: nwse-resize; }\n.assist-resize[data-edge=\"sw\"] { left: -4px; bottom: -4px; cursor: nesw-resize; }\n@media (max-width: 520px) { .assist-chip { right: 16px; bottom: 16px; } .assist-window { min-width: 260px; min-height: 280px; border-radius: 15px; } }\n@media (prefers-reduced-motion: reduce) { .assist-chip { transition: none; } }\n";
+  var CORE_CSS = ":host { all: initial; color-scheme: light; font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif; }\n*, *::before, *::after { box-sizing: border-box; }\nbutton, textarea { font: inherit; }\n.assist-layer { position: fixed; inset: 0; z-index: 2147483646; pointer-events: none; }\n.assist-chip { position: fixed; right: 24px; bottom: 24px; display: flex; align-items: center; gap: 9px; min-height: 52px; max-width: min(260px, calc(100vw - 32px)); padding: 8px 17px 8px 9px; border: 1px solid rgba(255,255,255,.5); border-radius: 999px; background: linear-gradient(145deg, #183451, #0b1d30); color: #fff; box-shadow: 0 12px 34px rgba(8,25,43,.28); cursor: pointer; pointer-events: auto; transition: transform .16s ease, box-shadow .16s ease; }\n.assist-chip:hover { transform: translateY(-2px); box-shadow: 0 16px 40px rgba(8,25,43,.34); }\n.assist-chip:focus-visible, .assist-minimize:focus-visible, .assist-send:focus-visible, .assist-input:focus-visible { outline: 3px solid #e2ad4a; outline-offset: 2px; }\n.assist-chip[hidden], .assist-window[hidden] { display: none; }\n.assist-avatar { display: grid; place-items: center; width: 36px; height: 36px; flex: 0 0 36px; overflow: hidden; border-radius: 50%; background: #f0bd58; color: #10283f; font-size: 20px; font-weight: 750; }\n.assist-avatar img { width: 100%; height: 100%; object-fit: cover; }\n.assist-chip-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 680; }\n.assist-window { position: fixed; display: flex; flex-direction: column; width: 380px; height: 520px; min-width: 290px; min-height: 320px; overflow: hidden; border: 1px solid rgba(17,44,69,.16); border-radius: 18px; background: #f8fafc; color: #172434; box-shadow: 0 24px 70px rgba(6,22,38,.3); pointer-events: auto; }\n.assist-header { display: flex; align-items: center; gap: 10px; min-height: 62px; padding: 10px 10px 10px 13px; background: linear-gradient(135deg, #102c47, #173b5c); color: #fff; cursor: move; touch-action: none; user-select: none; }\n.assist-heading { min-width: 0; flex: 1; }\n.assist-title { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; font-weight: 720; }\n.assist-status { display: block; margin-top: 2px; color: #b9cad9; font-size: 11px; }\n.assist-minimize, .assist-feedback-btn, .assist-speaker { display: grid; place-items: center; width: 36px; height: 36px; border: 0; border-radius: 10px; background: rgba(255,255,255,.09); color: #fff; cursor: pointer; font-size: 18px; line-height: 1; }\n.assist-minimize { font-size: 22px; }\n.assist-speaker { font-size: 16px; opacity: 0.6; }\n.assist-speaker[aria-pressed=\"true\"] { opacity: 1; background: rgba(255,255,255,.25); }\n.assist-minimize:hover, .assist-feedback-btn:hover, .assist-speaker:hover { background: rgba(255,255,255,.18); }\n.assist-feedback-btn:focus-visible, .assist-speaker:focus-visible { outline: 3px solid #e2ad4a; outline-offset: 2px; }\n.assist-speaker[hidden] { display: none !important; }\n.assist-feedback-form { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-top: 1px solid #e0e7ed; background: #fff7e8; }\n.assist-feedback-form[hidden] { display: none; }\n.assist-feedback-label { font-size: 12px; font-weight: 650; color: #5a4630; }\n.assist-feedback-input { width: 100%; min-height: 72px; resize: vertical; border: 1px solid #d7c4a0; border-radius: 10px; padding: 10px 12px; background: #fff; color: #172434; font-size: 14px; line-height: 1.4; }\n.assist-feedback-actions { display: flex; justify-content: flex-end; gap: 8px; }\n.assist-feedback-cancel, .assist-feedback-submit { border: 0; border-radius: 10px; padding: 8px 12px; cursor: pointer; font-size: 13px; font-weight: 650; }\n.assist-feedback-cancel { background: #e8eef3; color: #314456; }\n.assist-feedback-submit { background: #e5ae44; color: #10283f; }\n.assist-feedback-submit:hover { background: #efbd5b; }\n.assist-messages { display: flex; flex: 1; flex-direction: column; gap: 10px; min-height: 0; margin: 0; padding: 16px; overflow: auto; list-style: none; }\n.assist-message { max-width: 84%; padding: 10px 12px; border-radius: 13px; font-size: 14px; line-height: 1.42; white-space: pre-wrap; overflow-wrap: anywhere; }\n.assist-message--assistant { align-self: flex-start; border: 1px solid #e2e8ee; border-bottom-left-radius: 4px; background: #fff; color: #27384a; }\n.assist-message--user { align-self: flex-end; border-bottom-right-radius: 4px; background: #173b5c; color: #fff; }\n.assist-message--system { align-self: center; max-width: 94%; padding: 4px 8px; background: transparent; color: #647487; font-size: 12px; text-align: center; }\n.assist-composer { display: flex; align-items: flex-end; gap: 8px; padding: 12px; border-top: 1px solid #e0e7ed; background: #fff; }\n.assist-input { flex: 1; min-height: 42px; max-height: 112px; resize: none; border: 1px solid #cbd6df; border-radius: 12px; padding: 10px 12px; background: #f8fafc; color: #172434; font-size: 14px; line-height: 20px; }\n.assist-input::placeholder { color: #778697; }\n.assist-send { width: 42px; height: 42px; flex: 0 0 42px; border: 0; border-radius: 12px; background: #e5ae44; color: #10283f; cursor: pointer; font-size: 19px; font-weight: 800; }\n.assist-send:hover { background: #efbd5b; }\n.assist-send:disabled { cursor: default; opacity: .55; }\n.assist-resize { position: absolute; z-index: 3; touch-action: none; }\n.assist-resize[data-edge=\"n\"] { top: -4px; left: 12px; right: 12px; height: 9px; cursor: ns-resize; }\n.assist-resize[data-edge=\"s\"] { bottom: -4px; left: 12px; right: 12px; height: 9px; cursor: ns-resize; }\n.assist-resize[data-edge=\"e\"] { top: 12px; right: -4px; bottom: 12px; width: 9px; cursor: ew-resize; }\n.assist-resize[data-edge=\"w\"] { top: 12px; left: -4px; bottom: 12px; width: 9px; cursor: ew-resize; }\n.assist-resize[data-edge=\"ne\"], .assist-resize[data-edge=\"nw\"], .assist-resize[data-edge=\"se\"], .assist-resize[data-edge=\"sw\"] { width: 18px; height: 18px; }\n.assist-resize[data-edge=\"ne\"] { top: -4px; right: -4px; cursor: nesw-resize; }\n.assist-resize[data-edge=\"nw\"] { top: -4px; left: -4px; cursor: nwse-resize; }\n.assist-resize[data-edge=\"se\"] { right: -4px; bottom: -4px; cursor: nwse-resize; }\n.assist-resize[data-edge=\"sw\"] { left: -4px; bottom: -4px; cursor: nesw-resize; }\n@media (max-width: 520px) { .assist-chip { right: 16px; bottom: 16px; } .assist-window { min-width: 260px; min-height: 280px; border-radius: 15px; } }\n@media (prefers-reduced-motion: reduce) { .assist-chip { transition: none; } }\n";
   var MIN_WIDTH = 290;
   var MIN_HEIGHT = 320;
   var VIEWPORT_GAP = 12;
@@ -105,6 +105,7 @@
       '    <span class="assist-avatar" data-assist-header-avatar></span>',
       '    <span class="assist-heading"><span class="assist-title"></span><span class="assist-status" role="status">Ready</span></span>',
       '    <button class="assist-feedback-btn" data-assist-feedback type="button" aria-label="Send feedback" title="Send feedback">✎</button>',
+      '    <button class="assist-speaker" data-assist-speaker type="button" aria-label="Toggle speaker" aria-pressed="false" hidden>🔈</button>',
       '    <button class="assist-minimize" data-assist-minimize type="button" aria-label="Minimize">−</button>',
       '  </header>',
       '  <ol class="assist-messages" data-assist-messages aria-live="polite"></ol>',
@@ -313,6 +314,86 @@
     Array.prototype.forEach.call(shadow.querySelectorAll('[data-assist-resize]'), function (handle) {
       handle.addEventListener('pointerdown', function (event) { onPointerDown(event, 'resize', handle.getAttribute('data-edge')); });
     });
+
+    var speakerStore = null;
+    var speakerEnabled = false;
+    var speakerBtn = shadow.querySelector('[data-assist-speaker]');
+    var voiceConfig = options.voice || null;
+    var ttsAudio = null;
+    var ttsQueue = [];
+    var ttsPlaying = false;
+
+    if (voiceConfig && speakerBtn) {
+      speakerStore = {
+        key: 'soma-assist:' + appId + ':speaker',
+        read: function () {
+          try { return JSON.parse(global.localStorage.getItem(this.key) || 'false'); }
+          catch (_) { return false; }
+        },
+        write: function (val) {
+          try { global.localStorage.setItem(this.key, JSON.stringify(val)); }
+          catch (_) {}
+        }
+      };
+      speakerEnabled = !!speakerStore.read();
+      speakerBtn.setAttribute('aria-pressed', speakerEnabled ? 'true' : 'false');
+      speakerBtn.hidden = false;
+      speakerBtn.addEventListener('click', function () {
+        speakerEnabled = !speakerEnabled;
+        speakerBtn.setAttribute('aria-pressed', speakerEnabled ? 'true' : 'false');
+        speakerStore.write(speakerEnabled);
+        if (!speakerEnabled && ttsAudio) {
+          ttsAudio.pause();
+          ttsAudio = null;
+          ttsQueue = [];
+          ttsPlaying = false;
+        }
+      });
+    }
+
+    function playNextTts() {
+      if (!speakerEnabled || ttsPlaying || ttsQueue.length === 0 || !voiceConfig) return;
+      var text = ttsQueue.shift();
+      ttsPlaying = true;
+      var url = (voiceConfig.proxyUrl || 'http://localhost:8888/.netlify/functions/el-proxy') + '?action=tts&app_id=' + encodeURIComponent(appId);
+      if (voiceConfig.voiceId) url += '&voice_id=' + encodeURIComponent(voiceConfig.voiceId);
+      
+      global.fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: text })
+      }).then(function(res) {
+        if (!res.ok) throw new Error('TTS failed');
+        return res.text();
+      }).then(function(base64) {
+        if (!speakerEnabled || destroyed) { ttsPlaying = false; return; }
+        ttsAudio = new Audio('data:audio/mpeg;base64,' + base64);
+        ttsAudio.onended = function() {
+          ttsPlaying = false;
+          playNextTts();
+        };
+        ttsAudio.onerror = function() {
+          ttsPlaying = false;
+          playNextTts();
+        };
+        ttsAudio.play().catch(function() {
+          ttsPlaying = false;
+          playNextTts();
+        });
+      }).catch(function(err) {
+        console.error('TTS error', err);
+        ttsPlaying = false;
+        playNextTts();
+      });
+    }
+
+    function queueTts(text) {
+      if (speakerEnabled && voiceConfig) {
+        ttsQueue.push(text);
+        playNextTts();
+      }
+    }
+
     global.addEventListener('pointermove', onPointerMove);
     global.addEventListener('pointerup', onPointerUp);
     global.addEventListener('resize', onViewportResize);
@@ -331,20 +412,30 @@
           if (result && typeof result.then === 'function') {
             setStatus('Thinking…');
             Promise.resolve(result).then(function (reply) {
-              if (typeof reply === 'string' && reply) addMessage(reply, 'assistant');
+              if (typeof reply === 'string' && reply) {
+                addMessage(reply, 'assistant');
+                queueTts(reply);
+              }
               setStatus('Ready');
             }).catch(function () { setStatus('Could not send'); });
           } else if (typeof result === 'string' && result) {
             addMessage(result, 'assistant');
+            queueTts(result);
           }
         } catch (_) { setStatus('Could not send'); }
       }
     });
 
     applyGeometry();
+    var originalClose = close;
     var api = {
       open: open,
-      close: close,
+      close: function () {
+        if (ttsAudio) { ttsAudio.pause(); ttsAudio = null; }
+        ttsQueue = [];
+        ttsPlaying = false;
+        originalClose();
+      },
       addMessage: addMessage,
       setStatus: setStatus,
       destroy: destroy,

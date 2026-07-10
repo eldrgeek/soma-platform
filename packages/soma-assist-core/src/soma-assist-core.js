@@ -105,6 +105,7 @@
       '    <span class="assist-avatar" data-assist-header-avatar></span>',
       '    <span class="assist-heading"><span class="assist-title"></span><span class="assist-status" role="status">Ready</span></span>',
       '    <button class="assist-feedback-btn" data-assist-feedback type="button" aria-label="Send feedback" title="Send feedback">✎</button>',
+      '    <button class="assist-speaker" data-assist-speaker type="button" aria-label="Toggle speaker" aria-pressed="false" hidden>🔈</button>',
       '    <button class="assist-minimize" data-assist-minimize type="button" aria-label="Minimize">−</button>',
       '  </header>',
       '  <ol class="assist-messages" data-assist-messages aria-live="polite"></ol>',
@@ -313,6 +314,86 @@
     Array.prototype.forEach.call(shadow.querySelectorAll('[data-assist-resize]'), function (handle) {
       handle.addEventListener('pointerdown', function (event) { onPointerDown(event, 'resize', handle.getAttribute('data-edge')); });
     });
+
+    var speakerStore = null;
+    var speakerEnabled = false;
+    var speakerBtn = shadow.querySelector('[data-assist-speaker]');
+    var voiceConfig = options.voice || null;
+    var ttsAudio = null;
+    var ttsQueue = [];
+    var ttsPlaying = false;
+
+    if (voiceConfig && speakerBtn) {
+      speakerStore = {
+        key: 'soma-assist:' + appId + ':speaker',
+        read: function () {
+          try { return JSON.parse(global.localStorage.getItem(this.key) || 'false'); }
+          catch (_) { return false; }
+        },
+        write: function (val) {
+          try { global.localStorage.setItem(this.key, JSON.stringify(val)); }
+          catch (_) {}
+        }
+      };
+      speakerEnabled = !!speakerStore.read();
+      speakerBtn.setAttribute('aria-pressed', speakerEnabled ? 'true' : 'false');
+      speakerBtn.hidden = false;
+      speakerBtn.addEventListener('click', function () {
+        speakerEnabled = !speakerEnabled;
+        speakerBtn.setAttribute('aria-pressed', speakerEnabled ? 'true' : 'false');
+        speakerStore.write(speakerEnabled);
+        if (!speakerEnabled && ttsAudio) {
+          ttsAudio.pause();
+          ttsAudio = null;
+          ttsQueue = [];
+          ttsPlaying = false;
+        }
+      });
+    }
+
+    function playNextTts() {
+      if (!speakerEnabled || ttsPlaying || ttsQueue.length === 0 || !voiceConfig) return;
+      var text = ttsQueue.shift();
+      ttsPlaying = true;
+      var url = (voiceConfig.proxyUrl || 'http://localhost:8888/.netlify/functions/el-proxy') + '?action=tts&app_id=' + encodeURIComponent(appId);
+      if (voiceConfig.voiceId) url += '&voice_id=' + encodeURIComponent(voiceConfig.voiceId);
+      
+      global.fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: text })
+      }).then(function(res) {
+        if (!res.ok) throw new Error('TTS failed');
+        return res.text();
+      }).then(function(base64) {
+        if (!speakerEnabled || destroyed) { ttsPlaying = false; return; }
+        ttsAudio = new Audio('data:audio/mpeg;base64,' + base64);
+        ttsAudio.onended = function() {
+          ttsPlaying = false;
+          playNextTts();
+        };
+        ttsAudio.onerror = function() {
+          ttsPlaying = false;
+          playNextTts();
+        };
+        ttsAudio.play().catch(function() {
+          ttsPlaying = false;
+          playNextTts();
+        });
+      }).catch(function(err) {
+        console.error('TTS error', err);
+        ttsPlaying = false;
+        playNextTts();
+      });
+    }
+
+    function queueTts(text) {
+      if (speakerEnabled && voiceConfig) {
+        ttsQueue.push(text);
+        playNextTts();
+      }
+    }
+
     global.addEventListener('pointermove', onPointerMove);
     global.addEventListener('pointerup', onPointerUp);
     global.addEventListener('resize', onViewportResize);
@@ -331,20 +412,30 @@
           if (result && typeof result.then === 'function') {
             setStatus('Thinking…');
             Promise.resolve(result).then(function (reply) {
-              if (typeof reply === 'string' && reply) addMessage(reply, 'assistant');
+              if (typeof reply === 'string' && reply) {
+                addMessage(reply, 'assistant');
+                queueTts(reply);
+              }
               setStatus('Ready');
             }).catch(function () { setStatus('Could not send'); });
           } else if (typeof result === 'string' && result) {
             addMessage(result, 'assistant');
+            queueTts(result);
           }
         } catch (_) { setStatus('Could not send'); }
       }
     });
 
     applyGeometry();
+    var originalClose = close;
     var api = {
       open: open,
-      close: close,
+      close: function () {
+        if (ttsAudio) { ttsAudio.pause(); ttsAudio = null; }
+        ttsQueue = [];
+        ttsPlaying = false;
+        originalClose();
+      },
       addMessage: addMessage,
       setStatus: setStatus,
       destroy: destroy,
