@@ -4,7 +4,9 @@ This is the SOMA platform monorepo — the canonical home for shared UI widget e
 
 ## Packages
 
-- **`packages/soma-guide/`** — The SOMA Guide tour overlay widget. Canonical engine; per-site configs (`*-guide-config.js`) and audio (`audio/tour/*.mp3`) live in each consuming site.
+- **`packages/soma-assist-core/`** — Shared Shadow DOM chip/chat window used by Adrian and Yeshie.
+- **`packages/soma-guide/`** — The Adrian tour/assistant engine (internal package name retained). Per-site configs and audio live in each consuming site.
+- **`packages/adrian-extension/`** — Minimal MV3 wrapper that installs Adrian on HTTP(S) pages.
 
 ## Dist
 

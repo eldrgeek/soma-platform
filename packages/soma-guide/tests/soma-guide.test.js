@@ -17,6 +17,7 @@ const { JSDOM } = require('jsdom');
 
 const ROOT    = path.join(__dirname, '..');
 const GUIDE_SRC = fs.readFileSync(path.join(ROOT, 'soma-guide.js'), 'utf8');
+const ASSIST_SRC = fs.readFileSync(path.join(ROOT, '../soma-assist-core/dist/soma-assist-core.js'), 'utf8');
 
 /* ── Helpers ── */
 
@@ -41,6 +42,12 @@ function makeWindow(lsOverrides) {
   win.eval('window.__importStub = function(url) { return Promise.resolve({ Conversation: { startSession: function() { return Promise.resolve({ endSession: function(){}, sendUserMessage: function(){} }); } } }); };');
 
   win.eval(GUIDE_SRC);
+  return win;
+}
+
+function makeAssistWindow() {
+  const win = makeWindow();
+  win.eval(ASSIST_SRC);
   return win;
 }
 
@@ -77,6 +84,32 @@ const TEST_CONFIG = {
     }
   ]
 };
+
+describe('Adrian shared assist surface', function () {
+  test('uses soma-assist-core as its visible chip and chat shell', function () {
+    const win = makeAssistWindow();
+    const cfg = JSON.parse(JSON.stringify(TEST_CONFIG));
+    cfg.persona.name = 'Adrian';
+    const guide = new win.SomaGuide(cfg);
+    assert.ok(guide._assist, 'shared assist API should be attached');
+    assert.equal(guide.el.hidden, true, 'legacy shell should be hidden');
+    assert.equal(guide._assist.shadowRoot.querySelector('.assist-chip-label').textContent, 'Adrian');
+  });
+
+  test('routes a shared-shell message through the configured handler', function () {
+    const win = makeAssistWindow();
+    const cfg = JSON.parse(JSON.stringify(TEST_CONFIG));
+    let received = '';
+    cfg.onUserMessage = function (text) { received = text; return 'Hello from Adrian'; };
+    const guide = new win.SomaGuide(cfg);
+    guide._assist.open();
+    const input = guide._assist.shadowRoot.querySelector('[data-assist-input]');
+    input.value = 'Hello';
+    guide._assist.shadowRoot.querySelector('[data-assist-composer]').dispatchEvent(new win.Event('submit', { bubbles: true, cancelable: true }));
+    assert.equal(received, 'Hello');
+    assert.equal(guide._assist.shadowRoot.querySelectorAll('[data-assist-message]').length, 3);
+  });
+});
 
 /* ── Test suites ── */
 

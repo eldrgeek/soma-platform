@@ -1,0 +1,9 @@
+{
+  "name": "@soma-platform/adrian-extension",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Chrome MV3 wrapper that adds Adrian to every web page",
+  "scripts": {
+    "build": "node scripts/build.mjs"
+  }
+}
