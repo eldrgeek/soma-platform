@@ -5,8 +5,8 @@
   "main": "dist/soma-assist-core.js",
   "scripts": {
     "build": "node scripts/build.mjs",
-    "test": "npm run build && node --test tests/soma-assist-core.test.js"
+    "test": "npm run build && node --test tests/*.test.js"
   },
-  "files": ["dist/soma-assist-core.js", "dist/soma-assist-core.css"],
+  "files": ["dist/soma-assist-core.js", "dist/soma-assist-core.css", "dist/soma-script-runtime.js"],
   "devDependencies": { "jsdom": "^26.0.0" }
 }
