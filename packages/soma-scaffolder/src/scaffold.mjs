@@ -18,7 +18,7 @@ function write(outDir, rel, content) {
 }
 
 // Replace {{KEY}} with values. Records any placeholder left unresolved.
-function fill(content, values, unresolved) {
+export function fill(content, values, unresolved) {
   return content.replace(/\{\{([A-Z_0-9]+)\}\}/g, (m, key) => {
     if (key === "DOUBLE_BRACE") return m; // doc example, leave as-is
     const v = values[key];
@@ -27,12 +27,12 @@ function fill(content, values, unresolved) {
   });
 }
 
-function removeLineContaining(content, substr) {
+export function removeLineContaining(content, substr) {
   return content.split("\n").filter((l) => !l.includes(substr)).join("\n");
 }
 
 // Remove a `key: { ... },` block via brace counting (best-effort, for disabled features).
-function removeBlock(content, key) {
+export function removeBlock(content, key) {
   const start = content.indexOf(`${key}: {`);
   if (start === -1) return content;
   let i = content.indexOf("{", start);
@@ -45,7 +45,7 @@ function removeBlock(content, key) {
   return content.slice(0, start) + content.slice(i);
 }
 
-function buildValues(app) {
+export function buildValues(app) {
   const g = app.affordances.guide || {};
   const au = app.affordances.auth || {};
   const cl = app.affordances.changelog || {};
