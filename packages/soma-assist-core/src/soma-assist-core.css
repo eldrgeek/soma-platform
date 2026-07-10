@@ -14,8 +14,19 @@ button, textarea { font: inherit; }
 .assist-heading { min-width: 0; flex: 1; }
 .assist-title { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; font-weight: 720; }
 .assist-status { display: block; margin-top: 2px; color: #b9cad9; font-size: 11px; }
-.assist-minimize { display: grid; place-items: center; width: 36px; height: 36px; border: 0; border-radius: 10px; background: rgba(255,255,255,.09); color: #fff; cursor: pointer; font-size: 22px; line-height: 1; }
-.assist-minimize:hover { background: rgba(255,255,255,.18); }
+.assist-minimize, .assist-feedback-btn { display: grid; place-items: center; width: 36px; height: 36px; border: 0; border-radius: 10px; background: rgba(255,255,255,.09); color: #fff; cursor: pointer; font-size: 18px; line-height: 1; }
+.assist-minimize { font-size: 22px; }
+.assist-minimize:hover, .assist-feedback-btn:hover { background: rgba(255,255,255,.18); }
+.assist-feedback-btn:focus-visible { outline: 3px solid #e2ad4a; outline-offset: 2px; }
+.assist-feedback-form { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-top: 1px solid #e0e7ed; background: #fff7e8; }
+.assist-feedback-form[hidden] { display: none; }
+.assist-feedback-label { font-size: 12px; font-weight: 650; color: #5a4630; }
+.assist-feedback-input { width: 100%; min-height: 72px; resize: vertical; border: 1px solid #d7c4a0; border-radius: 10px; padding: 10px 12px; background: #fff; color: #172434; font-size: 14px; line-height: 1.4; }
+.assist-feedback-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.assist-feedback-cancel, .assist-feedback-submit { border: 0; border-radius: 10px; padding: 8px 12px; cursor: pointer; font-size: 13px; font-weight: 650; }
+.assist-feedback-cancel { background: #e8eef3; color: #314456; }
+.assist-feedback-submit { background: #e5ae44; color: #10283f; }
+.assist-feedback-submit:hover { background: #efbd5b; }
 .assist-messages { display: flex; flex: 1; flex-direction: column; gap: 10px; min-height: 0; margin: 0; padding: 16px; overflow: auto; list-style: none; }
 .assist-message { max-width: 84%; padding: 10px 12px; border-radius: 13px; font-size: 14px; line-height: 1.42; white-space: pre-wrap; overflow-wrap: anywhere; }
 .assist-message--assistant { align-self: flex-start; border: 1px solid #e2e8ee; border-bottom-left-radius: 4px; background: #fff; color: #27384a; }

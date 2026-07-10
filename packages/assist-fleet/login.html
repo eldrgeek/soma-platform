@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Assist Fleet — Sign in</title>
+  <link rel="stylesheet" href="css/fleet.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="js/soma-auth-config.js"></script>
+  <script src="js/soma-auth.js"></script>
+</head>
+<body>
+  <main class="login-card" data-fleet-login>
+    <h1>Assist Fleet</h1>
+    <p>SOMA Auth required. Sign in with a magic link to review instances and the assist build queue.</p>
+    <form id="login-form">
+      <label class="muted" for="email">Email</label>
+      <input id="email" name="email" type="email" required placeholder="you@example.com" autocomplete="email" />
+      <button class="btn primary" type="submit">Email magic link</button>
+      <div class="error" id="login-error" role="alert"></div>
+      <div class="ok" id="login-ok" role="status"></div>
+    </form>
+  </main>
+  <script>
+    (function () {
+      var params = new URLSearchParams(location.search);
+      var redirect = params.get('redirect') || 'instances.html';
+      var errEl = document.getElementById('login-error');
+      var okEl = document.getElementById('login-ok');
+
+      SomaAuth.onAuthStateChange(function (event, session) {
+        if ((event === 'INITIAL_SESSION' || event === 'SIGNED_IN') && session && session.user) {
+          location.replace(redirect);
+        }
+      });
+      SomaAuth.init();
+
+      document.getElementById('login-form').addEventListener('submit', function (e) {
+        e.preventDefault();
+        errEl.textContent = '';
+        okEl.textContent = '';
+        var email = document.getElementById('email').value.trim();
+        SomaAuth.signInWithOtp(email, {
+          emailRedirectTo: location.origin + location.pathname.replace(/login\.html.*/, '') + redirect
+        }).then(function (res) {
+          if (res && res.error) {
+            errEl.textContent = res.error.message || 'Sign-in failed';
+            return;
+          }
+          okEl.textContent = 'Check your email for the magic link.';
+        }).catch(function (err) {
+          errEl.textContent = (err && err.message) || 'Sign-in failed';
+        });
+      });
+    })();
+  </script>
+</body>
+</html>

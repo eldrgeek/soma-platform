@@ -7,6 +7,8 @@ await mkdir(join(root, 'vendor'), { recursive: true });
 await Promise.all([
   copyFile(join(root, '../soma-assist-core/dist/soma-assist-core.js'), join(root, 'vendor/soma-assist-core.js')),
   copyFile(join(root, '../soma-assist-core/dist/soma-script-runtime.js'), join(root, 'vendor/soma-script-runtime.js')),
+  copyFile(join(root, '../soma-assist-core/dist/soma-assist-feedback.js'), join(root, 'vendor/soma-assist-feedback.js')),
+  copyFile(join(root, '../soma-assist-core/dist/soma-assist-heartbeat.js'), join(root, 'vendor/soma-assist-heartbeat.js')),
   copyFile(join(root, '../soma-guide/soma-guide.js'), join(root, 'vendor/soma-guide.js'))
 ]);
 console.log('Built Adrian extension vendor artifacts');

@@ -104,9 +104,18 @@
       '  <header class="assist-header" data-assist-drag-handle>',
       '    <span class="assist-avatar" data-assist-header-avatar></span>',
       '    <span class="assist-heading"><span class="assist-title"></span><span class="assist-status" role="status">Ready</span></span>',
+      '    <button class="assist-feedback-btn" data-assist-feedback type="button" aria-label="Send feedback" title="Send feedback">✎</button>',
       '    <button class="assist-minimize" data-assist-minimize type="button" aria-label="Minimize">−</button>',
       '  </header>',
       '  <ol class="assist-messages" data-assist-messages aria-live="polite"></ol>',
+      '  <form class="assist-feedback-form" data-assist-feedback-form hidden>',
+      '    <label class="assist-feedback-label" for="assist-feedback-text-' + appId + '">Feedback for the build queue</label>',
+      '    <textarea id="assist-feedback-text-' + appId + '" class="assist-feedback-input" data-assist-feedback-input rows="3" placeholder="Describe a bug or improvement…"></textarea>',
+      '    <div class="assist-feedback-actions">',
+      '      <button type="button" class="assist-feedback-cancel" data-assist-feedback-cancel>Cancel</button>',
+      '      <button type="submit" class="assist-feedback-submit" data-assist-feedback-submit>Submit feedback</button>',
+      '    </div>',
+      '  </form>',
       '  <form class="assist-composer" data-assist-composer>',
       '    <textarea class="assist-input" data-assist-input rows="1" aria-label="Message" placeholder="Type a message…"></textarea>',
       '    <button class="assist-send" data-assist-send type="submit" aria-label="Send message">↑</button>',
@@ -124,6 +133,10 @@
     var form = shadow.querySelector('[data-assist-composer]');
     var messages = shadow.querySelector('[data-assist-messages]');
     var status = shadow.querySelector('.assist-status');
+    var feedbackBtn = shadow.querySelector('[data-assist-feedback]');
+    var feedbackForm = shadow.querySelector('[data-assist-feedback-form]');
+    var feedbackInput = shadow.querySelector('[data-assist-feedback-input]');
+    var feedbackCancel = shadow.querySelector('[data-assist-feedback-cancel]');
     shadow.querySelector('.assist-chip-label').textContent = title;
     shadow.querySelector('.assist-title').textContent = title;
     shadow.querySelector('[data-assist-chip-avatar]').appendChild(avatarMarkup(options.avatar));
@@ -134,6 +147,7 @@
     var opened = false;
     var destroyed = false;
     var gesture = null;
+    var heartbeatClient = null;
 
     function applyGeometry() {
       geometry = normalizeGeometry(geometry);
@@ -182,9 +196,57 @@
 
     function setStatus(value) { if (!destroyed) status.textContent = String(value || ''); }
 
+    function setFeedbackOpen(open) {
+      if (destroyed) return;
+      feedbackForm.hidden = !open;
+      form.hidden = !!open;
+      if (open) {
+        global.setTimeout(function () { if (!destroyed) feedbackInput.focus(); }, 0);
+      } else {
+        feedbackInput.value = '';
+      }
+    }
+
+    function submitFeedback(text) {
+      text = String(text || '').trim();
+      if (!text) return Promise.resolve(null);
+      setStatus('Submitting feedback…');
+      var payload = {
+        description: text,
+        sourceApp: appId,
+        appId: appId,
+        pageContext: (global.location && global.location.href) || '',
+        area: options.feedbackArea || title,
+        type: 'feedback'
+      };
+      var handler = options.onFeedbackSubmit;
+      var result;
+      try {
+        result = typeof handler === 'function' ? handler(payload, api) : null;
+      } catch (err) {
+        setStatus('Feedback failed');
+        addMessage('Could not submit feedback: ' + (err && err.message ? err.message : err), 'system');
+        return Promise.reject(err);
+      }
+      return Promise.resolve(result).then(function (value) {
+        setFeedbackOpen(false);
+        setStatus('Feedback submitted');
+        var route = value && value.classification && value.classification.route;
+        addMessage('Thanks — feedback filed' + (route ? ' → ' + route : '') + '.', 'system');
+        return value;
+      }).catch(function (err) {
+        setStatus('Feedback failed');
+        addMessage('Could not submit feedback: ' + (err && err.message ? err.message : err), 'system');
+        throw err;
+      });
+    }
+
     function destroy() {
       if (destroyed) return;
       destroyed = true;
+      if (heartbeatClient && typeof heartbeatClient.stop === 'function') {
+        try { heartbeatClient.stop(); } catch (_) {}
+      }
       global.removeEventListener('pointermove', onPointerMove);
       global.removeEventListener('pointerup', onPointerUp);
       global.removeEventListener('resize', onViewportResize);
@@ -235,6 +297,15 @@
 
     chip.addEventListener('click', open);
     shadow.querySelector('[data-assist-minimize]').addEventListener('click', close);
+    feedbackBtn.addEventListener('click', function (event) {
+      event.stopPropagation();
+      setFeedbackOpen(feedbackForm.hidden);
+    });
+    feedbackCancel.addEventListener('click', function () { setFeedbackOpen(false); });
+    feedbackForm.addEventListener('submit', function (event) {
+      event.preventDefault();
+      submitFeedback(feedbackInput.value);
+    });
     header.addEventListener('pointerdown', function (event) {
       if (event.target.closest('button')) return;
       onPointerDown(event, 'drag');
@@ -271,11 +342,40 @@
     });
 
     applyGeometry();
-    var api = { open: open, close: close, addMessage: addMessage, setStatus: setStatus, destroy: destroy };
+    var api = {
+      open: open,
+      close: close,
+      addMessage: addMessage,
+      setStatus: setStatus,
+      destroy: destroy,
+      openFeedback: function () { open(); setFeedbackOpen(true); },
+      submitFeedback: submitFeedback
+    };
     Object.defineProperty(api, 'element', { value: host });
     Object.defineProperty(api, 'shadowRoot', { value: shadow });
     host.__somaAssistApi = api;
     if (options.initialMessage) addMessage(options.initialMessage, 'assistant');
+
+    // Optional fleet heartbeat: start on mount when supabase config is provided.
+    if (options.heartbeat && global.SomaAssistHeartbeat && typeof global.SomaAssistHeartbeat.createHeartbeatClient === 'function') {
+      try {
+        heartbeatClient = global.SomaAssistHeartbeat.createHeartbeatClient({
+          url: options.heartbeat.url,
+          anonKey: options.heartbeat.anonKey,
+          appId: options.heartbeat.appId || appId,
+          version: options.heartbeat.version || options.version || '0.0.0',
+          intervalMs: options.heartbeat.intervalMs,
+          installUuid: options.heartbeat.installUuid,
+          storage: options.heartbeat.storage,
+          fetch: options.heartbeat.fetch,
+          onError: options.heartbeat.onError
+        });
+        heartbeatClient.start();
+        api.heartbeat = heartbeatClient;
+      } catch (_) {
+        /* heartbeat is best-effort */
+      }
+    }
     return api;
   }
 
