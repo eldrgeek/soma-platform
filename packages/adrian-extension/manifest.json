@@ -1,0 +1,16 @@
+{
+  "name": "adrian-extension",
+  "version": "1.0.0",
+  "description": "Adrian Assistant Extension",
+  "manifest_version": 3,
+  "action": {},
+  "permissions": ["activeTab", "scripting"],
+  "host_permissions": ["<all_urls>"],
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

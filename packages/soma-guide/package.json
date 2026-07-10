@@ -1,7 +1,7 @@
 {
   "name": "@soma-platform/soma-guide",
   "version": "1.0.0",
-  "description": "SOMA Guide widget engine — canonical shareable tour overlay",
+  "description": "Adrian widget engine — canonical shareable tour overlay",
   "main": "soma-guide.js",
   "scripts": {
     "test": "node --test tests/soma-guide.test.js"

@@ -1,4 +1,4 @@
-/* SOMA Guide host shim — "Bill's hands" for iframe delivery
+/* Adrian host shim — "Bill's hands" for iframe delivery
  *
  * This is the ONLY SOMA script a host page embeds (besides its own
  * window.SomaGuideConfig). Bill's brain + UI run inside a cross-origin
@@ -196,7 +196,7 @@
     if (iframe) return;
     iframe = doc.createElement('iframe');
     iframe.id = 'soma-guide-iframe';
-    iframe.title = 'SOMA Guide assistant';
+    iframe.title = 'Adrian assistant';
     iframe.setAttribute('allow', 'microphone; autoplay');
     /* Bill's own widget chrome is fixed-positioned INSIDE the iframe; the iframe
      * itself is a fixed, full-viewport, click-through layer so the floating FAB

@@ -1,0 +1,8 @@
+{
+  "name": "@soma-platform/soma-assist-core",
+  "version": "1.0.0",
+  "main": "dist/soma-assist-core.js",
+  "scripts": {
+    "build": "node build.js"
+  }
+}

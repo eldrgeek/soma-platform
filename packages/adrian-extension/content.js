@@ -1,3 +1,5 @@
+
+window.SOMA_GUIDE_CONFIG = { persona: { name: 'Adrian', avatar: '🤖' } };
 (function (global, factory) {
   if (typeof exports === 'object' && typeof module !== 'undefined') {
     module.exports = factory();
@@ -656,8 +658,6 @@
     this._addMessage = function(text, role) {
       this.chip.addMessage(text, role);
     };
-    
-    this._$ = function(sel) { return el.querySelector(sel); };
 
     return el;
   };
@@ -671,7 +671,6 @@
   SomaGuide.prototype._appendChat = function (msgEl) {
     // legacy chat append
   };
-  SomaGuide.prototype._legacyHtml = [
       '    <div class="sg-header-btns">',
       '      <button class="sg-btn-text" title="Text chat" aria-label="Text mode">💬</button>',
       '      <button class="sg-btn-voice" title="Voice" aria-label="Voice mode">🎙</button>',
@@ -737,13 +736,15 @@
       '</div>'
     ].join('');
 
-
+    document.body.appendChild(el);
+    this.el = el;
+    this._$ = function (sel) { return el.querySelector(sel); };
+  };
 
   /* ── Drag ── */
   SomaGuide.prototype._enableDrag = function () {
     var self   = this;
     var header = this._$('.sg-header');
-    if (!header) return;
     var dragging = false, ox = 0, oy = 0;
 
     function onDown(cx, cy) {
@@ -3991,3 +3992,4 @@
   }
 
 }(typeof globalThis !== 'undefined' ? globalThis : typeof window !== 'undefined' ? window : this));
+

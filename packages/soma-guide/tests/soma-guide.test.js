@@ -1,5 +1,5 @@
 /**
- * SOMA Guide Widget — Unit tests
+ * Adrian Widget — Unit tests
  *
  * Tests: widget mounts, introduce-once logic, walkthrough navigation,
  * jump-out/jump-back-in, and keyword-to-walkthrough matching.
@@ -39,6 +39,7 @@ function makeWindow(lsOverrides) {
    * so tests that don't call _openVoice/_startConversation never hit it.
    * Patch global import to return a stub Conversation class. */
   win.eval('window.__importStub = function(url) { return Promise.resolve({ Conversation: { startSession: function() { return Promise.resolve({ endSession: function(){}, sendUserMessage: function(){} }); } } }); };');
+  win.ResizeObserver = class { observe() {} disconnect() {} unobserve() {} };
 
   win.eval(GUIDE_SRC);
   return win;
@@ -80,7 +81,7 @@ const TEST_CONFIG = {
 
 /* ── Test suites ── */
 
-describe('SOMA Guide — widget mounts', function () {
+describe('Adrian — widget mounts', function () {
   test('SomaGuide class is exposed on window', function () {
     const win = makeWindow();
     assert.ok(typeof win.SomaGuide === 'function', 'window.SomaGuide should be a constructor');
@@ -123,7 +124,7 @@ describe('SOMA Guide — widget mounts', function () {
   });
 });
 
-describe('SOMA Guide — introduce-once logic', function () {
+describe('Adrian — introduce-once logic', function () {
   test('introduced flag starts false when localStorage is empty', function () {
     const win = makeWindow();
     const g = new win.SomaGuide(TEST_CONFIG);
@@ -170,7 +171,7 @@ describe('SOMA Guide — introduce-once logic', function () {
   });
 });
 
-describe('SOMA Guide — walkthrough step navigation', function () {
+describe('Adrian — walkthrough step navigation', function () {
   test('_wtStart sets mode to walkthrough', function () {
     const win = makeWindow();
     const g = new win.SomaGuide(TEST_CONFIG);
@@ -274,7 +275,7 @@ describe('SOMA Guide — walkthrough step navigation', function () {
   });
 });
 
-describe('SOMA Guide — jump-out / jump-back-in', function () {
+describe('Adrian — jump-out / jump-back-in', function () {
   test('_wtExit saves pendingResume', function () {
     const win = makeWindow();
     const g = new win.SomaGuide(TEST_CONFIG);
@@ -353,7 +354,7 @@ describe('SOMA Guide — jump-out / jump-back-in', function () {
   });
 });
 
-describe('SOMA Guide — keyword matching', function () {
+describe('Adrian — keyword matching', function () {
   test('_matchWalkthrough returns correct tour for keyword hit', function () {
     const win = makeWindow();
     const g = new win.SomaGuide(TEST_CONFIG);
@@ -386,7 +387,7 @@ describe('SOMA Guide — keyword matching', function () {
   });
 });
 
-describe('SOMA Guide — mode transitions', function () {
+describe('Adrian — mode transitions', function () {
   test('FAB click opens idle mode', function () {
     const win = makeWindow();
     const g = new win.SomaGuide(TEST_CONFIG);
@@ -519,7 +520,7 @@ function makeWindowWithTTS() {
   return win;
 }
 
-describe('SOMA Guide — TTS narration', function () {
+describe('Adrian — TTS narration', function () {
   test('_ttsEnabled returns false when no ttsProxyUrl', function () {
     const win = makeWindow();
     const g = new win.SomaGuide(TEST_CONFIG); // TEST_CONFIG has no ttsProxyUrl
@@ -805,7 +806,7 @@ describe('SOMA Guide — TTS narration', function () {
 
 /* ── Pre-generated static audio clips ── */
 
-describe('SOMA Guide — pre-generated static audio', function () {
+describe('Adrian — pre-generated static audio', function () {
 
   test('_tourAudioHash produces 8-char hex string', function () {
     const win = makeWindow();
@@ -943,7 +944,7 @@ function makeWindowOnPage(pagePath) {
   return win;
 }
 
-describe('SOMA Guide — cross-page sessionStorage bridge', function () {
+describe('Adrian — cross-page sessionStorage bridge', function () {
   test('_wtExit persists pendingResume to sessionStorage', function () {
     const win = makeWindow();
     const g = new win.SomaGuide(XPAGE_CONFIG);
@@ -1049,7 +1050,7 @@ describe('SOMA Guide — cross-page sessionStorage bridge', function () {
 
 /* ── Start/Stop/Pause controls ── */
 
-describe('SOMA Guide — start/stop/pause controls', function () {
+describe('Adrian — start/stop/pause controls', function () {
   test('Pause button (sg-wt-exit) is present in walkthrough bar', function () {
     const win = makeWindow();
     new win.SomaGuide(TEST_CONFIG);
@@ -1099,7 +1100,7 @@ describe('SOMA Guide — start/stop/pause controls', function () {
 
 /* ── Conversation (ElevenLabs text/voice) ── */
 
-describe('SOMA Guide — conversation init', function () {
+describe('Adrian — conversation init', function () {
   /** Build a window with a controllable Conversation mock */
   function makeWindowWithConv() {
     const win = makeWindow();
@@ -1230,7 +1231,7 @@ describe('SOMA Guide — conversation init', function () {
 
 /* ── Demo cursor ── */
 
-describe('SOMA Guide — demo cursor', function () {
+describe('Adrian — demo cursor', function () {
   test('_demoBuild appends .sg-demo-cursor to body', function () {
     const win = makeWindow();
     const g = new win.SomaGuide(TEST_CONFIG);
@@ -1316,7 +1317,7 @@ describe('SOMA Guide — demo cursor', function () {
 
 /* ── Auto-advance ── */
 
-describe('SOMA Guide — auto-advance', function () {
+describe('Adrian — auto-advance', function () {
   test('_autoPlay defaults to true after _wtStart', function () {
     const win = makeWindow();
     const g = new win.SomaGuide(TEST_CONFIG);
@@ -1441,7 +1442,7 @@ describe('SOMA Guide — auto-advance', function () {
 
 /* ── Resume at correct step ── */
 
-describe('SOMA Guide — resume at correct step', function () {
+describe('Adrian — resume at correct step', function () {
   test('_wtStart with stepIndex=2 starts at step 2', function () {
     const win = makeWindow();
     const g = new win.SomaGuide(TEST_CONFIG);
@@ -1535,7 +1536,7 @@ const DEMO_CONFIG = {
   ]
 };
 
-describe('SOMA Guide — cursor lead-in delay', function () {
+describe('Adrian — cursor lead-in delay', function () {
   test('_demoStop clears _cursorLeadTimer', function () {
     const win = makeWindow();
     const g = new win.SomaGuide(TEST_CONFIG);
@@ -1596,7 +1597,7 @@ describe('SOMA Guide — cursor lead-in delay', function () {
   });
 });
 
-describe('SOMA Guide — audio ended drives auto-advance', function () {
+describe('Adrian — audio ended drives auto-advance', function () {
   test('auto-advance fires on audio ended event', function (_, done) {
     const win = makeWindowWithTTS();
     const g = new win.SomaGuide(TTS_CONFIG);
@@ -1724,7 +1725,7 @@ const SUB_CONFIG = {
   ]
 };
 
-describe('SOMA Guide — sub-step traversal', function () {
+describe('Adrian — sub-step traversal', function () {
   test('_wtStart at parent step shows parent narration', function () {
     const win = makeWindow();
     const g = new win.SomaGuide(SUB_CONFIG);
@@ -1839,7 +1840,7 @@ describe('SOMA Guide — sub-step traversal', function () {
 
 /* ── Preconditions per sub-step ── */
 
-describe('SOMA Guide — preconditions per sub-step', function () {
+describe('Adrian — preconditions per sub-step', function () {
   const PRECOND_CONFIG = {
     persona: { name: 'PBot', id: 'p-bot', avatar: '🤖', greeting: 'Hi!', shortGreeting: 'Back!', walkthroughDone: 'Done!' },
     voiceAgentId: 'p-agent',
@@ -1967,7 +1968,7 @@ const NAV_CONFIG = {
   ]
 };
 
-describe('SOMA Guide — navigator panel', function () {
+describe('Adrian — navigator panel', function () {
   test('sg-wt-nav element exists in the DOM', function () {
     const win = makeWindow();
     new win.SomaGuide(NAV_CONFIG);
@@ -2124,7 +2125,7 @@ describe('SOMA Guide — navigator panel', function () {
 
 /* ── A. Root-absolute page resolution (no doubling) ── */
 
-describe('SOMA Guide — root-absolute page resolution', function () {
+describe('Adrian — root-absolute page resolution', function () {
   test('engine navigates to root-absolute path (no .html), not a relative URL', function () {
     const win = makeWindowOnPage('index.html');
     const g = new win.SomaGuide(XPAGE_CONFIG);
@@ -2191,7 +2192,7 @@ describe('SOMA Guide — root-absolute page resolution', function () {
 
 /* ── B. Ensure-page gate runs on jump from non-matching page ── */
 
-describe('SOMA Guide — ensure-page gate on jump/resume', function () {
+describe('Adrian — ensure-page gate on jump/resume', function () {
   test('jumping to a step with page: navigates even when coming from a different page', function () {
     const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>', {
       url: 'http://localhost/members/greg-foster',
@@ -2248,7 +2249,7 @@ describe('SOMA Guide — ensure-page gate on jump/resume', function () {
 
 /* ── Pause view consolidation (Issue #3) ── */
 
-describe('SOMA Guide — pause view: single structured navigator', function () {
+describe('Adrian — pause view: single structured navigator', function () {
   test('paused state renders structured navigator buttons (sg-wt-nav-step) in resume-steps', function () {
     const win = makeWindow();
     const g = new win.SomaGuide(NAV_CONFIG);
@@ -2304,7 +2305,7 @@ describe('SOMA Guide — pause view: single structured navigator', function () {
 
 /* ── Neutral navigation: finish + Back to Menu ── */
 
-describe('SOMA Guide — return to neutral state', function () {
+describe('Adrian — return to neutral state', function () {
   test('sg-wt-menu button (← Menu) is present in sg-wt-bar', function () {
     const win = makeWindow();
     new win.SomaGuide(TEST_CONFIG);
@@ -2387,7 +2388,7 @@ describe('SOMA Guide — return to neutral state', function () {
 
 /* ── D. Navigator nesting and first/parent step reachability ── */
 
-describe('SOMA Guide — navigator nesting and parent step reachability', function () {
+describe('Adrian — navigator nesting and parent step reachability', function () {
   test('substeps are inside a sg-wt-nav-substeps wrapper element', function () {
     const win = makeWindow();
     const g = new win.SomaGuide(NAV_CONFIG);
@@ -2455,7 +2456,7 @@ describe('SOMA Guide — navigator nesting and parent step reachability', functi
 
 /* ── Close (×) button and mobile affordances ── */
 
-describe('SOMA Guide — close button (×)', function () {
+describe('Adrian — close button (×)', function () {
   test('.sg-btn-close button exists inside .sg-header-btns', function () {
     const win = makeWindow();
     new win.SomaGuide(TEST_CONFIG);
@@ -2552,7 +2553,7 @@ describe('SOMA Guide — close button (×)', function () {
 
 /* ── Question classifier ── */
 
-describe('SOMA Guide — question classifier', function () {
+describe('Adrian — question classifier', function () {
   test('_classifyQuestion returns factual for "who is the chairman"', function () {
     const win = makeWindow();
     const g = new win.SomaGuide(TEST_CONFIG);
@@ -2659,7 +2660,7 @@ function makeWindowWithInfer(answerOverride) {
   return win;
 }
 
-describe('SOMA Guide — inference Ask path', function () {
+describe('Adrian — inference Ask path', function () {
   test('web-search toggle button is present in text UI', function () {
     const win = makeWindow();
     new win.SomaGuide(TEST_CONFIG);
@@ -2842,7 +2843,7 @@ describe('SOMA Guide — inference Ask path', function () {
 
 /* ── Version marker ── */
 
-describe('SOMA Guide — version marker', function () {
+describe('Adrian — version marker', function () {
   test('.sg-version element exists in header after mount', function () {
     const win = makeWindow();
     new win.SomaGuide(TEST_CONFIG);
@@ -2875,7 +2876,7 @@ describe('SOMA Guide — version marker', function () {
 
 /* ── State version guard ── */
 
-describe('SOMA Guide — state version guard', function () {
+describe('Adrian — state version guard', function () {
   test('_computeConfigHash returns 8-char hex string', function () {
     const win = makeWindow();
     const g = new win.SomaGuide(TEST_CONFIG);
@@ -2979,7 +2980,7 @@ const ASK_CONFIG = {
   ]
 };
 
-describe('SOMA Guide — askFirst mode', function () {
+describe('Adrian — askFirst mode', function () {
   test('_openAsk sets mode to text', function () {
     const win = makeWindow();
     const g = new win.SomaGuide(ASK_CONFIG);
@@ -3053,7 +3054,7 @@ describe('SOMA Guide — askFirst mode', function () {
  * The Text/Voice pills must live OUTSIDE the scrollable .sg-body: when they
  * were its first child, engine auto-scroll pushed them out of the clip box
  * (measured on Legends: scrollHeight 405 vs clientHeight 354, scrollTop 35). */
-describe('SOMA Guide — io-toggle placement', function () {
+describe('Adrian — io-toggle placement', function () {
   test('io-toggle is NOT inside the scrollable .sg-body', function () {
     const win = makeWindow();
     new win.SomaGuide(TEST_CONFIG);
@@ -3087,7 +3088,7 @@ describe('SOMA Guide — io-toggle placement', function () {
 });
 
 /* ── "forget me" reset reply uses the persona's configured greeting ── */
-describe('SOMA Guide — forget-me reply greeting', function () {
+describe('Adrian — forget-me reply greeting', function () {
   test('reset reply reuses persona.greeting (no hard-coded Bill)', function () {
     const win = makeWindow();
     const g = new win.SomaGuide(TEST_CONFIG);
