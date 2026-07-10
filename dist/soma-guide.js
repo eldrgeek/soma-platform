@@ -26,7 +26,7 @@
   const TTS_MS_PER_CHAR  = 85;     /* generous estimate; used for fallback timer */
   const TTS_FLOOR_MS     = 6000;   /* minimum fallback when TTS enabled */
   const TTS_BUFFER_MS    = 3500;   /* extra buffer added to known audio duration */
-  const SOMA_GUIDE_VERSION = '2026-0703a'; /* bump each build; used for stale-state guard */
+  const SOMA_GUIDE_VERSION = '2026-0710b'; /* bump each build; used for stale-state guard */
 
   /* ── SomaGuide class ────────────────────────────────────────────────────── */
   function SomaGuide(cfg) {
@@ -262,7 +262,7 @@
       '      <div class="sg-topic-list"></div>',
       '    </div>',
       '    <div class="sg-voice-ui" hidden>',
-      '      <div class="sg-orb" role="button" tabindex="0" aria-label="Tap to speak with Bill"></div>',
+      '      <div class="sg-orb" role="button" tabindex="0" aria-label="Tap to speak with ' + name + '"></div>',
       '      <p class="sg-voice-status">Tap to speak</p>',
       '      <p class="sg-voice-transcript"></p>',
       '    </div>',
@@ -2069,7 +2069,8 @@
     var stage = this._identityStage;
     if (!stage) return false;
     var roleIntro = (this.cfg.persona && this.cfg.persona.roleIntro) ||
-      'I’m Bill — I help run this site for Greg Foster and the team: I can show you around, answer questions, and take bug reports or feature requests.';
+      ('I’m ' + ((this.cfg.persona && this.cfg.persona.name) || 'your guide') +
+       ' — I help run this site: I can show you around, answer questions, and take bug reports or feature requests.');
     if (stage === 'awaiting_name') {
       var name = this._extractName(text);
       if (name) {
@@ -2615,7 +2616,7 @@
   /* ── Intake specialist (persona handoff + observer context) ──────────────── */
   SomaGuide.prototype._handoffTo = function (key, skipReconnect) {
     var p = (this.cfg.personas && this.cfg.personas[key]) ||
-            { name: (this.cfg.persona.name || 'Bill') + ' · Support', avatar: '🛠', greeting: '' };
+            { name: (this.cfg.persona.name || 'your guide') + ' · Support', avatar: '🛠', greeting: '' };
     this._activePersona = key;
     var av = this._$('.sg-persona-avatar'); if (av && p.avatar) av.textContent = p.avatar;
     var nm = this._$('.sg-persona-name');  if (nm && p.name) nm.textContent = p.name;
@@ -2768,7 +2769,7 @@
       nLbl.textContent = 'Your name (so we can follow up)';
       wrap.appendChild(nLbl);
       nameInput = document.createElement('input'); nameInput.type = 'text'; nameInput.className = 'sg-feedback-input';
-      nameInput.placeholder = 'e.g. Greg Foster';
+      nameInput.placeholder = 'e.g. Jordan Rivera';
       wrap.appendChild(nameInput);
     }
     /* Email — so we can notify when it's done or declined (asked when unknown). */
@@ -2923,7 +2924,7 @@
     var nameInput = document.createElement('input');
     nameInput.type = 'text';
     nameInput.className = 'sg-feedback-input';
-    nameInput.placeholder = 'e.g. Greg Foster';
+    nameInput.placeholder = 'e.g. Jordan Rivera';
     wrapper.appendChild(nameInput);
 
     var btnRow = document.createElement('div');
