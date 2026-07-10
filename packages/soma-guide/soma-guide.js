@@ -1,4 +1,9 @@
-/* SOMA Guide Widget — portable floating assistant
+/* Adrian (formerly SOMA Guide) — portable floating assistant
+ *
+ * User-facing name: **Adrian**. Internal package/class names remain SomaGuide
+ * for compatibility. The chrome (chip → chat window, drag/resize/persist) is
+ * provided by soma-assist-core when `createAssistChip` is available; set
+ * `cfg.shell = 'legacy'` to force the pre-core FAB/panel shell.
  *
  * No site-specific logic here. All persona, voice agent, site map,
  * and walkthrough scripts live in the per-site config object:
@@ -12,8 +17,8 @@
  *   - substeps: array of child steps (one level deep); parent narrates first,
  *               then substeps play in sequence
  *
- * Integration: include css/soma-guide.css, then the per-site config script,
- * then this script (type="module" or plain — both work).
+ * Integration: include vendor/soma-assist-core.js (optional), soma-guide.css,
+ * then the per-site config script, then this script.
  */
 (function (global) {
   'use strict';
@@ -106,13 +111,16 @@
     this._activity = [];
     this._activePersona = null;
 
+    this._assist = null; /* soma-assist-core API when shell !== 'legacy' */
     this._build();
-    this._enableDrag();
-    this._enableResize();
+    if (!this._assist) {
+      this._enableDrag();
+      this._enableResize();
+    }
     this._bindEvents();
     this._loadProfile();
     this._startObserver();
-    console.log('[SomaGuide] v' + SOMA_GUIDE_VERSION);
+    console.log('[SomaGuide] v' + SOMA_GUIDE_VERSION + ' (Adrian)');
 
     var self = this;
     if (typeof document !== 'undefined' && document.readyState !== 'loading') {
@@ -306,9 +314,141 @@
       '</div>'
     ].join('');
 
-    document.body.appendChild(el);
     this.el = el;
     this._$ = function (sel) { return el.querySelector(sel); };
+
+    /* Prefer shared chip/chat chrome from soma-assist-core when available.
+     * Legacy FAB/panel stays the default for unit tests and embeds that have
+     * not loaded the core script. Opt out with cfg.shell = 'legacy'. */
+    var wantCore = this.cfg.shell !== 'legacy' &&
+      typeof global.createAssistChip === 'function';
+    if (wantCore) {
+      this._mountAssistCore(name, avatar);
+    } else {
+      document.body.appendChild(el);
+    }
+  };
+
+  /**
+   * Mount the existing guide panel inside soma-assist-core's Shadow DOM window.
+   * Core owns chip open/close, drag, resize, and position/size persistence.
+   */
+  SomaGuide.prototype._mountAssistCore = function (name, avatar) {
+    var self = this;
+    var appId = 'adrian:' + (this.cfg.persona.id || this.cfg.tenantId || name || 'guide');
+
+    /* Guide CSS must be injected into the shadow root (isolation). */
+    var guideCss = '';
+    try {
+      var sheets = document.querySelectorAll('link[href*="soma-guide"], style[data-soma-guide]');
+      /* Prefer inlined <style data-soma-guide>; otherwise leave empty and rely
+       * on host-page sheet for non-shadow fallback. When only a link exists we
+       * fetch is blocked in content scripts — extension injects CSS text. */
+      for (var i = 0; i < sheets.length; i++) {
+        if (sheets[i].tagName === 'STYLE') guideCss += sheets[i].textContent || '';
+      }
+    } catch (e) {}
+    if (this.cfg.assistCoreCss) guideCss = this.cfg.assistCoreCss;
+
+    /* Flatten guide element so it fills the core mount (no fixed positioning). */
+    this.el.className = 'sg sg--core-shell';
+    this.el.style.cssText = [
+      'position:relative',
+      'inset:auto',
+      'left:auto',
+      'top:auto',
+      'right:auto',
+      'bottom:auto',
+      'width:100%',
+      'height:100%',
+      'max-width:none',
+      'max-height:none',
+      'box-shadow:none',
+      'border-radius:0',
+      'display:flex',
+      'flex-direction:column',
+      'background:transparent'
+    ].join(';');
+
+    /* Hide native FAB — core chip is the only minimized affordance. */
+    var fab = this.el.querySelector('.sg-fab');
+    if (fab) fab.style.display = 'none';
+
+    /* Panel always "open" inside core window; core toggles visibility. */
+    var panel = this.el.querySelector('.sg-panel');
+    if (panel) {
+      panel.removeAttribute('aria-hidden');
+      panel.style.cssText = [
+        'position:relative',
+        'inset:auto',
+        'width:100%',
+        'height:100%',
+        'max-width:none',
+        'max-height:none',
+        'display:flex',
+        'flex-direction:column',
+        'box-shadow:none',
+        'border-radius:0'
+      ].join(';');
+    }
+
+    /* Hide guide's own window chrome (core provides header + min/close).
+     * Keep text/voice controls by moving them into a slim bar if present. */
+    var hdr = this.el.querySelector('.sg-header');
+    if (hdr) {
+      hdr.style.display = 'none';
+    }
+
+    var coreExtra =
+      '.sac-mount{background:#fff;}' +
+      '.sg--core-shell .sg-panel{min-height:0;}' +
+      '.sg--core-shell .sg-body{flex:1;min-height:0;overflow:auto;}' +
+      (guideCss || '');
+
+    this._assist = global.createAssistChip({
+      appId: appId,
+      title: name || 'Adrian',
+      avatar: avatar || '🧭',
+      chipLabel: 'Ask ' + (name || 'Adrian'),
+      hideInput: true,
+      extraCss: coreExtra,
+      renderBody: function (mountEl) {
+        mountEl.appendChild(self.el);
+      },
+      onOpen: function () {
+        self.el.classList.remove('sg--min');
+        if (panel) panel.removeAttribute('aria-hidden');
+        /* Restore conversational UI if we were fully minimized. */
+        if (self.mode === 'minimized') {
+          if (self.cfg.conversationalShell) {
+            if (self._lsGet('io-mode') === 'voice' && self.cfg.voiceAgentId) self._openVoice();
+            else if (typeof self._openShell === 'function') self._openShell();
+            else self._openIdle(false);
+          } else {
+            self._openIdle(false);
+          }
+        }
+      },
+      onClose: function () {
+        /* Engine-side cleanup without re-entering core close. */
+        self._ttsStop();
+        self._stopConversation();
+        self._autoClear();
+        self._demoStop();
+        self._wtCloseDropdowns();
+        self._clearHighlight();
+        self.mode = 'minimized';
+        self.el.classList.add('sg--min');
+      }
+    });
+
+    /* Bridge open/minimize through core. */
+    this._coreOpen = function () {
+      if (self._assist) self._assist.open();
+    };
+    this._coreClose = function () {
+      if (self._assist) self._assist.close();
+    };
   };
 
   /* ── Drag ── */
@@ -885,6 +1025,13 @@
     }
     this._clearHighlight();
     this.mode = 'minimized';
+
+    /* When using soma-assist-core, collapse to the shared chip. */
+    if (this._assist && this._coreClose) {
+      this._coreClose();
+      return;
+    }
+
     this.el.className = 'sg sg--min';
     this._$('.sg-panel').setAttribute('aria-hidden', 'true');
 
@@ -3514,6 +3661,7 @@
 
   /* ── Public API ── */
   SomaGuide.prototype.open    = function () {
+    if (this._assist && this._coreOpen) this._coreOpen();
     if (this.cfg.conversationalShell) {
       if (this._lsGet('io-mode') === 'voice' && this.cfg.voiceAgentId) { this._openVoice(); }
       else { this._openShell(); }

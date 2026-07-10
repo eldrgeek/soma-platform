@@ -1,0 +1,27 @@
+{
+  "name": "@soma-platform/soma-assist-core",
+  "version": "1.0.0",
+  "description": "Shared floating chip → chat window UI core for SOMA assistants (Yeshie, Adrian)",
+  "main": "dist/soma-assist-core.js",
+  "module": "dist/soma-assist-core.js",
+  "files": [
+    "dist/",
+    "src/"
+  ],
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "npm run build && node --test tests/*.test.js",
+    "prepublishOnly": "npm run build"
+  },
+  "devDependencies": {
+    "jsdom": "^26.0.0"
+  },
+  "keywords": [
+    "soma",
+    "assistant",
+    "chip",
+    "chat",
+    "shadow-dom"
+  ],
+  "license": "MIT"
+}

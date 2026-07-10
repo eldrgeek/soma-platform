@@ -1,0 +1,14 @@
+{
+  "name": "@soma-platform/adrian-extension",
+  "version": "1.0.0",
+  "description": "Chrome MV3 extension: inject Adrian (soma-assist-core + guide engine) on any page",
+  "private": true,
+  "scripts": {
+    "sync": "node sync.mjs",
+    "build": "node sync.mjs",
+    "test": "node --test tests/*.test.js"
+  },
+  "devDependencies": {
+    "jsdom": "^26.0.0"
+  }
+}

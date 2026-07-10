@@ -1,14 +1,17 @@
 {
   "name": "@soma-platform/soma-guide",
-  "version": "1.0.0",
-  "description": "SOMA Guide widget engine — canonical shareable tour overlay",
+  "version": "1.1.0",
+  "description": "Adrian assistant engine (formerly SOMA Guide) — tour overlay + chat, shell via soma-assist-core",
   "main": "soma-guide.js",
   "scripts": {
-    "test": "node --test tests/soma-guide.test.js"
+    "test": "node --test tests/soma-guide.test.js && node --test tests/adrian-shell.test.js",
+    "test:legacy": "node --test tests/soma-guide.test.js",
+    "test:adrian": "node --test tests/adrian-shell.test.js"
   },
   "files": [
     "soma-guide.js",
-    "soma-guide.css"
+    "soma-guide.css",
+    "vendor/"
   ],
   "devDependencies": {
     "jsdom": "^26.0.0"

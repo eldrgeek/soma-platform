@@ -1,0 +1,49 @@
+{
+  "manifest_version": 3,
+  "name": "Adrian",
+  "version": "1.0.0",
+  "description": "Adrian — SOMA site assistant (chip/chat UI on any page).",
+  "permissions": ["storage", "scripting", "activeTab"],
+  "host_permissions": ["http://*/*", "https://*/*"],
+  "action": {
+    "default_title": "Toggle Adrian",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": [
+        "vendor/soma-assist-core.js",
+        "vendor/soma-guide-css.js",
+        "content.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "vendor/soma-assist-core.js",
+        "vendor/soma-assist-core.css",
+        "vendor/soma-guide.js",
+        "vendor/soma-guide.css",
+        "vendor/soma-guide-css.js",
+        "adrian-config.js"
+      ],
+      "matches": ["http://*/*", "https://*/*"]
+    }
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}
