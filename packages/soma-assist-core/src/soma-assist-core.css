@@ -14,8 +14,11 @@ button, textarea { font: inherit; }
 .assist-heading { min-width: 0; flex: 1; }
 .assist-title { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; font-weight: 720; }
 .assist-status { display: block; margin-top: 2px; color: #b9cad9; font-size: 11px; }
-.assist-minimize { display: grid; place-items: center; width: 36px; height: 36px; border: 0; border-radius: 10px; background: rgba(255,255,255,.09); color: #fff; cursor: pointer; font-size: 22px; line-height: 1; }
-.assist-minimize:hover { background: rgba(255,255,255,.18); }
+.assist-minimize, .assist-speaker { display: grid; place-items: center; width: 36px; height: 36px; border: 0; border-radius: 10px; background: rgba(255,255,255,.09); color: #fff; cursor: pointer; font-size: 22px; line-height: 1; }
+.assist-speaker { font-size: 16px; opacity: 0.6; }
+.assist-speaker[aria-pressed="true"] { opacity: 1; background: rgba(255,255,255,.25); }
+.assist-minimize:hover, .assist-speaker:hover { background: rgba(255,255,255,.18); }
+.assist-speaker[hidden] { display: none !important; }
 .assist-messages { display: flex; flex: 1; flex-direction: column; gap: 10px; min-height: 0; margin: 0; padding: 16px; overflow: auto; list-style: none; }
 .assist-message { max-width: 84%; padding: 10px 12px; border-radius: 13px; font-size: 14px; line-height: 1.42; white-space: pre-wrap; overflow-wrap: anywhere; }
 .assist-message--assistant { align-self: flex-start; border: 1px solid #e2e8ee; border-bottom-left-radius: 4px; background: #fff; color: #27384a; }
