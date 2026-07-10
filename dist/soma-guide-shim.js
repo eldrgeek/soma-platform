@@ -196,7 +196,7 @@
     if (iframe) return;
     iframe = doc.createElement('iframe');
     iframe.id = 'soma-guide-iframe';
-    iframe.title = 'SOMA Guide assistant';
+    iframe.title = 'Adrian assistant';
     iframe.setAttribute('allow', 'microphone; autoplay');
     /* Bill's own widget chrome is fixed-positioned INSIDE the iframe; the iframe
      * itself is a fixed, full-viewport, click-through layer so the floating FAB

@@ -1,0 +1,12 @@
+{
+  "name": "@soma-platform/soma-assist-core",
+  "version": "1.0.0",
+  "description": "Framework-free Shadow DOM chip and chat window shared by SOMA assistants",
+  "main": "dist/soma-assist-core.js",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "npm run build && node --test tests/soma-assist-core.test.js"
+  },
+  "files": ["dist/soma-assist-core.js", "dist/soma-assist-core.css"],
+  "devDependencies": { "jsdom": "^26.0.0" }
+}

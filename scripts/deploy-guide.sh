@@ -6,8 +6,7 @@
 # NOTHING to the CDN. This script is the only thing that ships.
 #
 # What it does:
-#   1. Syncs packages/soma-guide/{soma-guide.js,soma-guide.css,soma-guide-shim.js}
-#      into dist/ (there is no build step — dist is a hand-maintained mirror).
+#   1. Builds soma-assist-core and syncs it plus the guide artifacts into dist/.
 #   2. Deploys dist/ to the soma-guide site with the site id HARDCODED,
 #      so it can never cross-deploy to another site (same pattern as
 #      legends-membership-site/scripts/deploy.sh).
@@ -28,6 +27,7 @@ SITE_NAME="soma-guide"
 CDN_URL="https://soma-guide.netlify.app/soma-guide.js"
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 PKG_DIR="$REPO_DIR/packages/soma-guide"
+CORE_DIR="$REPO_DIR/packages/soma-assist-core"
 DIST_DIR="$REPO_DIR/dist"
 
 DRY_RUN=0
@@ -43,11 +43,18 @@ if [[ -z "$NETLIFY" ]]; then
   exit 1
 fi
 
-# --- 1. Sync engine files from package to dist (no build step exists) ---
+# --- 1. Build and sync engine files from packages to dist ---
+npm --prefix "$CORE_DIR" run build
 for f in soma-guide.js soma-guide.css soma-guide-shim.js; do
   if ! diff -q "$PKG_DIR/$f" "$DIST_DIR/$f" >/dev/null 2>&1; then
     echo "sync: $f (packages/soma-guide -> dist)"
     cp "$PKG_DIR/$f" "$DIST_DIR/$f"
+  fi
+done
+for f in soma-assist-core.js soma-assist-core.css; do
+  if ! diff -q "$CORE_DIR/dist/$f" "$DIST_DIR/$f" >/dev/null 2>&1; then
+    echo "sync: $f (packages/soma-assist-core -> dist)"
+    cp "$CORE_DIR/dist/$f" "$DIST_DIR/$f"
   fi
 done
 
