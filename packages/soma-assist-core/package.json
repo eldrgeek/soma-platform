@@ -12,7 +12,8 @@
     "dist/soma-assist-core.css",
     "dist/soma-script-runtime.js",
     "dist/soma-assist-feedback.js",
-    "dist/soma-assist-heartbeat.js"
+    "dist/soma-assist-heartbeat.js",
+    "dist/soma-assist-capture.js"
   ],
   "devDependencies": { "jsdom": "^26.0.0" }
 }
