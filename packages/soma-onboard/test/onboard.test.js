@@ -14,7 +14,7 @@ const CONFIG = {
   tablePrefix: 'tc',
   brandName: 'Test Connect',
   origin: 'https://test-connect.netlify.app',
-  hostName: 'Greg Foster',
+  hostName: 'Sam Alvarez',
   purposeOneLiner: 'A network you can only enter through someone who knows you.',
   roles: ['player', 'family', 'other'],
 };
@@ -51,7 +51,7 @@ async function seedInviter(overrides = {}) {
   const code = await uniqueCode(store, cfg.codeLength);
   const member = await store.createMember({
     code,
-    name: 'Greg Foster',
+    name: 'Sam Alvarez',
     email: 'greg@example.com',
     phone: '+1 702 555 0100',
     role: 'player',
@@ -94,13 +94,13 @@ test('prepare-invite returns one tagged URL per enabled channel', async () => {
   const res = await api['prepare-invite'](
     req('POST', {
       headers: inviter.auth,
-      json: { name: 'Victoria Foster', rel: 'wife', email: 'vic@example.com', phone: '+17025550111' },
+      json: { name: 'Dana Okonkwo', rel: 'wife', email: 'vic@example.com', phone: '+17025550111' },
     })
   );
   assert.equal(res.statusCode, 201);
   const out = body(res);
 
-  assert.equal(out.invitee_name, 'Victoria Foster');
+  assert.equal(out.invitee_name, 'Dana Okonkwo');
   assert.equal(out.relationship, 'wife');
   assert.equal(out.one_click_ready, true, 'email + phone on file means one-click is possible');
   assert.ok(out.claim_code, 'a claimable member should have been pre-created');
@@ -132,7 +132,7 @@ test('a public invite link is bare — no claim, no name, no relationship, no /j
     await api['prepare-invite'](
       req('POST', {
         headers: inviter.auth,
-        json: { name: 'Victoria Foster', rel: 'wife', email: 'vic@example.com', phone: '+17025550111' },
+        json: { name: 'Dana Okonkwo', rel: 'wife', email: 'vic@example.com', phone: '+17025550111' },
       })
     )
   );
@@ -159,7 +159,7 @@ test('prepare-invite composes real, openable hrefs for each channel', async () =
   const targets = Object.fromEntries(body(res).channels.map((c) => [c.id, c]));
 
   assert.match(targets.email.href, /^mailto:marcus%40example\.com\?/);
-  assert.match(targets.email.href, /subject=Greg\+Foster\+invited\+you\+to\+Test\+Connect/);
+  assert.match(targets.email.href, /subject=Sam\+Alvarez\+invited\+you\+to\+Test\+Connect/);
   assert.match(targets.sms.href, /^sms:7025550123\?&body=/);
   assert.match(targets.whatsapp.href, /^https:\/\/wa\.me\/7025550123\?text=/);
   assert.match(targets.telegram.href, /^https:\/\/t\.me\/share\/url\?/);
@@ -175,14 +175,14 @@ test('prepare-invite composes real, openable hrefs for each channel', async () =
 test('public channels never leak the invitee name or the relationship', async () => {
   const inviter = await seedInviter();
   const res = await api['prepare-invite'](
-    req('POST', { headers: inviter.auth, json: { name: 'Victoria Foster', rel: 'wife' } })
+    req('POST', { headers: inviter.auth, json: { name: 'Dana Okonkwo', rel: 'wife' } })
   );
 
   for (const target of body(res).channels) {
     if (!target.public) continue;
     const haystack = `${target.subject} ${target.body} ${target.href || ''}`;
     assert.ok(
-      !/Victoria/i.test(haystack),
+      !/Dana/i.test(haystack),
       `${target.id} must not name the invitee — it is visible to strangers`
     );
     assert.ok(!/\bwife\b/i.test(haystack), `${target.id} must not broadcast the relationship`);
@@ -192,10 +192,10 @@ test('public channels never leak the invitee name or the relationship', async ()
 test('private channels do address the invitee by name', async () => {
   const inviter = await seedInviter();
   const res = await api['prepare-invite'](
-    req('POST', { headers: inviter.auth, json: { name: 'Victoria Foster', rel: 'wife' } })
+    req('POST', { headers: inviter.auth, json: { name: 'Dana Okonkwo', rel: 'wife' } })
   );
   const email = body(res).channels.find((c) => c.id === 'email');
-  assert.match(email.body, /^Victoria —/m);
+  assert.match(email.body, /^Dana —/m);
   assert.match(email.body, /invited you to join Test Connect as a wife\./);
 });
 
@@ -240,7 +240,7 @@ test('invite-info tells an invitee who invited them, without leaking contact det
     await api['prepare-invite'](
       req('POST', {
         headers: inviter.auth,
-        json: { name: 'Victoria Foster', rel: 'wife', email: 'vic@example.com', phone: '+17025550111' },
+        json: { name: 'Dana Okonkwo', rel: 'wife', email: 'vic@example.com', phone: '+17025550111' },
       })
     )
   );
@@ -250,9 +250,9 @@ test('invite-info tells an invitee who invited them, without leaking contact det
   );
   const out = body(res);
 
-  assert.equal(out.inviter_name, 'Greg Foster');
+  assert.equal(out.inviter_name, 'Sam Alvarez');
   assert.equal(out.brand_name, 'Test Connect');
-  assert.equal(out.claim_member.name, 'Victoria Foster');
+  assert.equal(out.claim_member.name, 'Dana Okonkwo');
   assert.equal(out.claim_member.one_click, true);
   assert.equal(out.relationship, 'wife');
   assert.ok(!JSON.stringify(out).includes('greg@example.com'), 'inviter email must not be exposed');
@@ -278,7 +278,7 @@ test('one-click join activates the pre-created member and signs them in', async 
     await api['prepare-invite'](
       req('POST', {
         headers: inviter.auth,
-        json: { name: 'Victoria Foster', rel: 'wife', email: 'vic@example.com', phone: '+17025550111' },
+        json: { name: 'Dana Okonkwo', rel: 'wife', email: 'vic@example.com', phone: '+17025550111' },
       })
     )
   );
@@ -291,10 +291,10 @@ test('one-click join activates the pre-created member and signs them in', async 
 
   assert.ok(out.token, 'joining returns a session token — no password, no email round-trip');
   assert.equal(out.member.status, 'active');
-  assert.equal(out.connected_to.name, 'Greg Foster');
+  assert.equal(out.connected_to.name, 'Sam Alvarez');
 
   const session = await store.getSession(out.token);
-  assert.equal(session.member.name, 'Victoria Foster');
+  assert.equal(session.member.name, 'Dana Okonkwo');
 
   const edge = await store.findConnection(inviter.member.id, out.member.id);
   assert.equal(edge.kind, 'wife', 'the placeholder edge upgrades to the real relationship');
@@ -326,7 +326,7 @@ test('re-opening an already-claimed invite signs you in instead of erroring', as
     await api['prepare-invite'](
       req('POST', {
         headers: inviter.auth,
-        json: { name: 'Victoria Foster', email: 'vic@example.com', phone: '+17025550111' },
+        json: { name: 'Dana Okonkwo', email: 'vic@example.com', phone: '+17025550111' },
       })
     )
   );
@@ -418,7 +418,7 @@ test('channel attribution follows an invite from send to open to join', async ()
     await api['prepare-invite'](
       req('POST', {
         headers: inviter.auth,
-        json: { name: 'Victoria Foster', email: 'vic@example.com', phone: '+17025550111' },
+        json: { name: 'Dana Okonkwo', email: 'vic@example.com', phone: '+17025550111' },
       })
     )
   );
@@ -436,7 +436,7 @@ test('channel attribution follows an invite from send to open to join', async ()
   assert.equal(view.invites[0].channel, 'sms');
   assert.ok(view.invites[0].opened_at);
   assert.ok(view.invites[0].joined_at);
-  assert.equal(view.invitees[0].name, 'Victoria Foster');
+  assert.equal(view.invitees[0].name, 'Dana Okonkwo');
 });
 
 test('an unopened invite counts as sent but not opened', async () => {
@@ -473,7 +473,7 @@ test('invite-send emails the invite and replies to the human inviter', async () 
 
   const mail = sender.sent[0];
   assert.equal(mail.to, 'cousin@example.com');
-  assert.equal(mail.subject, 'Greg Foster invited you to Test Connect');
+  assert.equal(mail.subject, 'Sam Alvarez invited you to Test Connect');
   assert.equal(mail.replyTo, 'greg@example.com', 'replies go to the person, not a no-reply void');
   assert.match(mail.text, /Been too long!/);
   assert.equal(parseInviteUrl(body(res).url).channel, 'email');

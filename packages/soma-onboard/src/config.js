@@ -18,8 +18,8 @@
  * @property {string} origin           canonical public origin, e.g. 'https://vegas-connect.netlify.app'
  * @property {string} joinPath         path prefix for invite links (default '/j')
  * @property {string} purposeOneLiner  one sentence an invitee reads before joining
- * @property {string} hostName         human host, e.g. 'Greg Foster'
- * @property {string} virtualHostName  AI host, e.g. "V'Greg"
+ * @property {string} hostName         human host, e.g. 'Sam Alvarez'
+ * @property {string} virtualHostName  AI host, e.g. "V'Sam"
  * @property {string[]} roles          allowed member roles; first is the default
  * @property {string[]} relationships  suggested relationship labels for the picker
  * @property {string[]} channels       enabled invite channels (see channels.js)

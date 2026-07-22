@@ -179,7 +179,7 @@ export function createOnboardHandlers(cfg, deps) {
   }
 
   // -------------------------------------------------------------------------
-  // POST prepare-invite — "I want to invite Victoria, my wife"
+  // POST prepare-invite — "I want to invite Dana, my wife"
   // -------------------------------------------------------------------------
   async function handlePrepareInvite(event) {
     if (event.httpMethod !== 'POST') return methodNotAllowed('POST');

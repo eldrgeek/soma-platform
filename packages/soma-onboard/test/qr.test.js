@@ -140,7 +140,7 @@ test('renders SVG with a dark module count matching the matrix', () => {
 });
 
 test('SVG titles are XML-escaped', () => {
-  const svg = qrSvg('https://example.org/j/AB', { title: 'Invite <Greg> & "co"' });
-  assert.match(svg, /<title>Invite &lt;Greg&gt; &amp; &quot;co&quot;<\/title>/);
-  assert.ok(!/<title>Invite <Greg>/.test(svg));
+  const svg = qrSvg('https://example.org/j/AB', { title: 'Invite <Sam> & "co"' });
+  assert.match(svg, /<title>Invite &lt;Sam&gt; &amp; &quot;co&quot;<\/title>/);
+  assert.ok(!/<title>Invite <Sam>/.test(svg));
 });

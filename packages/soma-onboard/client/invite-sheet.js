@@ -23,7 +23,7 @@
  *   document.body.append(sheet);
  *
  * Or declaratively, for a bare invite link with no prepared invitee:
- *   <soma-invite-sheet url="https://…/j/K7M2QP4X" inviter="Greg Foster"
+ *   <soma-invite-sheet url="https://…/j/K7M2QP4X" inviter="Sam Alvarez"
  *                      brand="Vegas Connect"></soma-invite-sheet>
  */
 

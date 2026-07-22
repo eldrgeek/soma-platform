@@ -23,8 +23,8 @@ const cfg = defineOnboardConfig({
   tablePrefix: 'demo',
   brandName: 'Vegas Connect',
   origin: location.origin,
-  hostName: 'Greg Foster',
-  virtualHostName: "V'Greg",
+  hostName: 'Sam Alvarez',
+  virtualHostName: "V'Sam",
   purposeOneLiner: 'A network you can only enter through someone who already knows you.',
   roles: ['player', 'chapter_president', 'family', 'vendor', 'sponsor', 'other'],
   relationships: ['wife', 'husband', 'child', 'family member', 'teammate', 'friend', 'other'],
@@ -73,7 +73,7 @@ async function seed() {
   const code = await uniqueCode(store, cfg.codeLength);
   inviter = await store.createMember({
     code,
-    name: 'Greg Foster',
+    name: 'Sam Alvarez',
     email: 'greg@example.com',
     phone: '+1 702 555 0100',
     role: 'player',
@@ -81,7 +81,7 @@ async function seed() {
     consent_at: new Date().toISOString(),
   });
   inviterToken = (await store.createSession(inviter.id)).token;
-  note(`seeded inviter Greg Foster (code ${code})`, true);
+  note(`seeded inviter Sam Alvarez (code ${code})`, true);
 
   $('rels').innerHTML = cfg.relationships.map((r) => `<option value="${r}">`).join('');
 }

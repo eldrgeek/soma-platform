@@ -57,8 +57,8 @@ const config = {
   tablePrefix: 'vc',                       // → vc_members, vc_sessions, …
   brandName: 'Vegas Connect',
   origin: 'https://vegas-connect.netlify.app',
-  hostName: 'Greg Foster',
-  virtualHostName: "V'Greg",
+  hostName: 'Sam Alvarez',
+  virtualHostName: "V'Sam",
   purposeOneLiner: 'A network you can only enter through someone who already knows you.',
   roles: ['player', 'chapter_president', 'family', 'vendor', 'sponsor', 'other'],
 };
@@ -114,7 +114,7 @@ someone join in eight seconds standing in a hotel lobby.
   sheet.invite = await (await fetch('/api/prepare-invite', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ name: 'Victoria Foster', rel: 'wife', email, phone }),
+    body: JSON.stringify({ name: 'Dana Okonkwo', rel: 'wife', email, phone }),
   })).json();
 </script>
 
@@ -144,7 +144,7 @@ So public channels (X, LinkedIn, Facebook) get a **bare** link — inviter code 
 nothing else. `claim`, `for`, `rel` and `invite` are stripped and the `/join` path is rewritten
 to the plain invite page. The composed message drops the invitee's name and the relationship
 too; composing a name-free tweet is pointless if the URL underneath says
-`?for=Victoria%20Foster&rel=wife`.
+`?for=Dana%20Foster&rel=wife`.
 
 This is enforced in `channelTargets()` and asserted by two tests. It is not a style preference.
 

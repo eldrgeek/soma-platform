@@ -110,7 +110,7 @@ function relationshipClause(ctx) {
 /**
  * Compose the message for a channel. Public channels (X, LinkedIn, Facebook)
  * never name the invitee or the relationship — those posts are visible to
- * strangers, and "Mike invited Victoria as his wife" is not something to
+ * strangers, and "Mike invited Dana as his wife" is not something to
  * broadcast. This is a hard rule, not a style preference.
  *
  * @param {ChannelId} channelId
@@ -317,7 +317,7 @@ export function channelTargets(cfg, ctx, to = {}) {
  *
  *   `for` / `rel` — the invitee's name and how they're related to the inviter.
  *                   Composing a name-free message is pointless if the URL
- *                   underneath it says `?for=Victoria%20Foster&rel=wife`.
+ *                   underneath it says `?for=Dana%20Foster&rel=wife`.
  *
  *   `claim`       — the code that lets its bearer become a specific pre-created
  *                   member, whose email and phone the inviter already supplied.

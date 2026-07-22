@@ -9,7 +9,7 @@
  *     tablePrefix: 'vc',
  *     brandName: 'Vegas Connect',
  *     origin: 'https://vegas-connect.netlify.app',
- *     hostName: 'Greg Foster',
+ *     hostName: 'Sam Alvarez',
  *     roles: ['player', 'chapter_president', 'family', 'vendor', 'sponsor', 'other'],
  *   });
  */
