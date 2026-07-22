@@ -5,6 +5,7 @@ This is the SOMA platform monorepo — the canonical home for shared UI widget e
 ## Packages
 
 - **`packages/soma-guide/`** — The SOMA Guide tour overlay widget. Canonical engine; per-site configs (`*-guide-config.js`) and audio (`audio/tour/*.mp3`) live in each consuming site.
+- **`packages/soma-onboard/`** — `@soma/onboard`. Join a new person to a SOMA app by invitation: QR phone-to-phone plus email / text / social. Server engine + `<soma-invite-sheet>` custom element + a dependency-free QR encoder. Extracted 2026-07-22 from `vegas-connect` and `r1x1-app`. Unlike soma-guide this is **not** a CDN artifact — apps consume the package and keep their own federated tables (§15b). See its [README](packages/soma-onboard/README.md); run the demo with `npx http-server packages/soma-onboard -p 4181 -c-1` → `/demo/`.
 
 ## Dist
 

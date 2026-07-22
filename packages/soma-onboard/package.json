@@ -1,0 +1,39 @@
+{
+  "name": "@soma/onboard",
+  "version": "1.0.0",
+  "description": "SOMA Onboard — join a new person to a SOMA app by invitation: QR in-person, or email / text / social. Extracted from Vegas Connect, Legends Connect and Revolution 1x1.",
+  "type": "module",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./channels": "./src/channels.js",
+    "./handlers": "./src/handlers.js",
+    "./netlify": "./src/netlify.js",
+    "./store/memory": "./src/store/memory.js",
+    "./store/supabase": "./src/store/supabase.js",
+    "./client": "./client/index.js",
+    "./client/invite-sheet": "./client/invite-sheet.js",
+    "./schema": "./sql/schema.sql.tmpl"
+  },
+  "files": [
+    "src",
+    "client",
+    "sql",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  },
+  "peerDependencies": {
+    "@supabase/supabase-js": "^2.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@supabase/supabase-js": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@supabase/supabase-js": "^2.49.1",
+    "qrcode": "^1.5.4"
+  }
+}

@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SOMA Onboard — invitation demo</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --fg: #102743; --muted: #5b6b80; --bg: #f2f5f9; --panel: #ffffff;
+    --border: #dbe3ec; --accent: #1a4d8f; --accent-fg: #fff; --ok: #1c7a4a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --fg:#e8eef6; --muted:#9fb0c4; --bg:#0b121b; --panel:#131d2a;
+            --border:#2a3849; --accent:#5b9bef; --accent-fg:#08121d; --ok:#4fd18b; }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 16px/1.55 -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  }
+  header { padding: 28px 20px 8px; max-width: 1060px; margin: 0 auto; }
+  header h1 { margin: 0 0 6px; font-size: 27px; letter-spacing: -0.01em; }
+  header p { margin: 0 0 4px; color: var(--muted); max-width: 68ch; }
+  .banner {
+    max-width: 1060px; margin: 14px auto 0; padding: 10px 14px;
+    border: 1px solid var(--border); border-left: 3px solid var(--accent);
+    border-radius: 8px; background: var(--panel); font-size: 14px; color: var(--muted);
+  }
+  main {
+    max-width: 1060px; margin: 0 auto; padding: 20px;
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(310px, 1fr)); gap: 18px;
+    align-items: start;
+  }
+  .panel {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 14px; padding: 18px;
+  }
+  .panel h2 { margin: 0 0 2px; font-size: 15px; text-transform: uppercase; letter-spacing: .07em; }
+  .panel > p.sub { margin: 0 0 14px; color: var(--muted); font-size: 14px; }
+  label { display: block; font-size: 13px; font-weight: 600; margin: 0 0 4px; }
+  input, select {
+    width: 100%; font: inherit; padding: 9px 11px; margin-bottom: 11px;
+    border: 1px solid var(--border); border-radius: 9px;
+    background: var(--bg); color: var(--fg);
+  }
+  button {
+    font: inherit; cursor: pointer; padding: 10px 14px; border-radius: 9px;
+    border: 1px solid var(--accent); background: var(--accent); color: var(--accent-fg);
+    font-weight: 600;
+  }
+  button.ghost { background: transparent; color: var(--fg); border-color: var(--border); font-weight: 500; }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 7px 6px; border-bottom: 1px solid var(--border); }
+  th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .empty { color: var(--muted); font-size: 14px; margin: 6px 0 0; }
+  .log { font: 12.5px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; margin: 0; max-height: 260px; overflow: auto; }
+  .log div { padding: 3px 0; border-bottom: 1px solid var(--border); }
+  .log .ok { color: var(--ok); }
+  .stage { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  .wide { grid-column: 1 / -1; }
+  footer { max-width: 1060px; margin: 0 auto; padding: 8px 20px 40px; color: var(--muted); font-size: 13px; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .92em; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>SOMA Onboard</h1>
+  <p>Join a new person to a SOMA app by invitation — the QR method from Vegas Connect and
+     Revolution 1x1, plus email, text and social so distance doesn't kill the invite.</p>
+  <div class="banner">
+    This page runs the <strong>real engine</strong> — the same
+    <code>createOnboardHandlers()</code>, <code>channelTargets()</code> and QR encoder a
+    deployed app uses — against the in-memory store. Nothing is sent anywhere and everything
+    resets on reload.
+  </div>
+</header>
+
+<main>
+  <section class="panel">
+    <h2>1 · Inviter</h2>
+    <p class="sub">Greg is already a member. He wants to bring someone in.</p>
+    <form id="prepare">
+      <label for="name">Who are you inviting?</label>
+      <input id="name" name="name" value="Victoria Foster" required>
+
+      <label for="rel">How do you know them?</label>
+      <input id="rel" name="rel" value="wife" list="rels">
+      <datalist id="rels"></datalist>
+
+      <label for="email">Their email <span style="font-weight:400;color:var(--muted)">(optional)</span></label>
+      <input id="email" name="email" type="email" value="victoria@example.com">
+
+      <label for="phone">Their phone <span style="font-weight:400;color:var(--muted)">(optional)</span></label>
+      <input id="phone" name="phone" value="+1 702 555 0111">
+
+      <button type="submit">Prepare the invitation</button>
+    </form>
+  </section>
+
+  <section class="panel">
+    <h2>2 · The invitation</h2>
+    <p class="sub">One artifact, every channel. Each button hands out its own tagged link.</p>
+    <soma-invite-sheet id="sheet"></soma-invite-sheet>
+    <p class="empty" id="sheet-empty">Prepare an invitation to see it.</p>
+  </section>
+
+  <section class="panel">
+    <h2>3 · The invitee</h2>
+    <p class="sub">Simulate them receiving it through a channel and opening the link.</p>
+    <div class="stage" id="channel-picker"></div>
+    <div id="landing"></div>
+    <p class="empty" id="landing-empty">Prepare an invitation first.</p>
+  </section>
+
+  <section class="panel wide">
+    <h2>Channel attribution</h2>
+    <p class="sub">Which channel actually brings people in — the question the QR-only
+       version could not answer.</p>
+    <table>
+      <thead><tr><th>Channel</th><th class="num">Sent</th><th class="num">Opened</th><th class="num">Joined</th><th class="num">Join rate</th></tr></thead>
+      <tbody id="stats"><tr><td colspan="5" class="empty">No invitations yet.</td></tr></tbody>
+    </table>
+  </section>
+
+  <section class="panel wide">
+    <h2>Engine log</h2>
+    <p class="sub">Every call below is a real handler invocation.</p>
+    <div class="log" id="log"></div>
+  </section>
+</main>
+
+<footer>
+  <code>@soma/onboard</code> · soma-platform/packages/soma-onboard ·
+  server engine + browser share sheet + dependency-free QR encoder
+</footer>
+
+<script type="module" src="./demo.js"></script>
+</body>
+</html>

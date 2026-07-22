@@ -8,7 +8,9 @@ last_reviewed: 2026-06-23
 
 # soma-platform — monorepo of shared widget engines + scaffolding for SOMA sites (CDN-hosted on Netlify)
 
-**Where work happens:** `packages/<pkg>/` (source) → copy build output to `dist/` (Netlify publishes `dist/`, not the repo root). Packages: `soma-guide` (tour overlay, the flagship), `auth`, `soma-owner`, `soma-scaffolder`, `auto-mapper`, `guide-extension`.
+**Where work happens:** `packages/<pkg>/` (source) → copy build output to `dist/` (Netlify publishes `dist/`, not the repo root). Packages: `soma-guide` (tour overlay, the flagship), `auth`, `soma-onboard`, `soma-owner`, `soma-scaffolder`, `auto-mapper`, `guide-extension`.
+
+**`soma-onboard` does not follow the dist/CDN pattern** — it is a consumed npm package, not a served artifact, so nothing about `dist/` or `deploy-guide.sh` applies to it. Apps import it and keep their own federated tables (SOMA-APP-STANDARD §15b). Tests: `cd packages/soma-onboard && npm install && npm test` (33 tests; the QR suite compares byte-for-byte against the `qrcode` package and is the reason that devDependency exists).
 
 **Key docs** (read in this order):
 - [README.md](README.md) — packages + consuming sites overview.
