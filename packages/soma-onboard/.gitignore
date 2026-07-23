@@ -3,3 +3,4 @@
 # and the only dependency is a devDependency used by the QR verification test.
 node_modules/
 package-lock.json
+demo/dist/

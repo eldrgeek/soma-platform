@@ -21,8 +21,8 @@ package was extracted:
 | `lib/types.js`, `store.js`, `abuse.js`, `http.js`, `codes.js` | **0** |
 
 Two copies of an onboarding engine whose only real difference was a table prefix and a list of
-role labels. A fix to one didn't reach the other. Legends Connect, which wants the same
-mechanic, has none of it.
+role labels. A fix to one didn't reach the other, and any third app wanting the mechanic
+had to fork a fourth copy.
 
 So: one engine, parameterized. Change the constants, not the code.
 
@@ -35,8 +35,8 @@ So: one engine, parameterized. Change the constants, not the code.
    guess.
 3. **Public channels are safe by construction.** A link posted to X is stripped of the
    invitee's name, the relationship, *and the claim code* — see [Public links](#public-links).
-4. **No npm needed on the client.** The QR encoder is dependency-free, so Legends Connect
-   (plain `<script>` tags, no bundler) can use the same share sheet as the React apps.
+4. **No npm needed on the client.** The QR encoder is dependency-free, so a site with plain
+   `<script>` tags and no bundler can use the same share sheet as the React apps.
 
 ## Install
 
@@ -106,6 +106,8 @@ someone join in eight seconds standing in a hotel lobby.
 
 ## Client
 
+Live demo: **https://soma-onboard.netlify.app**
+
 ```html
 <script type="module">
   import '@soma/onboard/client/invite-sheet.js';
@@ -121,7 +123,8 @@ someone join in eight seconds standing in a hotel lobby.
 <soma-invite-sheet></soma-invite-sheet>
 ```
 
-It's a custom element, so React apps render it like any DOM node and vanilla apps drop it in.
+It's a custom element, so React apps render it like any DOM node and bundler-free sites drop
+it in with a script tag.
 Light and dark themes come from `prefers-color-scheme`, overridable with `theme="dark|light"`.
 It emits `soma-invite-channel` with what each button actually did — which matters, because
 `navigator.share` may not exist, the clipboard API needs a secure context, and `sms:` does
@@ -217,7 +220,12 @@ retrofitting a live app is a separate, deliberate change. Rough order when you d
    alphabet, the code length, and the session-token shape are unchanged from vegas-connect on
    purpose.
 
+**Which app goes first is an open question, not a settled one.** Vegas Connect and Revolution
+1x1 are the two that already run this mechanic, so they are migrations rather than adoptions.
+Any other app adopting it is a product decision about whether that app wants invitation at
+all — and, if it already has SOMA Auth, a decision about how an invite-code member relates to
+a SOMA ID. See `docs/` in SOMA for §16.
+
 ---
 
-_Extracted 2026-07-22 by Mike Wolf + Claude Opus 4.8 from `vegas-connect`, `r1x1-app`, and the
-onboarding gap in `legends-connect`._
+_Extracted 2026-07-22 by Mike Wolf + Claude Opus 4.8 from `vegas-connect` and `r1x1-app`._
