@@ -104,6 +104,16 @@ RLS is enabled with no anon/authenticated policies: the service role only. Membe
 the invite code plus an opaque session token, not a Supabase auth user — that is what lets
 someone join in eight seconds standing in a hotel lobby.
 
+> **Known tension, stated up front.** SOMA-APP-STANDARD **§16 (SOMA ID)** was canonized the
+> same day this package was extracted, and it says an app must not invent its own identity
+> namespace or ship its own account table. A per-app `<prefix>_members` + invite code is
+> exactly that. The mechanic is right and the namespace is wrong: invitation should mint a
+> *provisional SOMA ID* rather than an app-local member, which keeps the eight-second join and
+> drops the second namespace. The reconciliation — including a proposed `vouched` identity
+> state, and why invitation can ship before §16's apex-domain dependency — is specced in
+> `SOMA/specs/soma-onboard-identity-v0.md`. Read it before adopting this package in an app that
+> already runs SOMA Auth.
+
 ## Client
 
 Live demo: **https://soma-onboard.netlify.app**
@@ -147,7 +157,7 @@ So public channels (X, LinkedIn, Facebook) get a **bare** link — inviter code 
 nothing else. `claim`, `for`, `rel` and `invite` are stripped and the `/join` path is rewritten
 to the plain invite page. The composed message drops the invitee's name and the relationship
 too; composing a name-free tweet is pointless if the URL underneath says
-`?for=Dana%20Foster&rel=wife`.
+`?for=Dana%20Okonkwo&rel=wife`.
 
 This is enforced in `channelTargets()` and asserted by two tests. It is not a style preference.
 

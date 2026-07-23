@@ -74,7 +74,7 @@ async function seed() {
   inviter = await store.createMember({
     code,
     name: 'Sam Alvarez',
-    email: 'greg@example.com',
+    email: 'sam@example.com',
     phone: '+1 702 555 0100',
     role: 'player',
     status: 'active',
