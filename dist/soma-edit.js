@@ -24,6 +24,7 @@
  *     siteId:     'karl-friston',                    // identifies the property
  *     endpoint:   '/.netlify/functions/feedback',    // where edits are filed (§8/§15)
  *     editAll:    true,                              // default: all leaf text blocks
+ *     saveLabel:  'Lock this down',                  // save-button label (default "Save all")
  *     selector:   'h1,h2,p,[data-soma-editable]',    // override the default target set
  *     // How this app proves the editor is an admin. Any ONE of these is enough for the
  *     // CLIENT affordance; the SERVER re-verifies on save. Wire to whatever auth the
@@ -62,6 +63,7 @@
   var siteId    = cfg.siteId || (typeof location !== 'undefined' ? location.hostname : 'unknown');
   var endpoint  = cfg.feedbackUrl || cfg.endpoint || null;
   var editLabel = cfg.feedbackLabel || 'Edit page';
+  var saveLabel = cfg.saveLabel || 'Save all';        /* e.g. "Lock this down" */
   var editAll   = cfg.editAll !== false;              /* default: all leaf text blocks */
   var DRAFT_KEY = 'soma_edit_draft:' + siteId;
 
@@ -280,7 +282,7 @@
       else if (ok === n) toast('Filed ' + n + ' edit' + (n === 1 ? '' : 's') + ' to ship (' + hhmm + '). Draft kept as backup.');
       else toast('Saved locally; ' + (n - ok) + ' of ' + n + ' failed to file. Use "Copy changes."', true);
       exitEdit(false);
-    }).then(function () { if (btnSave) { btnSave.disabled = false; btnSave.textContent = 'Save all'; } });
+    }).then(function () { if (btnSave) { btnSave.disabled = false; btnSave.textContent = saveLabel; } });
   }
   function copyChanges() {
     var draft = lsGet(), keys = Object.keys(draft);
@@ -304,7 +306,7 @@
   function setBar(mode) {
     if (!bar) return;
     if (mode === 'editing') {
-      bar.innerHTML = '<button class="se-btn se-primary" id="se-save">Save all</button><button class="se-btn se-ghost" id="se-cancel">Cancel</button>';
+      bar.innerHTML = '<button class="se-btn se-primary" id="se-save">' + escapeHtml(saveLabel) + '</button><button class="se-btn se-ghost" id="se-cancel">Cancel</button>';
       document.getElementById('se-save').addEventListener('click', saveAll);
       document.getElementById('se-cancel').addEventListener('click', function () { exitEdit(true); toast('Edits reverted.'); });
     } else {
