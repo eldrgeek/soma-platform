@@ -824,7 +824,15 @@
   font-weight: 600;
 }
 
-/* ── Mobile responsive — ≤600px ── */
+/* ── Mobile responsive — ≤600px ──────────────────────────────────────────────
+ * On a phone the guide is a BOTTOM SHEET, not a floating window. It used to
+ * open to a 340×460 panel positioned at an explicit left/top, which on a
+ * 375×812 screen meant it auto-opened across the middle of the page covering
+ * ~half the viewport. Now: it starts as the FAB (see isMobileViewport() in
+ * soma-guide.js), and when opened it is pinned to the bottom edge, full width,
+ * capped at 62vh, with the page still readable above it.
+ * The JS half of this — no auto-open, no drag, no resize, no remembered desktop
+ * size — is gated on the same 600px breakpoint. Keep the two in step. */
 @media (max-width: 600px) {
   #soma-guide {
     bottom: 14px;
@@ -839,20 +847,46 @@
   }
   .sg-fab-avatar { font-size: 1.05rem; }
 
-  /* Expanded panel — stay within viewport, scrollable */
+  /* Open in any mode → sheet pinned to the bottom edge, full width.
+   * Uses the #id so it beats the base `bottom/right` rule on #soma-guide. */
+  #soma-guide.sg--idle,
+  #soma-guide.sg--text,
+  #soma-guide.sg--walkthrough,
+  #soma-guide.sg--voice {
+    left: 0;
+    right: 0;
+    bottom: 0;
+    top: auto;
+  }
+
   .sg--idle .sg-panel,
   .sg--text .sg-panel,
   .sg--walkthrough .sg-panel,
   .sg--voice .sg-panel {
-    width: min(340px, calc(100vw - 28px));
-    max-height: min(72vh, 460px);
+    width: 100%;
+    max-width: 100%;
+    max-height: 62vh;
+    /* Square off the bottom corners — the sheet meets the screen edge. */
+    border-radius: 16px 16px 0 0;
+    /* Clear the iPhone home indicator without stranding a gap on other phones. */
+    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 
   /* Text panel: fixed height, no resize handle (pinch/zoom handles zoom on mobile) */
   .sg--text .sg-panel {
-    height: min(72vh, 460px);
+    height: 62vh;
     resize: none;
   }
+
+  /* Corner drag-handles are meaningless on a pinned sheet, and they sit exactly
+   * where a thumb lands. */
+  .sg-resize-h { display: none; }
+
+  /* The header no longer drags — don't advertise that it does. Both rules are
+   * needed: the base sheet sets `grabbing` on :active, which outranks a bare
+   * `.sg-header` selector. */
+  .sg-header,
+  .sg-header:active { cursor: default; }
 
   /* Body: tighter padding saves vertical space */
   .sg-body { padding: 12px; }
