@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "Adrian",
+  "version": "1.0.0",
+  "description": "A movable, resizable assistant available on every page.",
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["vendor/soma-assist-core.js", "vendor/soma-script-runtime.js", "adrian-config.js", "vendor/soma-guide.js"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ]
+}

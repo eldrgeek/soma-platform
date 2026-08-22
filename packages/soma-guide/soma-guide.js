@@ -138,6 +138,7 @@
     this._enableResize();
     this._watchViewport();
     this._bindEvents();
+    this._buildAssistSurface();
     this._loadProfile();
     this._startObserver();
     console.log('[SomaGuide] v' + SOMA_GUIDE_VERSION);
@@ -341,6 +342,29 @@
     document.body.appendChild(el);
     this.el = el;
     this._$ = function (sel) { return el.querySelector(sel); };
+  };
+
+  /* Shared Adrian/Yeshie shell. The legacy DOM remains mounted as a hidden
+   * compatibility layer for tours, voice, and existing integrations, while all
+   * primary text interaction is presented by soma-assist-core. */
+  SomaGuide.prototype._buildAssistSurface = function () {
+    if (!global.SomaAssistCore || typeof global.SomaAssistCore.createAssistChip !== 'function') return;
+    var self = this;
+    var persona = this.cfg.persona || {};
+    var appId = this.cfg.tenantId || persona.id || 'adrian';
+    this.el.hidden = true;
+    this._assist = global.SomaAssistCore.createAssistChip({
+      appId: appId,
+      title: persona.name || 'Adrian',
+      avatar: persona.avatar || 'A',
+      initialMessage: persona.askGreeting || persona.shortGreeting || persona.greeting || 'How can I help?',
+      onUserMessage: function (text, assist) {
+        if (typeof self.cfg.onUserMessage === 'function') {
+          return self.cfg.onUserMessage(text, assist, self);
+        }
+        self._sendText(text);
+      }
+    });
   };
 
   /* ── Drag ── */
@@ -1034,7 +1058,8 @@
   SomaGuide.prototype._openAsk = function () {
     this._setMode('text');
     var greeting = this.cfg.persona.askGreeting || this.cfg.persona.greeting || '';
-    if (greeting) this._appendMessage('agent', greeting);
+    if (greeting && !this._assist) this._appendMessage('agent', greeting);
+    if (this._assist) this._assist.open();
     this._$('.sg-input').focus();
   };
 
@@ -3206,6 +3231,7 @@
       this._retireVoiceIntro();
     }
     this._log(role === 'user' ? 'user_message' : 'agent_message', { text: text });
+    if (this._assist && role === 'agent') this._assist.addMessage(text, 'assistant');
     var div = document.createElement('div');
     div.className = 'sg-msg sg-msg--' + role;
     var span = document.createElement('span');
@@ -3587,12 +3613,16 @@
 
   /* ── Public API ── */
   SomaGuide.prototype.open    = function () {
+    if (this._assist) { this._assist.open(); return; }
     if (this.cfg.conversationalShell) {
       if (this._lsGet('io-mode') === 'voice' && this.cfg.voiceAgentId) { this._openVoice(); }
       else { this._openShell(); }
     } else { this._openIdle(false); }
   };
-  SomaGuide.prototype.minimize = function () { this._minimize(); };
+  SomaGuide.prototype.minimize = function () {
+    if (this._assist) { this._assist.close(); return; }
+    this._minimize();
+  };
   SomaGuide.prototype.startWalkthrough = function (id, step) { this._wtStart(id, step || 0, -1); };
 
   /* ── Auto-init ── */
