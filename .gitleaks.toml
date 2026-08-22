@@ -1,0 +1,33 @@
+title = "soma-platform gitleaks config"
+
+[extend]
+useDefault = true
+
+# Narrow, VALUE-scoped allows — not a path allow, not a rule allow.
+#
+# 1. The DEAD legacy Supabase anon JWT for the shared SOMA Auth project
+#    (omfwcodoimjmbrhssvfl). Disabled at the 2026-07-23 key rotation and
+#    verified rejected by the API in commit ee5de8b, which replaced it in
+#    the working tree. It survives only in git HISTORY (commit eb4e0be,
+#    already on origin/master since the WP3 merge). The secret-gate pre-push
+#    hook re-scans that history whenever a branch ref's push range includes
+#    it, so without this allow every future branch push is blocked by a key
+#    that grants nothing anywhere.
+#
+# 2. The CURRENT Supabase publishable anon key for the same project —
+#    public by design (client-safe, RLS gates every table, ships in every
+#    SOMA-Auth client bundle). Same reasoning + precedent:
+#    mike-wolf-com/.gitleaks.toml, soma-relay/.gitleaks.toml.
+#
+# Only these two exact values are allow-listed. Any other secret-shaped
+# string — a service-role key, a GitHub token, a future rotated key —
+# still trips the gate.
+#
+# Added 2026-08-21 by Dee (Claude Fable 5, CCc) while merging the Soma Forge
+# scaffolder branch to master.
+[allowlist]
+description = "SOMA Auth omfwcodoimjmbrhssvfl: dead legacy anon JWT (history-only) + current publishable key (public by design)"
+regexes = [
+  '''eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9tZndjb2RvaW1qbWJyaHNzdmZsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2NzEyNjMsImV4cCI6MjA5NjI0NzI2M30\.8Oe2JABFB5qN2dIFk-rccl7-F5R4YjqsTrGFAqZCAlE''',
+  '''sb_publishable_vi2qDWjozUJ5mi9dwirkLA_rj6UaqLf'''
+]
