@@ -1,0 +1,123 @@
+-- ============================================================================
+-- SOMA Onboard — schema template
+--
+-- Replace {{PREFIX}} with your app's table prefix (no trailing underscore):
+--
+--   sed 's/{{PREFIX}}/vc/g' schema.sql.tmpl > migrations/001_onboard.sql
+--
+-- Apply it in your OWN Supabase project. Per SOMA-APP-STANDARD §15b apps stay
+-- federated: vc_members and r1x1_members are different tables in different
+-- projects and that is deliberate. There is no shared member table and adding
+-- one is an explicitly declined design.
+--
+-- RLS is enabled with NO anon/authenticated policies. Only the service role
+-- (your Netlify functions) can read or write. Member identity here is the
+-- invite code + an opaque session token, not a Supabase auth user — that is
+-- what lets someone join in eight seconds standing in a hotel lobby.
+-- ============================================================================
+
+-- ---------------------------------------------------------------------------
+-- {{PREFIX}}_members
+-- ---------------------------------------------------------------------------
+create table if not exists public.{{PREFIX}}_members (
+  id uuid primary key default gen_random_uuid(),
+  code text unique not null,
+  name text not null,
+  email text,
+  phone text,
+  city text,
+  role text not null default 'other',
+  bio text,
+  photo_url text,
+  invited_by uuid references public.{{PREFIX}}_members(id),
+  status text not null default 'contact_only'
+    check (status in ('contact_only', 'active', 'deactivated')),
+  is_admin boolean not null default false,
+  onboarding_complete boolean not null default false,
+  consent_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists {{PREFIX}}_members_invited_by_idx on public.{{PREFIX}}_members (invited_by);
+create index if not exists {{PREFIX}}_members_status_idx on public.{{PREFIX}}_members (status);
+create index if not exists {{PREFIX}}_members_email_idx on public.{{PREFIX}}_members (lower(email));
+
+alter table public.{{PREFIX}}_members enable row level security;
+
+-- ---------------------------------------------------------------------------
+-- {{PREFIX}}_sessions
+-- ---------------------------------------------------------------------------
+create table if not exists public.{{PREFIX}}_sessions (
+  token text primary key,
+  member_id uuid not null references public.{{PREFIX}}_members(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  last_seen timestamptz
+);
+
+create index if not exists {{PREFIX}}_sessions_member_id_idx on public.{{PREFIX}}_sessions (member_id);
+
+alter table public.{{PREFIX}}_sessions enable row level security;
+
+-- ---------------------------------------------------------------------------
+-- {{PREFIX}}_connections
+-- Unordered pair, canonicalized as member_a < member_b so the pair is unique
+-- regardless of who invited whom.
+-- ---------------------------------------------------------------------------
+create table if not exists public.{{PREFIX}}_connections (
+  id uuid primary key default gen_random_uuid(),
+  member_a uuid not null references public.{{PREFIX}}_members(id) on delete cascade,
+  member_b uuid not null references public.{{PREFIX}}_members(id) on delete cascade,
+  -- 'invited' is the placeholder; a real relationship label ('wife',
+  -- 'teammate') replaces it once the invitee confirms.
+  kind text not null default 'invited',
+  created_at timestamptz not null default now(),
+  check (member_a <> member_b),
+  check (member_a < member_b)
+);
+
+create unique index if not exists {{PREFIX}}_connections_pair_uidx
+  on public.{{PREFIX}}_connections (member_a, member_b);
+
+alter table public.{{PREFIX}}_connections enable row level security;
+
+-- ---------------------------------------------------------------------------
+-- {{PREFIX}}_invites
+-- One row per invitation issued. This is the table Vegas Connect and
+-- Revolution 1x1 never had: without it, "which channel actually brings people
+-- in" is unanswerable, and QR-vs-email is decided by vibes.
+-- ---------------------------------------------------------------------------
+create table if not exists public.{{PREFIX}}_invites (
+  id uuid primary key default gen_random_uuid(),
+  inviter_id uuid not null references public.{{PREFIX}}_members(id) on delete cascade,
+  claim_member_id uuid references public.{{PREFIX}}_members(id) on delete set null,
+  invitee_name text,
+  relationship text,
+  -- null until the link is opened; set from the ?ch= tag on the invite URL.
+  channel text,
+  created_at timestamptz not null default now(),
+  opened_at timestamptz,
+  joined_at timestamptz
+);
+
+create index if not exists {{PREFIX}}_invites_inviter_idx on public.{{PREFIX}}_invites (inviter_id);
+create index if not exists {{PREFIX}}_invites_claim_idx on public.{{PREFIX}}_invites (claim_member_id);
+create index if not exists {{PREFIX}}_invites_channel_idx on public.{{PREFIX}}_invites (channel);
+
+alter table public.{{PREFIX}}_invites enable row level security;
+
+-- ---------------------------------------------------------------------------
+-- Channel funnel — the one query worth having a view for.
+-- ---------------------------------------------------------------------------
+create or replace view public.{{PREFIX}}_channel_funnel as
+select
+  coalesce(channel, 'untagged') as channel,
+  count(*)                                             as sent,
+  count(*) filter (where opened_at is not null)        as opened,
+  count(*) filter (where joined_at is not null)        as joined,
+  round(
+    100.0 * count(*) filter (where joined_at is not null)
+    / nullif(count(*), 0)
+  , 1)                                                 as join_rate_pct
+from public.{{PREFIX}}_invites
+group by 1
+order by joined desc;

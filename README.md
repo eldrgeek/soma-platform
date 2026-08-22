@@ -5,8 +5,10 @@ This is the SOMA platform monorepo — the canonical home for shared UI widget e
 ## Packages
 
 - **`packages/soma-assist-core/`** — Shared Shadow DOM chip/chat window used by Adrian and Yeshie.
-- **`packages/soma-guide/`** — The Adrian tour/assistant engine (internal package name retained). Per-site configs and audio live in each consuming site.
+- **`packages/soma-guide/`** — The Adrian tour/assistant engine (internal package name retained). Per-site configs (`*-guide-config.js`) and audio (`audio/tour/*.mp3`) live in each consuming site.
 - **`packages/adrian-extension/`** — Minimal MV3 wrapper that installs Adrian on HTTP(S) pages.
+- **`packages/soma-onboard/`** — `@soma/onboard`. Join a new person to a SOMA app by invitation: QR phone-to-phone plus email / text / social. Server engine + `<soma-invite-sheet>` custom element + a dependency-free QR encoder. Extracted 2026-07-22 from `vegas-connect` and `r1x1-app`. Unlike soma-guide this is **not** a CDN artifact — apps consume the package and keep their own federated tables (§15b). See its [README](packages/soma-onboard/README.md); run the demo with `npx http-server packages/soma-onboard -p 4181 -c-1` → `/demo/`.
+- **`packages/soma-scaffolder/`** — The Soma Forge engine: validate a `*.soma.json` app spec, scaffold static or React apps (react-app mode clones `soma-app-template`), and provision. KB in `docs/soma-apps/`.
 
 ## Dist
 

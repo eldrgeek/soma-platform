@@ -26,7 +26,34 @@
   const TTS_MS_PER_CHAR  = 85;     /* generous estimate; used for fallback timer */
   const TTS_FLOOR_MS     = 6000;   /* minimum fallback when TTS enabled */
   const TTS_BUFFER_MS    = 3500;   /* extra buffer added to known audio duration */
-  const SOMA_GUIDE_VERSION = '2026-0710a'; /* bump each build; used for stale-state guard */
+  const SOMA_GUIDE_VERSION = '2026-0727a'; /* bump each build; used for stale-state guard */
+
+  /* ── Phone viewport ───────────────────────────────────────────────────────
+   * On a phone the guide is a bottom sheet, not a floating window. Three
+   * behaviours that are right on a desktop are wrong at 375px and are gated on
+   * this check:
+   *   1. auto-opening on page load — a panel covering half the screen is the
+   *      first thing a visitor sees instead of the page they came for;
+   *   2. floating at explicit left/top (set by _openText so CSS resize grows
+   *      right/down) — it lands mid-screen over the content;
+   *   3. drag + resize + a remembered desktop panel size — none apply to a
+   *      sheet pinned to the bottom edge.
+   * Consumers that genuinely want the old auto-open can set cfg.mobileAutoOpen.
+   * The breakpoint mirrors the ≤600px block in soma-guide.css — keep in step. */
+  const MOBILE_MQ = '(max-width: 600px)';
+  function isMobileViewport() {
+    if (typeof window === 'undefined') return false;
+    /* A viewport of 0 means it isn't measurable yet — a hidden tab, a prerender,
+     * a headless pane. `(max-width: 600px)` happily matches 0 and would strand a
+     * desktop visitor with a widget that never opens, so treat unknown as
+     * desktop and let the breakpoint listener correct it if a phone shows up. */
+    var w = window.innerWidth ||
+            (document.documentElement && document.documentElement.clientWidth) || 0;
+    if (!w) return false;
+    return typeof window.matchMedia === 'function'
+      ? window.matchMedia(MOBILE_MQ).matches
+      : w <= 600;
+  }
 
   /* ── SomaGuide class ────────────────────────────────────────────────────── */
   function SomaGuide(cfg) {
@@ -109,6 +136,7 @@
     this._build();
     this._enableDrag();
     this._enableResize();
+    this._watchViewport();
     this._bindEvents();
     this._buildAssistSurface();
     this._loadProfile();
@@ -194,6 +222,10 @@
       }
     }
 
+    /* Phones: stay minimized as the FAB whatever the flow. The visitor gets the
+     * page they scanned/tapped their way to; the guide is one tap away. */
+    if (isMobileViewport() && !this.cfg.mobileAutoOpen) return;
+
     var autoWt = this.cfg.autoStartWalkthrough;
     if (autoWt) {
       /* autoStartWalkthrough (Bill/Proteus): open the widget to the greeting
@@ -263,7 +295,7 @@
       '      <div class="sg-topic-list"></div>',
       '    </div>',
       '    <div class="sg-voice-ui" hidden>',
-      '      <div class="sg-orb" role="button" tabindex="0" aria-label="Tap to speak with Bill"></div>',
+      '      <div class="sg-orb" role="button" tabindex="0" aria-label="Tap to speak with ' + name + '"></div>',
       '      <p class="sg-voice-status">Tap to speak</p>',
       '      <p class="sg-voice-transcript"></p>',
       '    </div>',
@@ -342,6 +374,9 @@
     var dragging = false, ox = 0, oy = 0;
 
     function onDown(cx, cy) {
+      /* A bottom sheet doesn't move. Dragging it on a phone only ever produced
+       * a panel stranded half off-screen. */
+      if (isMobileViewport()) return;
       dragging = true;
       var r = self.el.getBoundingClientRect();
       ox = cx - r.left;
@@ -392,6 +427,8 @@
 
       var active = false, sx, sy, sw, sh, sLeft, sTop;
       function down(cx, cy) {
+        /* Handles are display:none on phones; this guards the touch path too. */
+        if (isMobileViewport()) return;
         var r = self.el.getBoundingClientRect();
         /* anchor to left/top so all-corner math is consistent */
         self.el.style.left = r.left + 'px';
@@ -435,9 +472,35 @@
   SomaGuide.prototype._applySavedSize = function () {
     var panel = this._$('.sg-panel');
     if (!panel) return;
+    /* A width remembered from a desktop drag-resize would overflow a phone. */
+    if (isMobileViewport()) { panel.style.width = ''; panel.style.height = ''; return; }
     var w = this._lsGet('panel-w'), h = this._lsGet('panel-h');
     if (w) panel.style.width = w + 'px';
     if (h) panel.style.height = h + 'px';
+  };
+
+  /* Crossing into the phone breakpoint (rotation, a resized desktop window)
+   * has to drop whatever geometry the desktop session left inline, or the sheet
+   * opens stranded at an old left/top. */
+  SomaGuide.prototype._watchViewport = function () {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+    var self = this;
+    var mq = window.matchMedia(MOBILE_MQ);
+    var onChange = function (e) { if (e.matches) self._clearInlineGeometry(); };
+    if (typeof mq.addEventListener === 'function') mq.addEventListener('change', onChange);
+    else if (typeof mq.addListener === 'function') mq.addListener(onChange); /* Safari <14 */
+  };
+
+  /* Drop every inline position/size the drag + resize handlers write, handing
+   * geometry back to the stylesheet. Used when entering the mobile sheet. */
+  SomaGuide.prototype._clearInlineGeometry = function () {
+    if (!this.el) return;
+    this.el.style.left = '';
+    this.el.style.top = '';
+    this.el.style.right = '';
+    this.el.style.bottom = '';
+    var panel = this._$('.sg-panel');
+    if (panel) { panel.style.width = ''; panel.style.height = ''; }
   };
 
   /* ── Conversation recording (diagnostics) ──────────────────────────────────
@@ -912,8 +975,12 @@
     this.el.className = 'sg sg--min';
     this._$('.sg-panel').setAttribute('aria-hidden', 'true');
 
-    /* Anchor chip's bottom-right corner to where the panel's bottom-right was. */
-    if (typeof window !== 'undefined' && panelRect.right > 0) {
+    /* Anchor chip's bottom-right corner to where the panel's bottom-right was.
+     * Skipped on a phone: the sheet spans the full width, so this would pin the
+     * FAB flush against the screen edge with no inset. */
+    if (isMobileViewport()) {
+      this._clearInlineGeometry();
+    } else if (typeof window !== 'undefined' && panelRect.right > 0) {
       var vw = window.innerWidth  || (document.documentElement && document.documentElement.clientWidth)  || 0;
       var vh = window.innerHeight || (document.documentElement && document.documentElement.clientHeight) || 0;
       this.el.style.right  = Math.max(0, vw - panelRect.right)  + 'px';
@@ -952,7 +1019,12 @@
     /* Anchor to top-left before entering text mode so CSS resize extends right/down.
      * Default CSS positions the widget via bottom/right; resize would extend left/up
      * (counter-intuitive) until we convert to explicit left/top coordinates. */
-    if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+    if (isMobileViewport()) {
+      /* Bottom sheet: let the stylesheet own the geometry. Any inline left/top
+       * left over from a desktop session (or a rotation) would strand the sheet
+       * mid-screen, which is the whole thing we're avoiding here. */
+      self._clearInlineGeometry();
+    } else if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       var cs = window.getComputedStyle(self.el);
       if (cs.right !== 'auto' || cs.bottom !== 'auto') {
         var r = self.el.getBoundingClientRect();
@@ -2094,7 +2166,8 @@
     var stage = this._identityStage;
     if (!stage) return false;
     var roleIntro = (this.cfg.persona && this.cfg.persona.roleIntro) ||
-      'I’m Bill — I help run this site for Greg Foster and the team: I can show you around, answer questions, and take bug reports or feature requests.';
+      ('I’m ' + ((this.cfg.persona && this.cfg.persona.name) || 'your guide') +
+       ' — I help run this site: I can show you around, answer questions, and take bug reports or feature requests.');
     if (stage === 'awaiting_name') {
       var name = this._extractName(text);
       if (name) {
@@ -2640,7 +2713,7 @@
   /* ── Intake specialist (persona handoff + observer context) ──────────────── */
   SomaGuide.prototype._handoffTo = function (key, skipReconnect) {
     var p = (this.cfg.personas && this.cfg.personas[key]) ||
-            { name: (this.cfg.persona.name || 'Bill') + ' · Support', avatar: '🛠', greeting: '' };
+            { name: (this.cfg.persona.name || 'your guide') + ' · Support', avatar: '🛠', greeting: '' };
     this._activePersona = key;
     var av = this._$('.sg-persona-avatar'); if (av && p.avatar) av.textContent = p.avatar;
     var nm = this._$('.sg-persona-name');  if (nm && p.name) nm.textContent = p.name;
@@ -2793,7 +2866,7 @@
       nLbl.textContent = 'Your name (so we can follow up)';
       wrap.appendChild(nLbl);
       nameInput = document.createElement('input'); nameInput.type = 'text'; nameInput.className = 'sg-feedback-input';
-      nameInput.placeholder = 'e.g. Greg Foster';
+      nameInput.placeholder = 'e.g. Jordan Rivera';
       wrap.appendChild(nameInput);
     }
     /* Email — so we can notify when it's done or declined (asked when unknown). */
@@ -2948,7 +3021,7 @@
     var nameInput = document.createElement('input');
     nameInput.type = 'text';
     nameInput.className = 'sg-feedback-input';
-    nameInput.placeholder = 'e.g. Greg Foster';
+    nameInput.placeholder = 'e.g. Jordan Rivera';
     wrapper.appendChild(nameInput);
 
     var btnRow = document.createElement('div');

@@ -148,6 +148,16 @@ describe('SOMA Guide — widget mounts', function () {
     assert.equal(name.textContent, TEST_CONFIG.persona.name);
   });
 
+  test('voice orb aria-label uses persona name, not a hardcoded persona', function () {
+    const win = makeWindow();
+    new win.SomaGuide(TEST_CONFIG);
+    const orb = win.document.querySelector('.sg-orb');
+    assert.ok(orb, '.sg-orb should exist');
+    assert.equal(orb.getAttribute('aria-label'), 'Tap to speak with ' + TEST_CONFIG.persona.name);
+    assert.ok(!orb.getAttribute('aria-label').includes('Bill'),
+      'aria-label must not leak the Legends persona name');
+  });
+
   test('topic buttons rendered for each walkthrough', function () {
     const win = makeWindow();
     new win.SomaGuide(TEST_CONFIG);
