@@ -1,0 +1,15 @@
+<!--
+  soma-billing subscribe embed — paste this into your pricing page. Not
+  auto-injected into your pages by the scaffolder (this package doesn't own
+  arbitrary page HTML); this file is the exact snippet to paste, already
+  filled from soma-app.json's billing.plans.
+
+  Requires the /api/* -> /.netlify/functions/:splat redirect in your
+  netlify.toml (most SOMA apps already have this — see SETUP.md).
+-->
+<link rel="stylesheet" href="/vendor/soma-billing/soma-billing-subscribe.css">
+<script src="/vendor/soma-billing/soma-billing-subscribe.js"
+        data-plans="{{BILLING_PLANS_DATA_ATTR}}"
+        defer></script>
+
+<div data-soma-subscribe></div>

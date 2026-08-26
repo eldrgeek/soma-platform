@@ -63,6 +63,20 @@ export function validate(doc) {
     const cl = aff.changelog;
     if (cl && cl.enabled)
       req(typeof cl.publish_agent_email === "string" && cl.publish_agent_email, "changelog.publish_agent_email is required when changelog is enabled");
+    const bl = aff.billing;
+    if (bl && bl.enabled) {
+      req(["donate", "subscription"].includes(bl.mode), "billing.mode is required (one of donate, subscription) when billing is enabled");
+      if (bl.mode === "subscription") {
+        req(Array.isArray(bl.plans) && bl.plans.length > 0, "billing.plans (at least one) is required when billing.mode is subscription");
+        if (Array.isArray(bl.plans)) {
+          for (const p of bl.plans) {
+            req(p && typeof p.id === "string" && p.id, "billing.plans[].id is required");
+            req(p && typeof p.price_id === "string" && p.price_id, `billing.plans[].price_id is required (plan "${p && p.id}")`);
+            req(p && typeof p.monthly_usd === "number", `billing.plans[].monthly_usd is required (plan "${p && p.id}")`);
+          }
+        }
+      }
+    }
   }
 
   const m = app.meta;

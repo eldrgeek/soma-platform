@@ -1,6 +1,6 @@
 # SOMA Affordances — drop-in templates
 
-Two proven SOMA affordances, packaged to add to a **new** SOMA site:
+Proven SOMA affordances, packaged to add to a **new** SOMA site:
 
 1. **Change Log** — an admin-gated review/approval page. Requests + change
    history land in a queue that defaults to **Awaiting Approval**. Each item can
@@ -12,6 +12,15 @@ Two proven SOMA affordances, packaged to add to a **new** SOMA site:
    pack), shows (animated walkthroughs), and does (an `actions` registry with a
    reversible→execute / high-risk→approval safety gate). Feedback and a decision
    trace are recorded server-side via two Netlify Functions.
+3. **Billing (Stripe)** — two modes, `donate` and `subscription`. `donate` is a
+   thin templatization of the already-proven `soma-stripe` package
+   (`~/Projects/SOMA/standards/soma-stripe/`) — one-time / pay-what-you-want via
+   Stripe Checkout. `subscription` is the minimal implementable slice
+   (phases B0-B2 only) of `SOMA-STD-billing.md`
+   (`~/Projects/playmaker/SOMA-STD-billing.md`) — a manifest of plans, a Checkout
+   Session in `mode: 'subscription'`, and a signature-verified, idempotent
+   webhook that resolves `subscriptions.status`. Neither mode implements
+   metering, BYOK, or the spend gate (B3/B4) — see each mode's SETUP.md output.
 
 Everything site-specific is a `{{DOUBLE_BRACE}}` placeholder. The shared
 soma-guide **engine** (`soma-guide.js`) is NOT copied here — you load it from the
@@ -25,6 +34,15 @@ templates/soma-affordances/
 ├── INTEGRATION-CHECKLIST.md           copy/paste checklist
 ├── sql/
 │   └── schema.sql                     all 5 tables + RLS, idempotent
+├── billing/
+│   ├── donate/                        one-time Checkout (soma-stripe, templatized)
+│   │   ├── functions/                 soma-stripe-checkout.ts, soma-stripe-webhook.ts, lib/stripeClient.ts
+│   │   ├── widget/                    soma-stripe-donate.js/.css + embed snippet
+│   │   └── public/                    thank-you.html
+│   └── subscription/                  recurring Checkout, B0-B2 slice of SOMA-STD-billing.md
+│       ├── functions/                 soma-billing-checkout.ts, soma-billing-webhook.ts, lib/stripeClient.ts
+│       ├── widget/                    soma-billing-subscribe.js/.css + embed snippet
+│       └── sql/                       billing-schema.template.sql (subscriptions + stripe_events)
 ├── changelog/
 │   └── admin-changelog.template.html  the review/approval page
 ├── functions/

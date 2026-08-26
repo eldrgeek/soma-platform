@@ -1,0 +1,16 @@
+<!--
+  soma-stripe donate embed — paste this into any page that should show a
+  Donate button. Not auto-injected into your pages by the scaffolder (this
+  package doesn't own arbitrary page HTML); this file is the exact snippet
+  to paste, already filled from soma-app.json.
+
+  Requires the /api/* -> /.netlify/functions/:splat redirect in your
+  netlify.toml (most SOMA apps already have this — see SETUP.md).
+-->
+<link rel="stylesheet" href="/vendor/soma-stripe/soma-stripe-donate.css">
+<script src="/vendor/soma-stripe/soma-stripe-donate.js"
+        data-site="{{SITE_NAME}}"
+        data-amounts="{{DONATE_AMOUNTS}}"
+        defer></script>
+
+<button data-soma-donate>Donate</button>

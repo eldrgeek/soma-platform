@@ -1,0 +1,49 @@
+/*!
+ * soma-billing-subscribe.css — companion to soma-billing-subscribe.js
+ * Scoped under .soma-billing-* to avoid collisions with host-site CSS.
+ */
+
+.soma-billing-plans {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.soma-billing-plan {
+  border: 1px solid #ddd;
+  border-radius: 10px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: #fafafa;
+}
+
+.soma-billing-plan-label {
+  font-size: 15px;
+  font-weight: 600;
+  color: #222;
+}
+
+.soma-billing-plan-btn {
+  padding: 9px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  background: #635bff;
+  color: #fff;
+}
+
+.soma-billing-plan-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.soma-billing-error {
+  grid-column: 1 / -1;
+  color: #c0392b;
+  font-size: 13px;
+}

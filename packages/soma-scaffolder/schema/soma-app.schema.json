@@ -123,6 +123,31 @@
                 "owner_email": { "type": "string" }
               }
             },
+            "billing": {
+              "type": "object",
+              "required": ["enabled"],
+              "description": "Stripe payments. 'donate' wraps the proven soma-stripe package (~/Projects/SOMA/standards/soma-stripe/) as-is; 'subscription' is the minimal implementable slice (phases B0-B2 only) of SOMA-STD-billing.md (~/Projects/playmaker/SOMA-STD-billing.md) — manifest + Checkout + webhook-driven entitlement.status, no metering/BYOK/spend-gate.",
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "mode": { "enum": ["donate", "subscription"], "description": "required when enabled" },
+                "site_name": { "type": "string", "description": "shown on the Checkout line item / donate modal; defaults to soma_app.name" },
+                "amounts": { "type": "array", "items": { "type": "number" }, "description": "donate mode: preset USD amounts, default [5,10,25,50]" },
+                "webhook": { "type": "boolean", "default": true, "description": "donate mode: set false to skip scaffolding soma-stripe-webhook.ts (v1 donate doesn't require it, per soma-stripe/README.md)" },
+                "plans": {
+                  "type": "array",
+                  "description": "subscription mode: required, at least one plan",
+                  "items": {
+                    "type": "object",
+                    "required": ["id", "price_id", "monthly_usd"],
+                    "properties": {
+                      "id": { "type": "string", "description": "plan id, e.g. 'pro'" },
+                      "price_id": { "type": "string", "description": "Stripe Price id, e.g. 'price_XXXX' (Mike-gated: created in the Stripe Dashboard)" },
+                      "monthly_usd": { "type": "number" }
+                    }
+                  }
+                }
+              }
+            },
             "rooms": {
               "type": "object",
               "required": ["enabled"],
