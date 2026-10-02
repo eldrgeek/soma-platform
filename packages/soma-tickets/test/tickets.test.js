@@ -1,7 +1,12 @@
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { createTickets } from '../src/index.js';
+import {
+  createTickets,
+  ticketListStatus,
+  ticketRpcErrorMessage,
+  ticketUrl,
+} from '../src/index.js';
 
 const APP = 'playmaker';
 
@@ -9,14 +14,37 @@ const APP = 'playmaker';
 let rpcResults;
 /** @type {{ fn: string; args: Record<string, unknown> }[]} */
 let rpcCalls;
+/** @type {{ table: string; select: string; order: unknown; limit: number } | null} */
+let fromCapture;
+/** @type {{ data: unknown; error: unknown }} */
+let fromResult;
 
 function createFakeSupabase() {
   rpcCalls = [];
+  fromCapture = null;
+  fromResult = { data: [], error: null };
   return {
     rpc(fn, args) {
       rpcCalls.push({ fn, args });
       const hit = rpcResults[fn] ?? { data: null, error: null };
       return Promise.resolve(hit);
+    },
+    from(table) {
+      const chain = {
+        select(cols) {
+          fromCapture = { table, select: cols, order: null, limit: 0 };
+          return chain;
+        },
+        order(col, opts) {
+          if (fromCapture) fromCapture.order = { col, ...opts };
+          return chain;
+        },
+        limit(n) {
+          if (fromCapture) fromCapture.limit = n;
+          return Promise.resolve(fromResult);
+        },
+      };
+      return chain;
     },
   };
 }
@@ -30,13 +58,17 @@ beforeEach(() => {
   tickets = createTickets({ supabase, app: APP });
 });
 
-test('createTickets requires supabase.rpc and app', () => {
+test('createTickets requires supabase.rpc, from, and app', () => {
   assert.throws(() => createTickets({ supabase: null, app: APP }), /supabase/);
   assert.throws(() => createTickets({ supabase: {}, app: APP }), /supabase/);
-  assert.throws(() => createTickets({ supabase: { rpc() {} }, app: '' }), /app id/);
+  assert.throws(
+    () => createTickets({ supabase: { rpc() {} }, app: APP }),
+    /from\(\)/,
+  );
+  assert.throws(() => createTickets({ supabase: { rpc() {}, from() {} }, app: '' }), /app id/);
 });
 
-test('create calls ticket_create with injected app and maps the row', async () => {
+test('create calls ticket_create with personal invitee name', async () => {
   rpcResults.ticket_create = {
     data: [{ token: 'abc123', expires_at: '2026-09-26T00:00:00.000Z' }],
     error: null,
@@ -56,6 +88,26 @@ test('create calls ticket_create with injected app and maps the row', async () =
     p_invitee_email: null,
   });
   assert.deepEqual(out, { token: 'abc123', expiresAt: '2026-09-26T00:00:00.000Z' });
+});
+
+test('create sends null invitee name for shared ticket', async () => {
+  rpcResults.ticket_create = {
+    data: { token: 'shared', expires_at: '2026-09-26T00:00:00.000Z' },
+    error: null,
+  };
+  await tickets.create({
+    quoteLine: 'Anyone with the link.',
+    channel: 'link',
+  });
+  assert.equal(rpcCalls[0].args.p_invitee_name, null);
+
+  rpcCalls.length = 0;
+  await tickets.create({
+    inviteeName: '   ',
+    quoteLine: 'Anyone with the link.',
+    channel: 'link',
+  });
+  assert.equal(rpcCalls[0].args.p_invitee_name, null);
 });
 
 test('create passes optional invitee email and per-call app override', async () => {
@@ -170,9 +222,29 @@ test('use returns used, already_used, expired, unknown from rpc string', async (
   }
 });
 
-test('use passes app, token, and visitor id', async () => {
+test('use passes app, token, and visitor id without visitor name', async () => {
   rpcResults.ticket_use = { data: 'used', error: null };
   await tickets.use('tok', 'visitor-1');
+  assert.deepEqual(rpcCalls[0].args, {
+    p_app: APP,
+    p_token: 'tok',
+    p_visitor_id: 'visitor-1',
+  });
+  assert.equal(rpcCalls[0].args.p_visitor_name, undefined);
+});
+
+test('use sends p_visitor_name only when trimmed name is non-empty', async () => {
+  rpcResults.ticket_use = { data: 'used', error: null };
+  await tickets.use('tok', 'visitor-1', APP, '  Pat  ');
+  assert.deepEqual(rpcCalls[0].args, {
+    p_app: APP,
+    p_token: 'tok',
+    p_visitor_id: 'visitor-1',
+    p_visitor_name: 'Pat',
+  });
+
+  rpcCalls.length = 0;
+  await tickets.use('tok', 'visitor-1', APP, '   ');
   assert.deepEqual(rpcCalls[0].args, {
     p_app: APP,
     p_token: 'tok',
@@ -198,4 +270,77 @@ test('use throws on rpc error', async () => {
   const err = { message: 'fail' };
   rpcResults.ticket_use = { data: null, error: err };
   await assert.rejects(() => tickets.use('t', 'v'), (e) => e === err);
+});
+
+test('listMine queries tickets table and maps rows', async () => {
+  fromResult = {
+    data: [{
+      id: 'uuid-1',
+      invitee_name: 'Alex',
+      channel: 'qr',
+      created_at: '2026-01-01T00:00:00.000Z',
+      expires_at: '2026-01-02T00:00:00.000Z',
+      used_at: null,
+    }],
+    error: null,
+  };
+  const rows = await tickets.listMine(10);
+  assert.deepEqual(fromCapture, {
+    table: 'tickets',
+    select: 'id, invitee_name, channel, created_at, expires_at, used_at',
+    order: { col: 'created_at', ascending: false },
+    limit: 10,
+  });
+  assert.deepEqual(rows, [{
+    id: 'uuid-1',
+    inviteeName: 'Alex',
+    channel: 'qr',
+    createdAt: '2026-01-01T00:00:00.000Z',
+    expiresAt: '2026-01-02T00:00:00.000Z',
+    usedAt: null,
+  }]);
+});
+
+test('listMine defaults limit to 20 and throws on query error', async () => {
+  await tickets.listMine();
+  assert.equal(fromCapture?.limit, 20);
+
+  fromResult = { data: null, error: { message: 'denied' } };
+  await assert.rejects(() => tickets.listMine(), (e) => e.message === 'denied');
+});
+
+test('ticketUrl builds origin query link', () => {
+  assert.equal(
+    ticketUrl('https://play.example.com', 'a/b c'),
+    'https://play.example.com/?t=a%2Fb%20c',
+  );
+});
+
+test('ticketListStatus derives open, used, expired', () => {
+  const now = Date.parse('2026-06-01T12:00:00.000Z');
+  assert.equal(
+    ticketListStatus({ usedAt: '2026-05-01T00:00:00.000Z', expiresAt: '2026-12-01T00:00:00.000Z' }, now),
+    'used',
+  );
+  assert.equal(
+    ticketListStatus({ usedAt: null, expiresAt: '2026-05-01T00:00:00.000Z' }, now),
+    'expired',
+  );
+  assert.equal(
+    ticketListStatus({ usedAt: null, expiresAt: '2026-12-01T00:00:00.000Z' }, now),
+    'open',
+  );
+});
+
+test('ticketRpcErrorMessage maps known rpc errors', () => {
+  assert.equal(
+    ticketRpcErrorMessage({ message: 'daily ticket limit reached for user' }),
+    'Daily ticket limit reached for today.',
+  );
+  assert.equal(
+    ticketRpcErrorMessage({ message: 'studio membership required' }),
+    'Studio membership required.',
+  );
+  assert.equal(ticketRpcErrorMessage({ message: 'other' }), null);
+  assert.equal(ticketRpcErrorMessage('studio membership required'), 'Studio membership required.');
 });

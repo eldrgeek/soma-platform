@@ -1,10 +1,12 @@
 -- ============================================================================
--- @soma/tickets — reference schema (PlayMaker migrations 0084–0086)
+-- @soma/tickets — reference schema (PlayMaker migrations 0084–0086, 0088)
 --
 -- ALREADY APPLIED in the shared Supabase project (omfwcodoimjmbrhssvfl) for
 -- app id 'playmaker'. New SOMA apps reuse the same public.tickets and
 -- public.ticket_requests tables — pass a distinct `app` value in RPC calls;
 -- do not create per-app ticket tables.
+--
+-- 0083_front_door_events.sql is a separate concern and is not included here.
 -- ============================================================================
 
 -- Front door tickets — single-use invitation with one approved line (Bead pm-uwq).
@@ -389,3 +391,244 @@ end $$;
 
 revoke all on function public.ticket_create(text, text, text, text, text) from public;
 grant execute on function public.ticket_create(text, text, text, text, text) to authenticated;
+
+-- ── 0088_shared_front_door_tickets.sql ────────────────────────────────────
+-- Shared front-door tickets — inviter only, no named guest (Bead pm-y7i).
+-- Personal tickets still carry invitee_name; shared tickets leave it null.
+-- Shared links stay open until expiry (never consume used_at).
+
+alter table public.tickets
+  alter column invitee_name drop not null;
+
+alter table public.tickets
+  add column if not exists visitor_name text;
+
+create or replace function public.ticket_create(
+  p_app text,
+  p_invitee_name text,
+  p_quote_line text,
+  p_channel text,
+  p_invitee_email text default null
+)
+returns table (token text, expires_at timestamptz)
+language plpgsql
+security definer
+set search_path to 'public'
+as $$
+declare
+  v_app text := nullif(trim(p_app), '');
+  v_invitee_name text := nullif(trim(p_invitee_name), '');
+  v_quote_line text := nullif(trim(p_quote_line), '');
+  v_channel text := nullif(trim(p_channel), '');
+  v_email text := nullif(trim(p_invitee_email), '');
+  pol public.site_invite_app_policies%rowtype;
+  v_today_count int;
+  v_token text;
+  v_expires timestamptz;
+  v_inviter_name text;
+begin
+  if auth.uid() is null then
+    raise exception 'sign in required';
+  end if;
+
+  if not exists (select 1 from public.memberships m where m.user_id = auth.uid()) then
+    raise exception 'studio membership required';
+  end if;
+
+  if v_app is null or length(v_app) > 64 then
+    raise exception 'invalid app';
+  end if;
+
+  if v_invitee_name is not null and length(v_invitee_name) > 200 then
+    raise exception 'invalid invitee name';
+  end if;
+
+  if v_quote_line is null or length(v_quote_line) > 240 then
+    raise exception 'invalid quote line';
+  end if;
+
+  if v_channel is null or v_channel not in ('qr', 'link') then
+    raise exception 'invalid channel';
+  end if;
+
+  if v_email is not null and length(v_email) > 320 then
+    raise exception 'invalid invitee email';
+  end if;
+
+  select * into pol from public.site_invite_app_policies where app = v_app;
+
+  if found and pol.daily_mint_limit_per_user is not null then
+    select count(*)::int into v_today_count
+      from public.tickets t
+     where t.app = v_app
+       and t.inviter_id = auth.uid()
+       and t.created_at >= (date_trunc('day', now() at time zone 'utc') at time zone 'utc');
+
+    if v_today_count >= pol.daily_mint_limit_per_user then
+      raise exception 'daily ticket limit reached';
+    end if;
+  end if;
+
+  select coalesce(
+           nullif(trim(u.raw_user_meta_data->>'display_name'), ''),
+           nullif(trim(u.raw_user_meta_data->>'full_name'), ''),
+           split_part(u.email, '@', 1)
+         )
+    into v_inviter_name
+    from auth.users u
+   where u.id = auth.uid();
+
+  if v_inviter_name is null or length(v_inviter_name) < 1 then
+    v_inviter_name := 'Member';
+  end if;
+
+  v_token := encode(extensions.gen_random_bytes(24), 'hex');
+
+  if v_channel = 'qr' then
+    v_expires := now() + interval '20 minutes';
+  else
+    v_expires := now() + interval '7 days';
+  end if;
+
+  insert into public.tickets (
+    app, token, inviter_id, inviter_name, invitee_name, invitee_email,
+    quote_line, channel, expires_at
+  )
+  values (
+    v_app, v_token, auth.uid(), v_inviter_name, v_invitee_name, v_email,
+    v_quote_line, v_channel, v_expires
+  );
+
+  return query select v_token, v_expires;
+end $$;
+
+create or replace function public.ticket_lookup(p_app text, p_token text)
+returns table (
+  status text,
+  invitee_name text,
+  inviter_name text,
+  quote_line text,
+  has_email boolean
+)
+language plpgsql
+security definer
+set search_path to 'public'
+as $$
+declare
+  v_app text := nullif(trim(p_app), '');
+  v_row public.tickets%rowtype;
+begin
+  if v_app is null or p_token is null or length(p_token) > 128 then
+    return query select 'unknown'::text, null::text, null::text, null::text, null::boolean;
+    return;
+  end if;
+
+  select * into v_row
+    from public.tickets t
+   where t.app = v_app
+     and t.token = p_token;
+
+  if not found then
+    return query select 'unknown'::text, null::text, null::text, null::text, null::boolean;
+    return;
+  end if;
+
+  if v_row.expires_at <= now() then
+    return query
+      select 'expired'::text,
+             v_row.invitee_name,
+             v_row.inviter_name,
+             v_row.quote_line,
+             (v_row.invitee_email is not null and length(trim(v_row.invitee_email)) > 0);
+    return;
+  end if;
+
+  if v_row.used_at is not null and v_row.invitee_name is not null then
+    return query
+      select 'used'::text,
+             v_row.invitee_name,
+             v_row.inviter_name,
+             v_row.quote_line,
+             (v_row.invitee_email is not null and length(trim(v_row.invitee_email)) > 0);
+    return;
+  end if;
+
+  return query
+    select 'open'::text,
+           v_row.invitee_name,
+           v_row.inviter_name,
+           v_row.quote_line,
+           (v_row.invitee_email is not null and length(trim(v_row.invitee_email)) > 0);
+end $$;
+
+create or replace function public.ticket_use(
+  p_app text,
+  p_token text,
+  p_visitor_id text,
+  p_visitor_name text default null
+)
+returns text
+language plpgsql
+security definer
+set search_path to 'public'
+as $$
+declare
+  v_app text := nullif(trim(p_app), '');
+  v_visitor text := nullif(trim(p_visitor_id), '');
+  v_name text := nullif(trim(p_visitor_name), '');
+  v_row public.tickets%rowtype;
+begin
+  if v_app is null or p_token is null or length(p_token) > 128 or v_visitor is null or length(v_visitor) > 128 then
+    return 'unknown';
+  end if;
+
+  if v_name is not null and length(v_name) > 200 then
+    return 'unknown';
+  end if;
+
+  select * into v_row
+    from public.tickets t
+   where t.app = v_app
+     and t.token = p_token
+   for update;
+
+  if not found then
+    return 'unknown';
+  end if;
+
+  if v_row.expires_at <= now() then
+    return 'expired';
+  end if;
+
+  if v_row.invitee_name is null then
+    return 'used';
+  end if;
+
+  if v_row.used_at is not null then
+    if v_row.used_visitor_id = v_visitor and v_row.used_at > now() - interval '24 hours' then
+      if v_name is not null and v_row.visitor_name is null then
+        update public.tickets set visitor_name = v_name where id = v_row.id;
+      end if;
+      return 'used';
+    end if;
+    return 'already_used';
+  end if;
+
+  update public.tickets
+     set used_at = now(),
+         used_visitor_id = v_visitor,
+         visitor_name = coalesce(v_name, visitor_name)
+   where id = v_row.id;
+
+  return 'used';
+end $$;
+
+drop function if exists public.ticket_use(text, text, text);
+
+revoke all on function public.ticket_create(text, text, text, text, text) from public;
+revoke all on function public.ticket_lookup(text, text) from public;
+revoke all on function public.ticket_use(text, text, text, text) from public;
+
+grant execute on function public.ticket_create(text, text, text, text, text) to authenticated;
+grant execute on function public.ticket_use(text, text, text, text) to anon, authenticated;
+grant execute on function public.ticket_lookup(text, text) to anon, authenticated;
