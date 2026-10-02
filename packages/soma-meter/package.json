@@ -1,0 +1,19 @@
+{
+  "name": "@soma/meter",
+  "version": "1.0.0",
+  "description": "SOMA usage metering — spend gate, cap arithmetic, and usage_events writes (PlayMaker extraction).",
+  "type": "module",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./schema": "./sql/schema.sql"
+  },
+  "files": [
+    "src",
+    "sql",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  }
+}
