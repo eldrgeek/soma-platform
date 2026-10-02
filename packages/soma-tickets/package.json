@@ -1,0 +1,27 @@
+{
+  "name": "@soma/tickets",
+  "version": "1.0.0",
+  "description": "SOMA front-door tickets — single-use invitation tokens over shared Supabase RPCs (ticket_create, ticket_lookup, ticket_use).",
+  "type": "module",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./schema": "./sql/schema.sql"
+  },
+  "files": [
+    "src",
+    "sql",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  },
+  "peerDependencies": {
+    "@supabase/supabase-js": "^2.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@supabase/supabase-js": {
+      "optional": true
+    }
+  }
+}
