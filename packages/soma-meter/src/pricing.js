@@ -62,3 +62,27 @@ export function costUsd(kind, amount, model) {
       return 0;
   }
 }
+
+/** Pre-spend estimate for one TTS line. */
+export function estimateTtsUsd(chars) {
+  return costUsd('tts_chars', chars);
+}
+
+/** Pre-spend estimate for Convai: worst case = max_duration_seconds cap. */
+export function estimateConvaiUsd(maxDurationSeconds) {
+  return costUsd('convai_minutes', maxDurationSeconds / 60);
+}
+
+/** Pre-spend LLM estimate: input chars/4 tokens + max_output_tokens worst case. */
+export function estimateLlmUsd(inputChars, maxOutputTokens, model) {
+  const inTok = Math.ceil(Math.max(0, inputChars) / 4);
+  return (
+    costUsd('llm_input_tokens', inTok, model) +
+    costUsd('llm_output_tokens', maxOutputTokens, model)
+  );
+}
+
+/** Pre-spend web_search estimate at maxUses × list price. */
+export function estimateWebSearchUsd(maxUses) {
+  return Math.max(0, maxUses) * PRICING.web_search_per_search;
+}

@@ -9,6 +9,10 @@ import {
   createMeter,
   PRICING,
   USAGE_KINDS,
+  estimateTtsUsd,
+  estimateConvaiUsd,
+  estimateLlmUsd,
+  estimateWebSearchUsd,
 } from '../src/index.js';
 
 const STUDIO = 'studio-aaa';
@@ -272,4 +276,148 @@ test('costUsd for every UsageKind matches PRICING table', () => {
   for (const kind of USAGE_KINDS) {
     assert.ok(Number.isFinite(costUsd(kind, 1)));
   }
+});
+
+test('decideSpend: past_due denies with entitlement_inactive', () => {
+  const v = decideSpend({
+    mtdUsd: 0,
+    capUsd: 5,
+    estimatedUsd: 0.01,
+    billingMode: 'platform_subscription',
+    status: 'past_due',
+  });
+  assert.equal(v.allowed, false);
+  assert.equal(v.reason, 'entitlement_inactive');
+});
+
+test('gateSpend: past_due entitlement refused (CapError)', async () => {
+  store = makeStore({
+    resolveEntitlement: async () => ({ ...ENT, status: 'past_due' }),
+  });
+  meter = createMeter({ store, log: { error: () => {} } });
+  await assert.rejects(
+    () => meter.gateSpend({ id: 'user-1' }, { capabilityId: 'tts', estimatedUsd: 0.01 }),
+    (err) => err instanceof CapError,
+  );
+});
+
+test('recordUsage: degraded context skips insertUsageEvent', async () => {
+  let insertCalls = 0;
+  store = makeStore({
+    insertUsageEvent: async () => {
+      insertCalls += 1;
+    },
+  });
+  meter = createMeter({
+    store,
+    log: { error: (...a) => errors.push(a.join(' ')) },
+  });
+  await meter.recordUsage(
+    {
+      studioId: STUDIO,
+      subscriberId: 'user-1',
+      entitlementId: null,
+      billingMode: 'platform_subscription',
+      planId: null,
+      capUsd: 0,
+      mtdUsd: 0,
+      degraded: true,
+    },
+    { capabilityId: 'tts', kind: 'tts_chars', provider: 'elevenlabs', amount: 50 },
+  );
+  assert.equal(insertCalls, 0);
+  assert.match(errors.join('\n'), /degraded context/);
+});
+
+test('hasActiveEntitlement: active entitlement returns true', async () => {
+  assert.equal(await meter.hasActiveEntitlement({ id: 'user-1' }), true);
+});
+
+test('hasActiveEntitlement: inactive entitlement returns false', async () => {
+  store = makeStore({
+    resolveEntitlement: async () => ({ ...ENT, status: 'canceled' }),
+  });
+  meter = createMeter({ store, log: { error: () => {} } });
+  assert.equal(await meter.hasActiveEntitlement({ id: 'user-1' }), false);
+});
+
+test('hasActiveEntitlement: store throw fails closed', async () => {
+  store = makeStore({
+    resolveEntitlement: async () => {
+      throw new Error('down');
+    },
+  });
+  meter = createMeter({
+    store,
+    log: { error: (...a) => errors.push(a.join(' ')) },
+  });
+  assert.equal(await meter.hasActiveEntitlement({ id: 'user-1' }), false);
+  assert.match(errors.join('\n'), /failing closed/);
+});
+
+test('hasActiveEntitlement: null store fails closed', async () => {
+  meter = createMeter({ store: null, log: { error: () => {} } });
+  assert.equal(await meter.hasActiveEntitlement({ id: 'user-1' }), false);
+});
+
+test('usageSummary: blocked flag and rounding', async () => {
+  store = makeStore({
+    mtd: 4.876543,
+    resolveEntitlement: async () => ({ ...ENT, monthly_cap_usd: 5 }),
+    studioUsageMtd: async () => ({
+      billable_usd: 4.876543,
+      cost_usd: 5.1,
+      tts_chars: 100,
+      llm_tokens: 2000,
+    }),
+  });
+  meter = createMeter({ store, log: { error: () => {} } });
+  const s = await meter.usageSummary({ id: 'user-1' });
+  assert.equal(s.studio_id, STUDIO);
+  assert.equal(s.cap_usd, 5);
+  assert.equal(s.mtd_usd, 4.8765);
+  assert.equal(s.remaining_usd, 0.1235);
+  assert.equal(s.blocked, false);
+  assert.equal(s.tts_chars, 100);
+  assert.equal(s.llm_tokens, 2000);
+});
+
+test('usageSummary: blocked when at cap', async () => {
+  store = makeStore({
+    studioUsageMtd: async () => ({ billable_usd: 5, cost_usd: 5, tts_chars: 0, llm_tokens: 0 }),
+  });
+  meter = createMeter({ store, log: { error: () => {} } });
+  const s = await meter.usageSummary({ id: 'user-1' });
+  assert.equal(s.blocked, true);
+});
+
+test('usageSummary: errors propagate', async () => {
+  store = makeStore({
+    resolveStudioId: async () => {
+      throw new Error('summary failed');
+    },
+  });
+  meter = createMeter({ store, log: { error: () => {} } });
+  await assert.rejects(() => meter.usageSummary({ id: 'user-1' }), /summary failed/);
+});
+
+test('estimateTtsUsd matches costUsd for chars', () => {
+  assert.equal(estimateTtsUsd(500), costUsd('tts_chars', 500));
+});
+
+test('estimateConvaiUsd uses max duration minutes', () => {
+  assert.equal(estimateConvaiUsd(120), costUsd('convai_minutes', 2));
+});
+
+test('estimateLlmUsd: chars/4 input + max output tokens', () => {
+  const est = estimateLlmUsd(400, 1000, 'claude-sonnet-4');
+  const want =
+    costUsd('llm_input_tokens', 100, 'claude-sonnet-4') +
+    costUsd('llm_output_tokens', 1000, 'claude-sonnet-4');
+  assert.equal(est, want);
+});
+
+test('estimateWebSearchUsd at list price', () => {
+  assert.equal(estimateWebSearchUsd(3), 3 * PRICING.web_search_per_search);
+  assert.equal(estimateWebSearchUsd(-1), 0);
 });

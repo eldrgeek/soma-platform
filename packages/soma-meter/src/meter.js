@@ -179,33 +179,29 @@ export function createMeter({ store, app, log = console }) {
    */
   async function usageSummary(user, studioId) {
     if (!store) return null;
-    try {
-      const studio = await store.resolveStudioId(billingUserId(user), studioId);
-      if (!studio) return null;
-      const ent = await store.resolveEntitlement(studio);
-      if (!ent) return null;
-      const mtd =
-        typeof store.studioUsageMtd === 'function'
-          ? await store.studioUsageMtd(studio)
-          : { billable_usd: await store.monthToDateBillable(studio), tts_chars: 0, llm_tokens: 0 };
-      const mtdUsd = num(mtd.billable_usd);
-      const cap = num(ent.monthly_cap_usd);
-      return {
-        studio_id: studio,
-        plan_id: ent.plan_id,
-        billing_mode: ent.billing_mode,
-        status: ent.status,
-        cap_usd: round2(cap),
-        mtd_usd: round4(mtdUsd),
-        remaining_usd: round4(Math.max(0, cap - mtdUsd)),
-        blocked:
-          ent.status !== 'active' || (ent.billing_mode !== 'byok' && mtdUsd >= cap),
-        tts_chars: num(mtd.tts_chars),
-        llm_tokens: num(mtd.llm_tokens),
-      };
-    } catch {
-      return null;
-    }
+    const studio = await store.resolveStudioId(billingUserId(user), studioId);
+    if (!studio) return null;
+    const ent = await store.resolveEntitlement(studio);
+    if (!ent) return null;
+    const mtd =
+      typeof store.studioUsageMtd === 'function'
+        ? await store.studioUsageMtd(studio)
+        : { billable_usd: await store.monthToDateBillable(studio), tts_chars: 0, llm_tokens: 0 };
+    const mtdUsd = num(mtd.billable_usd);
+    const cap = num(ent.monthly_cap_usd);
+    return {
+      studio_id: studio,
+      plan_id: ent.plan_id,
+      billing_mode: ent.billing_mode,
+      status: ent.status,
+      cap_usd: round2(cap),
+      mtd_usd: round4(mtdUsd),
+      remaining_usd: round4(Math.max(0, cap - mtdUsd)),
+      blocked:
+        ent.status !== 'active' || (ent.billing_mode !== 'byok' && mtdUsd >= cap),
+      tts_chars: num(mtd.tts_chars),
+      llm_tokens: num(mtd.llm_tokens),
+    };
   }
 
   /**

@@ -35,6 +35,10 @@ export async function handler(event) {
 | `CapError` | 402-style cap payload (`status`, `payload`) |
 | `billingUserId(user)` | OBO principal rule (`actingFor ?? id`) |
 | `costUsd(kind, amount, model?)` | Dollar cost at write time |
+| `estimateTtsUsd(chars)` | Pre-spend TTS estimate |
+| `estimateConvaiUsd(maxDurationSeconds)` | Pre-spend Convai worst-case estimate |
+| `estimateLlmUsd(inputChars, maxOutputTokens, model?)` | Pre-spend LLM worst-case estimate |
+| `estimateWebSearchUsd(maxUses)` | Pre-spend web_search estimate |
 | `PRICING` | Rate table (same numbers as PlayMaker `pricing.ts`) |
 | `USAGE_KINDS` | All supported `kind` values |
 
