@@ -58,6 +58,21 @@ favicon for the new app's own mark).
 Verified round-trip (2026-07-09): `examples/legends.soma.json` → `react-app` →
 `npm install && npm run build` succeeds with no edits.
 
+### `react-app` mode — vendored app kit (@soma/tickets, @soma/meter)
+
+`@soma/tickets` and `@soma/meter` are not published to npm, so react-app mode
+**vendors** each package's `src/` into the generated app (with `sql/schema.sql`
+and a `VENDORED.md` noting the soma-platform commit). Thin adapters wire them to
+this app's `APP_ID` and existing Supabase clients:
+
+- `src/lib/soma/tickets/` + `src/lib/tickets.ts` — browser-side invite tokens.
+- `netlify/functions/lib/soma/meter/` + `netlify/functions/lib/meter.ts` — usage
+  meter store via the template's `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY`.
+
+Nothing in the template imports these adapters yet; they type-check and are ready
+for UI/functions to adopt. `SETUP.md` lists the kit `schema.sql` files to run
+after the template migrations.
+
 Or programmatically:
 
 ```js
