@@ -54,15 +54,22 @@ test("react-app emits tickets and meter adapters wired to the spec APP_ID", () =
     assert.match(tickets, /createTickets\(\{ supabase, app: APP_ID \}\)/);
 
     const meter = readFileSync(join(outDir, METER_ADAPTER), "utf8");
-    assert.match(meter, /createMeter\(/);
-    assert.match(meter, /app: APP_ID/);
+    assert.match(meter, /createMeter\(\{ store, app: APP_ID \}\)/);
+    assert.match(meter, /try \{/);
     assert.match(meter, /adminEnv\(\)/);
+    assert.match(meter, /metering fails open/);
+    assert.match(meter, /store = null/);
 
     const appConfig = readFileSync(join(outDir, "src/lib/appConfig.ts"), "utf8");
     assert.match(appConfig, /APP_ID = 'legends'/);
   } finally {
     rmSync(outDir, { recursive: true, force: true });
   }
+});
+
+test("scaffoldReactApp default template path honors SOMA_APP_TEMPLATE_DIR", () => {
+  const src = readFileSync(join(SCAFFOLDER_ROOT, "src", "scaffoldReactApp.mjs"), "utf8");
+  assert.match(src, /process\.env\.SOMA_APP_TEMPLATE_DIR/);
 });
 
 test("SETUP.md documents shared kit schema.sql paths", () => {

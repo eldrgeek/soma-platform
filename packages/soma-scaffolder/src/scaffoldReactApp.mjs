@@ -21,7 +21,8 @@ import { buildValues, fill, removeLineContaining, removeBlock } from "./scaffold
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SOMA_PLATFORM_ROOT = join(__dirname, "..", "..", "..");
-const DEFAULT_APP_TEMPLATE = join(__dirname, "..", "..", "..", "..", "soma-app-template");
+const DEFAULT_APP_TEMPLATE =
+  process.env.SOMA_APP_TEMPLATE_DIR || join(SOMA_PLATFORM_ROOT, "..", "soma-app-template");
 const DEFAULT_AFFORDANCES_TEMPLATES = join(__dirname, "..", "..", "..", "templates", "soma-affordances");
 
 /** Paths (relative to scaffold output) referenced by SETUP.md and adapters. */
@@ -164,12 +165,16 @@ import { createMeter, createSupabaseRestStore } from './soma/meter/index.js';
 import { APP_ID } from './appConfig';
 import { adminEnv } from './supabaseAdmin';
 
-const { url, serviceKey } = adminEnv();
+let store;
+try {
+  const { url, serviceKey } = adminEnv();
+  store = createSupabaseRestStore({ url, serviceKey, fetch });
+} catch (e) {
+  console.error('[meter] no service key; metering fails open', e);
+  store = null;
+}
 
-export const meter = createMeter({
-  store: createSupabaseRestStore({ url, serviceKey, fetch }),
-  app: APP_ID,
-});
+export const meter = createMeter({ store, app: APP_ID });
 `,
   );
 }
