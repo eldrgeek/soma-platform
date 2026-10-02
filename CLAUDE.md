@@ -8,11 +8,13 @@ last_reviewed: 2026-06-23
 
 # soma-platform — monorepo of shared widget engines + scaffolding for SOMA sites (CDN-hosted on Netlify)
 
-**Where work happens:** `packages/<pkg>/` (source) → copy build output to `dist/` (Netlify publishes `dist/`, not the repo root). Packages: `soma-guide` (tour overlay, the flagship), `auth`, `soma-onboard`, `soma-tickets`, `soma-owner`, `soma-scaffolder`, `auto-mapper`, `guide-extension`.
+**Where work happens:** `packages/<pkg>/` (source) → copy build output to `dist/` (Netlify publishes `dist/`, not the repo root). Packages: `soma-guide` (tour overlay, the flagship), `auth`, `soma-onboard`, `soma-tickets`, `soma-meter`, `soma-owner`, `soma-scaffolder`, `auto-mapper`, `guide-extension`.
 
 **`soma-onboard` does not follow the dist/CDN pattern** — it is a consumed npm package, not a served artifact, so nothing about `dist/` or `deploy-guide.sh` applies to it. Apps import it and keep their own federated tables (SOMA-APP-STANDARD §15b). Tests: `cd packages/soma-onboard && npm install && npm test` (33 tests; the QR suite compares byte-for-byte against the `qrcode` package and is the reason that devDependency exists).
 
 **`soma-tickets` (`@soma/tickets`)** — same consumed-package pattern as soma-onboard: front-door single-use invite tokens via shared Supabase RPCs (`ticket_create`, `ticket_lookup`, `ticket_use`) on app-scoped `public.tickets`; inject `supabase` + `app`, no env reads. Reference schema in `packages/soma-tickets/sql/schema.sql` (already applied in the shared project for `playmaker`). Tests: `cd packages/soma-tickets && npm test`.
+
+**`soma-meter` (`@soma/meter`)** — same consumed-package pattern: spend gate + `usage_events` writes via injected `store` (`createSupabaseRestStore` for PostgREST parity with PlayMaker); no env reads in the package. Reference schema in `packages/soma-meter/sql/schema.sql` (already applied in the shared project for `playmaker`). Tests: `cd packages/soma-meter && npm test`.
 
 **Key docs** (read in this order):
 - [README.md](README.md) — packages + consuming sites overview.
