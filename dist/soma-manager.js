@@ -113,7 +113,7 @@
         '</div>',
       '</div>',
       '<div class="smgr-footer">',
-        'Powered by <a href="https://siliconchildren.org" target="_blank" rel="noopener">SOMA</a>',
+        'Powered by <a href="https://siliconchildren.com" target="_blank" rel="noopener">SOMA</a>',
         '<span id="smgr-owner-link"></span>',
       '</div>',
     '</div>',
