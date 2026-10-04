@@ -14,6 +14,8 @@ export function safeNext(search) {
   if (!value.startsWith('/')) return null;
   if (value.startsWith('//')) return null;
   if (value.includes('\\')) return null;
+  // Browsers strip tabs and newlines from URLs, so '/\t/evil' would become '//evil'.
+  if (/[\u0000-\u001f\u007f]/.test(value)) return null;
   return value;
 }
 

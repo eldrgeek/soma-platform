@@ -32,6 +32,11 @@ test('safeNext refuses absolute and protocol-relative URLs', () => {
   assert.equal(safeNext('?next=%2F%2Fevil.example'), null);
 });
 
+test('safeNext refuses control characters a browser would strip', () => {
+  assert.equal(safeNext('?next=%2F%09%2Fevil.example'), null);
+  assert.equal(safeNext('?next=%2F%0A%2Fevil.example'), null);
+});
+
 test('safeNext allows in-app paths', () => {
   assert.equal(safeNext('?next=%2Fhouse'), '/house');
   assert.equal(safeNext('?next=/admin'), '/admin');
