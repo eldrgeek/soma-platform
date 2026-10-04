@@ -10,6 +10,7 @@ import {
   scaffoldReactApp,
   VENDORED_TICKETS_DIR,
   VENDORED_METER_DIR,
+  VENDORED_SIGNIN_DIR,
   TICKETS_ADAPTER,
   METER_ADAPTER,
   TICKETS_SCHEMA,
@@ -72,6 +73,32 @@ test("scaffoldReactApp default template path honors SOMA_APP_TEMPLATE_DIR", () =
   assert.match(src, /process\.env\.SOMA_APP_TEMPLATE_DIR/);
 });
 
+test("react-app scaffolds vendored @soma/signin and wires auth routes", () => {
+  const outDir = scaffoldLegendsToTemp();
+  try {
+    assert.ok(existsSync(join(outDir, VENDORED_SIGNIN_DIR, "index.js")));
+    assert.ok(existsSync(join(outDir, VENDORED_SIGNIN_DIR, "react", "SomaAuth.tsx")));
+    assert.ok(existsSync(join(outDir, VENDORED_SIGNIN_DIR, "VENDORED.md")));
+
+    const vendored = readFileSync(join(outDir, VENDORED_SIGNIN_DIR, "VENDORED.md"), "utf8");
+    assert.match(vendored, /packages\/soma-signin\/src\//);
+
+    const signIn = readFileSync(join(outDir, "src/features/auth/SignIn.tsx"), "utf8");
+    assert.match(signIn, /from '@\/lib\/soma\/signin\/react\/SomaAuth'/);
+    assert.match(signIn, /SOMA_AUTH_CONFIG/);
+
+    const auth = readFileSync(join(outDir, "src/features/auth/AuthProvider.tsx"), "utf8");
+    assert.match(auth, /SomaSignInAuthProvider/);
+    assert.match(auth, /createSomaKnownDevice/);
+    assert.match(auth, /resumePath/);
+
+    const cfg = readFileSync(join(outDir, "src/lib/somaAuthConfig.ts"), "utf8");
+    assert.match(cfg, /createSomaAuthConfig/);
+  } finally {
+    rmSync(outDir, { recursive: true, force: true });
+  }
+});
+
 test("SETUP.md documents shared kit schema.sql paths", () => {
   const outDir = scaffoldLegendsToTemp();
   try {
@@ -81,6 +108,7 @@ test("SETUP.md documents shared kit schema.sql paths", () => {
     assert.match(setup, /scoped by the `app` column/);
     assert.match(setup, /@soma\/tickets/);
     assert.match(setup, /@soma\/meter/);
+    assert.match(setup, /@soma\/signin/);
   } finally {
     rmSync(outDir, { recursive: true, force: true });
   }

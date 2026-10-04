@@ -58,20 +58,24 @@ favicon for the new app's own mark).
 Verified round-trip (2026-07-09): `examples/legends.soma.json` → `react-app` →
 `npm install && npm run build` succeeds with no edits.
 
-### `react-app` mode — vendored app kit (@soma/tickets, @soma/meter)
+### `react-app` mode — vendored app kit (@soma/tickets, @soma/meter, @soma/signin)
 
-`@soma/tickets` and `@soma/meter` are not published to npm, so react-app mode
-**vendors** each package's `src/` into the generated app (with `sql/schema.sql`
-and a `VENDORED.md` noting the soma-platform commit). Thin adapters wire them to
-this app's `APP_ID` and existing Supabase clients:
+`@soma/tickets`, `@soma/meter`, and `@soma/signin` are not published to npm, so
+react-app mode **vendors** each package's `src/` into the generated app (with
+`sql/schema.sql` where applicable and a `VENDORED.md` noting the soma-platform
+commit). Thin adapters wire tickets/meter to this app's `APP_ID` and existing
+Supabase clients; sign-in replaces the template's `AuthProvider` / `SignIn` with
+the PlayMaker-derived kit:
 
 - `src/lib/soma/tickets/` + `src/lib/tickets.ts` — browser-side invite tokens.
 - `netlify/functions/lib/soma/meter/` + `netlify/functions/lib/meter.ts` — usage
   meter store via the template's `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY`.
+- `src/lib/soma/signin/` + `src/lib/somaAuthConfig.ts` — config-driven sign-in UI
+  and session provider (`src/features/auth/*` re-export/wire the kit).
 
-Nothing in the template imports these adapters yet; they type-check and are ready
-for UI/functions to adopt. `SETUP.md` lists the kit `schema.sql` files to run
-after the template migrations.
+Tickets/meter adapters are not imported by the template UI yet; sign-in is wired
+on `/sign-in`. `SETUP.md` lists the kit `schema.sql` files to run after the
+template migrations.
 
 Or programmatically:
 

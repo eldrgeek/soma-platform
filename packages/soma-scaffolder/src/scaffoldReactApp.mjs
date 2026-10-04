@@ -28,6 +28,7 @@ const DEFAULT_AFFORDANCES_TEMPLATES = join(__dirname, "..", "..", "..", "templat
 /** Paths (relative to scaffold output) referenced by SETUP.md and adapters. */
 export const VENDORED_TICKETS_DIR = "src/lib/soma/tickets";
 export const VENDORED_METER_DIR = "netlify/functions/lib/soma/meter";
+export const VENDORED_SIGNIN_DIR = "src/lib/soma/signin";
 export const TICKETS_ADAPTER = "src/lib/tickets.ts";
 export const METER_ADAPTER = "netlify/functions/lib/meter.ts";
 export const TICKETS_SCHEMA = `${VENDORED_TICKETS_DIR}/sql/schema.sql`;
@@ -102,13 +103,129 @@ function vendorPackageSrc(pkgRoot, destDir, packageDirName, commit) {
   writeFileSync(join(destDir, "VENDORED.md"), vendoredMarkdown(commit, packageDirName));
 }
 
+function wireSignInAuth(outDir) {
+  writeFile(
+    outDir,
+    "src/lib/somaAuthConfig.ts",
+    `// @soma/signin — config adapter (vendored kit; see ${VENDORED_SIGNIN_DIR}/VENDORED.md).
+import { createSomaAuthConfig } from './soma/signin/somaAuthConfig.js';
+
+export const SOMA_AUTH_CONFIG = createSomaAuthConfig({
+  url: import.meta.env.VITE_SUPABASE_URL || 'https://omfwcodoimjmbrhssvfl.supabase.co',
+  anonKey:
+    import.meta.env.VITE_SUPABASE_ANON_KEY ||
+    'sb_publishable_vi2qDWjozUJ5mi9dwirkLA_rj6UaqLf',
+});
+
+/** True once a real, app-specific project is configured (vs. the shared-project default). */
+export const HAS_OWN_SUPABASE_PROJECT = Boolean(import.meta.env.VITE_SUPABASE_URL);
+`,
+  );
+
+  writeFile(
+    outDir,
+    "src/features/auth/AuthProvider.tsx",
+    `import { createContext, useContext, useState, type ReactNode } from 'react';
+import type { Session, User } from '@supabase/supabase-js';
+import { supabase } from '@/lib/supabase';
+import { HAS_OWN_SUPABASE_PROJECT } from '@/lib/somaAuthConfig';
+import { fetchLastLocation } from '@/lib/lastLocation';
+import { APP_ID } from '@/lib/appConfig';
+import {
+  AuthProvider as SomaSignInAuthProvider,
+  useAuth as useSomaSignInAuth,
+} from '@/lib/soma/signin/react/AuthProvider';
+import { createSomaKnownDevice } from '@/lib/soma/signin/somaKnownDevice.js';
+
+const knownDevice = createSomaKnownDevice({ storageKey: \`\${APP_ID}.soma.known.device\` });
+
+interface AuthContextValue {
+  user: User | null;
+  session: Session | null;
+  loading: boolean;
+  hasOwnProject: boolean;
+  resumePath: string | null;
+  signOut: () => Promise<void>;
+}
+
+const ResumeContext = createContext<{ resumePath: string | null }>({ resumePath: null });
+const AuthContext = createContext<AuthContextValue | null>(null);
+
+function AuthResumeBridge({ children }: { children: ReactNode }) {
+  const { resumePath } = useContext(ResumeContext);
+  const kit = useSomaSignInAuth();
+  const value: AuthContextValue = {
+    user: kit.user,
+    session: kit.session,
+    loading: kit.loading,
+    hasOwnProject: HAS_OWN_SUPABASE_PROJECT,
+    resumePath,
+    signOut: kit.signOut,
+  };
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [resumePath, setResumePath] = useState<string | null>(null);
+
+  return (
+    <ResumeContext.Provider value={{ resumePath }}>
+      <SomaSignInAuthProvider
+        supabase={supabase}
+        knownDevice={knownDevice}
+        onAuthEvent={async (event) => {
+          if (event === 'SIGNED_IN') {
+            const loc = await fetchLastLocation();
+            setResumePath(loc?.path ?? null);
+          }
+        }}
+      >
+        <AuthResumeBridge>{children}</AuthResumeBridge>
+      </SomaSignInAuthProvider>
+    </ResumeContext.Provider>
+  );
+}
+
+export function useAuth(): AuthContextValue {
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error('useAuth() must be called inside <AuthProvider>');
+  return ctx;
+}
+`,
+  );
+
+  writeFile(
+    outDir,
+    "src/features/auth/SignIn.tsx",
+    `import SomaAuth from '@/lib/soma/signin/react/SomaAuth';
+import '@/lib/soma/signin/react/soma-signin.css';
+import { supabase } from '@/lib/supabase';
+import { SOMA_AUTH_CONFIG } from '@/lib/somaAuthConfig';
+import { APP_NAME } from '@/lib/appConfig';
+
+export default function SignIn() {
+  return (
+    <SomaAuth
+      supabase={supabase}
+      config={SOMA_AUTH_CONFIG}
+      loginPath="/sign-in"
+      appName={APP_NAME}
+    />
+  );
+}
+`,
+  );
+}
+
 function wireTicketsAndMeter(outDir, { platformRoot = SOMA_PLATFORM_ROOT } = {}) {
   const commit = readSomaPlatformCommit(platformRoot);
   const ticketsPkg = join(platformRoot, "packages", "soma-tickets");
   const meterPkg = join(platformRoot, "packages", "soma-meter");
+  const signinPkg = join(platformRoot, "packages", "soma-signin");
 
   vendorPackageSrc(ticketsPkg, join(outDir, VENDORED_TICKETS_DIR), "soma-tickets", commit);
   vendorPackageSrc(meterPkg, join(outDir, VENDORED_METER_DIR), "soma-meter", commit);
+  vendorPackageSrc(signinPkg, join(outDir, VENDORED_SIGNIN_DIR), "soma-signin", commit);
 
   writeFile(
     outDir,
@@ -271,6 +388,8 @@ function setupDoc(app, unresolved) {
   lines.push(`- \`package.json\` name/description, \`index.html\` title.`);
   lines.push(`- \`${TICKETS_ADAPTER}\` + \`${METER_ADAPTER}\` — @soma/tickets and @soma/meter vendored under`);
   lines.push(`  \`${VENDORED_TICKETS_DIR}/\` and \`${VENDORED_METER_DIR}/\`, wired to \`APP_ID\`.`);
+  lines.push(`- \`${VENDORED_SIGNIN_DIR}/\` + \`src/lib/somaAuthConfig.ts\` — @soma/signin vendored;`);
+  lines.push(`  \`src/features/auth/AuthProvider.tsx\` + \`SignIn.tsx\` use the kit instead of the template stubs.`);
   lines.push("");
   lines.push(`## What you still do by hand`);
   lines.push(`1. \`npm install\``);
@@ -319,6 +438,7 @@ export function scaffoldReactApp(
 
   copyTemplateTree(appTemplateDir, outDir);
   wireTicketsAndMeter(outDir, { platformRoot });
+  wireSignInAuth(outDir);
 
   const values = buildValues(app);
   const unresolved = new Set();
