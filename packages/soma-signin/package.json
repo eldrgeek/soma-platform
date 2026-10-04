@@ -1,0 +1,32 @@
+{
+  "name": "@soma/signin",
+  "version": "1.0.0",
+  "description": "SOMA sign-in — config-driven auth screen, session provider, and auth helpers (PlayMaker extraction).",
+  "type": "module",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./react/SomaAuth": "./src/react/SomaAuth.tsx",
+    "./react/AuthProvider": "./src/react/AuthProvider.tsx",
+    "./react/soma-signin.css": "./src/react/soma-signin.css"
+  },
+  "files": [
+    "src",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  },
+  "peerDependencies": {
+    "@supabase/supabase-js": "^2.0.0",
+    "react": "^18.0.0 || ^19.0.0",
+    "react-dom": "^18.0.0 || ^19.0.0",
+    "react-router-dom": "^6.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@supabase/supabase-js": { "optional": true },
+    "react": { "optional": true },
+    "react-dom": { "optional": true },
+    "react-router-dom": { "optional": true }
+  }
+}
