@@ -58,6 +58,18 @@ favicon for the new app's own mark).
 Verified round-trip (2026-07-09): `examples/legends.soma.json` → `react-app` →
 `npm install && npm run build` succeeds with no edits.
 
+### Stand-up time
+
+Measured with `npm run standup-check` (scaffold + `npm ci` + typecheck + `npm run build`
+for `examples/legends.soma.json` react-app output). **2026-10-05**, commit
+`5a466320b4b14abde3dc747a1cac803d05a8015b`:
+
+| scaffold_s | install_s | typecheck_s | build_s | total_s |
+|------------|-----------|-------------|---------|---------|
+| 0.06       | 1.45      | 2.23        | 2.84    | 6.59    |
+
+It runs locally only. A GitHub Actions run cannot clone `eldrgeek/soma-app-template`, because that repo is private, so CI would need a token for it (not set up).
+
 ### `react-app` mode — vendored app kit (@soma/tickets, @soma/meter, @soma/signin, @soma/feedback)
 
 `@soma/tickets`, `@soma/meter`, `@soma/signin`, and `@soma/feedback` (when

@@ -17,12 +17,23 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync, cpSync, readdirSync
 import { execSync } from "node:child_process";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { homedir } from "node:os";
 import { buildValues, fill, removeLineContaining, removeBlock } from "./scaffold.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SOMA_PLATFORM_ROOT = join(__dirname, "..", "..", "..");
-const DEFAULT_APP_TEMPLATE =
-  process.env.SOMA_APP_TEMPLATE_DIR || join(SOMA_PLATFORM_ROOT, "..", "soma-app-template");
+
+/** Template dir: explicit/env, then soma-platform sibling, then ~/Projects/soma-app-template. */
+export function resolveAppTemplateDir(explicit) {
+  if (explicit) return explicit;
+  const fromEnv = process.env.SOMA_APP_TEMPLATE_DIR;
+  if (fromEnv) return fromEnv;
+  const sibling = join(SOMA_PLATFORM_ROOT, "..", "soma-app-template");
+  if (existsSync(sibling)) return sibling;
+  return join(homedir(), "Projects", "soma-app-template");
+}
+
+const DEFAULT_APP_TEMPLATE = resolveAppTemplateDir();
 const DEFAULT_AFFORDANCES_TEMPLATES = join(__dirname, "..", "..", "..", "templates", "soma-affordances");
 
 /** Paths (relative to scaffold output) referenced by SETUP.md and adapters. */
