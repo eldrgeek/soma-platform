@@ -1,0 +1,24 @@
+{
+  "name": "@soma/feedback",
+  "version": "1.0.0",
+  "description": "SOMA feedback chip — Supabase session hooks for window.somaFeedbackIdentity and window.somaFeedbackAuthHeader (PlayMaker extraction).",
+  "type": "module",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "files": [
+    "src",
+    "widget",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  },
+  "peerDependencies": {
+    "@supabase/supabase-js": "^2.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@supabase/supabase-js": { "optional": true }
+  }
+}

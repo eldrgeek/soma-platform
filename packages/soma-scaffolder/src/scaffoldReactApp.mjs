@@ -29,6 +29,8 @@ const DEFAULT_AFFORDANCES_TEMPLATES = join(__dirname, "..", "..", "..", "templat
 export const VENDORED_TICKETS_DIR = "src/lib/soma/tickets";
 export const VENDORED_METER_DIR = "netlify/functions/lib/soma/meter";
 export const VENDORED_SIGNIN_DIR = "src/lib/soma/signin";
+export const VENDORED_FEEDBACK_DIR = "src/lib/soma/feedback";
+export const FEEDBACK_WIDGET_DIR = "public/vendor/soma-feedback";
 export const TICKETS_ADAPTER = "src/lib/tickets.ts";
 export const METER_ADAPTER = "netlify/functions/lib/meter.ts";
 export const TICKETS_SCHEMA = `${VENDORED_TICKETS_DIR}/sql/schema.sql`;
@@ -365,6 +367,76 @@ function rewriteIndexHtml(outDir, app) {
   writeFileSync(full, html);
 }
 
+function feedbackChipLabel(app) {
+  const fb = app.affordances?.feedback || {};
+  if (fb.label) return fb.label;
+  const personaName = app.affordances?.guide?.persona?.name;
+  if (personaName) return `Feedback to ${personaName}`;
+  return "Feedback";
+}
+
+function injectFeedbackWidgetIndexHtml(outDir, app) {
+  const fb = app.affordances?.feedback;
+  if (!fb?.enabled) return;
+  const full = join(outDir, "index.html");
+  if (!existsSync(full)) return;
+  const endpoint = fb.endpoint || "/api/submit-feedback";
+  const label = feedbackChipLabel(app).replace(/"/g, "&quot;");
+  const site = app.slug;
+  const block = `
+    <!-- SOMA App Standard §8 — feedback chip (vendored widget + @soma/feedback hooks). -->
+    <link rel="stylesheet" href="/vendor/soma-feedback/soma-feedback.css">
+    <script src="/vendor/soma-feedback/soma-feedback.js"
+            data-endpoint="${endpoint}"
+            data-no-google
+            data-label="${label}"
+            data-site="${site}" defer></script>
+`;
+  let html = readFileSync(full, "utf8");
+  if (html.includes("/vendor/soma-feedback/soma-feedback.js")) return;
+  html = html.replace("</body>", `${block}  </body>`);
+  writeFileSync(full, html);
+}
+
+function rewriteMainTsxForFeedback(outDir) {
+  const full = join(outDir, "src/main.tsx");
+  if (!existsSync(full)) return;
+  let src = readFileSync(full, "utf8");
+  if (src.includes("installSomaFeedbackHooks")) return;
+  src =
+    `import { installSomaFeedbackHooks } from '@/lib/soma/feedback/index.js';\n` +
+    `import { supabase } from '@/lib/supabase';\n` +
+    src;
+  src = src.replace(
+    /createRoot\(document\.getElementById\('root'\)!\)/,
+    "installSomaFeedbackHooks({ supabase });\n\ncreateRoot(document.getElementById('root')!)",
+  );
+  writeFileSync(full, src);
+}
+
+function wireFeedback(outDir, app, { platformRoot = SOMA_PLATFORM_ROOT } = {}) {
+  const fb = app.affordances?.feedback;
+  if (!fb?.enabled) return;
+
+  const commit = readSomaPlatformCommit(platformRoot);
+  const feedbackPkg = join(platformRoot, "packages", "soma-feedback");
+  vendorPackageSrc(feedbackPkg, join(outDir, VENDORED_FEEDBACK_DIR), "soma-feedback", commit);
+
+  const widgetSrc = join(feedbackPkg, "widget");
+  const widgetDest = join(outDir, FEEDBACK_WIDGET_DIR);
+  mkdirSync(widgetDest, { recursive: true });
+  for (const file of ["soma-feedback.css", "soma-feedback.js"]) {
+    const from = join(widgetSrc, file);
+    if (!existsSync(from)) {
+      throw new Error(`wireFeedback: missing widget asset ${from}`);
+    }
+    cpSync(from, join(widgetDest, file));
+  }
+
+  rewriteMainTsxForFeedback(outDir);
+  injectFeedbackWidgetIndexHtml(outDir, app);
+}
+
 function setupDoc(app, unresolved) {
   const lines = [];
   lines.push(`# ${app.name} — generated setup (react-app scaffold)`);
@@ -390,6 +462,12 @@ function setupDoc(app, unresolved) {
   lines.push(`  \`${VENDORED_TICKETS_DIR}/\` and \`${VENDORED_METER_DIR}/\`, wired to \`APP_ID\`.`);
   lines.push(`- \`${VENDORED_SIGNIN_DIR}/\` + \`src/lib/somaAuthConfig.ts\` — @soma/signin vendored;`);
   lines.push(`  \`src/features/auth/AuthProvider.tsx\` + \`SignIn.tsx\` use the kit instead of the template stubs.`);
+  if (app.affordances?.feedback?.enabled) {
+    lines.push(
+      `- \`${VENDORED_FEEDBACK_DIR}/\` + \`${FEEDBACK_WIDGET_DIR}/\` — @soma/feedback hooks vendored;`,
+    );
+    lines.push(`  \`src/main.tsx\` calls \`installSomaFeedbackHooks\`; \`index.html\` loads the chip widget.`);
+  }
   lines.push("");
   lines.push(`## What you still do by hand`);
   lines.push(`1. \`npm install\``);
@@ -439,6 +517,7 @@ export function scaffoldReactApp(
   copyTemplateTree(appTemplateDir, outDir);
   wireTicketsAndMeter(outDir, { platformRoot });
   wireSignInAuth(outDir);
+  wireFeedback(outDir, app, { platformRoot });
 
   const values = buildValues(app);
   const unresolved = new Set();

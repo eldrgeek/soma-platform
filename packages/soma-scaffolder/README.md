@@ -58,9 +58,10 @@ favicon for the new app's own mark).
 Verified round-trip (2026-07-09): `examples/legends.soma.json` → `react-app` →
 `npm install && npm run build` succeeds with no edits.
 
-### `react-app` mode — vendored app kit (@soma/tickets, @soma/meter, @soma/signin)
+### `react-app` mode — vendored app kit (@soma/tickets, @soma/meter, @soma/signin, @soma/feedback)
 
-`@soma/tickets`, `@soma/meter`, and `@soma/signin` are not published to npm, so
+`@soma/tickets`, `@soma/meter`, `@soma/signin`, and `@soma/feedback` (when
+`affordances.feedback.enabled`) are not published to npm, so
 react-app mode **vendors** each package's `src/` into the generated app (with
 `sql/schema.sql` where applicable and a `VENDORED.md` noting the soma-platform
 commit). Thin adapters wire tickets/meter to this app's `APP_ID` and existing
@@ -72,6 +73,10 @@ the PlayMaker-derived kit:
   meter store via the template's `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY`.
 - `src/lib/soma/signin/` + `src/lib/somaAuthConfig.ts` — config-driven sign-in UI
   and session provider (`src/features/auth/*` re-export/wire the kit).
+- `src/lib/soma/feedback/` + `public/vendor/soma-feedback/` — feedback chip hooks
+  (`installSomaFeedbackHooks` in `src/main.tsx`) and vendored widget assets when
+  feedback is enabled in the spec (`affordances.feedback.endpoint` defaults to
+  `/api/submit-feedback`).
 
 Tickets/meter adapters are not imported by the template UI yet; sign-in is wired
 on `/sign-in`. `SETUP.md` lists the kit `schema.sql` files to run after the
