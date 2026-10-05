@@ -11,6 +11,8 @@ import {
   VENDORED_TICKETS_DIR,
   VENDORED_METER_DIR,
   VENDORED_SIGNIN_DIR,
+  VENDORED_FEEDBACK_DIR,
+  FEEDBACK_WIDGET_DIR,
   TICKETS_ADAPTER,
   METER_ADAPTER,
   TICKETS_SCHEMA,
@@ -99,6 +101,35 @@ test("react-app scaffolds vendored @soma/signin and wires auth routes", () => {
   }
 });
 
+test("react-app scaffolds vendored @soma/feedback when affordances.feedback.enabled", () => {
+  const outDir = scaffoldLegendsToTemp();
+  try {
+    assert.ok(existsSync(join(outDir, VENDORED_FEEDBACK_DIR, "index.js")));
+    assert.ok(existsSync(join(outDir, VENDORED_FEEDBACK_DIR, "VENDORED.md")));
+    assert.ok(existsSync(join(outDir, FEEDBACK_WIDGET_DIR, "soma-feedback.js")));
+    assert.ok(existsSync(join(outDir, FEEDBACK_WIDGET_DIR, "soma-feedback.css")));
+
+    const vendored = readFileSync(join(outDir, VENDORED_FEEDBACK_DIR, "VENDORED.md"), "utf8");
+    assert.match(vendored, /packages\/soma-feedback\/src\//);
+
+    const main = readFileSync(join(outDir, "src/main.tsx"), "utf8");
+    assert.match(main, /installSomaFeedbackHooks\(\{ supabase \}\)/);
+    assert.match(main, /@\/lib\/soma\/feedback\/index\.js/);
+
+    const html = readFileSync(join(outDir, "index.html"), "utf8");
+    assert.match(html, /\/vendor\/soma-feedback\/soma-feedback\.js/);
+    assert.match(html, /data-endpoint="\/api\/submit-feedback-widget"/);
+    // The chip's endpoint must reach a function the app actually ships
+    // (netlify.toml maps /api/* to /.netlify/functions/*).
+    assert.ok(existsSync(join(outDir, "netlify/functions/submit-feedback-widget.ts")));
+    assert.match(readFileSync(join(outDir, "netlify.toml"), "utf8"), /from = "\/api\/\*"/);
+    assert.match(html, /data-label="Feedback to Bill"/);
+    assert.match(html, /data-site="legends"/);
+  } finally {
+    rmSync(outDir, { recursive: true, force: true });
+  }
+});
+
 test("SETUP.md documents shared kit schema.sql paths", () => {
   const outDir = scaffoldLegendsToTemp();
   try {
@@ -109,6 +140,7 @@ test("SETUP.md documents shared kit schema.sql paths", () => {
     assert.match(setup, /@soma\/tickets/);
     assert.match(setup, /@soma\/meter/);
     assert.match(setup, /@soma\/signin/);
+    assert.match(setup, /@soma\/feedback/);
   } finally {
     rmSync(outDir, { recursive: true, force: true });
   }

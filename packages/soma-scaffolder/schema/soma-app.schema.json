@@ -120,7 +120,15 @@
               "required": ["enabled"],
               "properties": {
                 "enabled": { "type": "boolean" },
-                "owner_email": { "type": "string" }
+                "owner_email": { "type": "string" },
+                "endpoint": {
+                  "type": "string",
+                  "description": "same-origin URL the feedback chip POSTs to; default /api/submit-feedback-widget (the template's netlify/functions/submit-feedback-widget.ts)"
+                },
+                "label": {
+                  "type": "string",
+                  "description": "chip FAB label; defaults to Feedback to <guide.persona.name> when guide is enabled"
+                }
               }
             },
             "billing": {
