@@ -123,7 +123,7 @@
                 "owner_email": { "type": "string" },
                 "endpoint": {
                   "type": "string",
-                  "description": "same-origin URL the feedback chip POSTs to; default /api/submit-feedback"
+                  "description": "same-origin URL the feedback chip POSTs to; default /api/submit-feedback-widget (the template's netlify/functions/submit-feedback-widget.ts)"
                 },
                 "label": {
                   "type": "string",

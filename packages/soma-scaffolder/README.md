@@ -76,7 +76,7 @@ the PlayMaker-derived kit:
 - `src/lib/soma/feedback/` + `public/vendor/soma-feedback/` — feedback chip hooks
   (`installSomaFeedbackHooks` in `src/main.tsx`) and vendored widget assets when
   feedback is enabled in the spec (`affordances.feedback.endpoint` defaults to
-  `/api/submit-feedback`).
+  `/api/submit-feedback-widget`, the template's own function).
 
 Tickets/meter adapters are not imported by the template UI yet; sign-in is wired
 on `/sign-in`. `SETUP.md` lists the kit `schema.sql` files to run after the

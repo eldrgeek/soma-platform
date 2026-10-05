@@ -380,7 +380,7 @@ function injectFeedbackWidgetIndexHtml(outDir, app) {
   if (!fb?.enabled) return;
   const full = join(outDir, "index.html");
   if (!existsSync(full)) return;
-  const endpoint = fb.endpoint || "/api/submit-feedback";
+  const endpoint = fb.endpoint || "/api/submit-feedback-widget";
   const label = feedbackChipLabel(app).replace(/"/g, "&quot;");
   const site = app.slug;
   const block = `

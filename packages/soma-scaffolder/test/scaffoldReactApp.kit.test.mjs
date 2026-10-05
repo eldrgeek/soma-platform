@@ -118,7 +118,11 @@ test("react-app scaffolds vendored @soma/feedback when affordances.feedback.enab
 
     const html = readFileSync(join(outDir, "index.html"), "utf8");
     assert.match(html, /\/vendor\/soma-feedback\/soma-feedback\.js/);
-    assert.match(html, /data-endpoint="\/api\/submit-feedback"/);
+    assert.match(html, /data-endpoint="\/api\/submit-feedback-widget"/);
+    // The chip's endpoint must reach a function the app actually ships
+    // (netlify.toml maps /api/* to /.netlify/functions/*).
+    assert.ok(existsSync(join(outDir, "netlify/functions/submit-feedback-widget.ts")));
+    assert.match(readFileSync(join(outDir, "netlify.toml"), "utf8"), /from = "\/api\/\*"/);
     assert.match(html, /data-label="Feedback to Bill"/);
     assert.match(html, /data-site="legends"/);
   } finally {
