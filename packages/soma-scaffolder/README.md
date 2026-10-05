@@ -68,7 +68,7 @@ for `examples/legends.soma.json` react-app output). **2026-10-05**, commit
 |------------|-----------|-------------|---------|---------|
 | 0.06       | 1.45      | 2.23        | 2.84    | 6.59    |
 
-CI runs the same check on PRs that touch `packages/**` (`.github/workflows/standup-check.yml`).
+It runs locally only. A GitHub Actions run cannot clone `eldrgeek/soma-app-template`, because that repo is private, so CI would need a token for it (not set up).
 
 ### `react-app` mode — vendored app kit (@soma/tickets, @soma/meter, @soma/signin, @soma/feedback)
 
