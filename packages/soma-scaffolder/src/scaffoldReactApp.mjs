@@ -381,19 +381,21 @@ function injectFeedbackWidgetIndexHtml(outDir, app) {
   const full = join(outDir, "index.html");
   if (!existsSync(full)) return;
   const endpoint = fb.endpoint || "/api/submit-feedback-widget";
-  const label = feedbackChipLabel(app).replace(/"/g, "&quot;");
-  const site = app.slug;
+  const attr = (v) => String(v).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const label = attr(feedbackChipLabel(app));
+  const site = attr(app.slug);
   const block = `
     <!-- SOMA App Standard §8 — feedback chip (vendored widget + @soma/feedback hooks). -->
     <link rel="stylesheet" href="/vendor/soma-feedback/soma-feedback.css">
     <script src="/vendor/soma-feedback/soma-feedback.js"
-            data-endpoint="${endpoint}"
+            data-endpoint="${attr(endpoint)}"
             data-no-google
             data-label="${label}"
             data-site="${site}" defer></script>
 `;
   let html = readFileSync(full, "utf8");
   if (html.includes("/vendor/soma-feedback/soma-feedback.js")) return;
+  if (!html.includes("</body>")) throw new Error(`wireFeedback: no </body> in ${full}; cannot add the feedback chip`);
   html = html.replace("</body>", `${block}  </body>`);
   writeFileSync(full, html);
 }
@@ -403,14 +405,16 @@ function rewriteMainTsxForFeedback(outDir) {
   if (!existsSync(full)) return;
   let src = readFileSync(full, "utf8");
   if (src.includes("installSomaFeedbackHooks")) return;
+  const anchor = /createRoot\(document\.getElementById\('root'\)!\)/;
+  if (!anchor.test(src)) {
+    // Fail loudly: a chip without its hooks loads but sends no identity and
+    // no auth header, and nothing on the page would show it.
+    throw new Error(`wireFeedback: no createRoot(document.getElementById('root')!) in ${full}; cannot install the feedback hooks`);
+  }
   src =
     `import { installSomaFeedbackHooks } from '@/lib/soma/feedback/index.js';\n` +
     `import { supabase } from '@/lib/supabase';\n` +
-    src;
-  src = src.replace(
-    /createRoot\(document\.getElementById\('root'\)!\)/,
-    "installSomaFeedbackHooks({ supabase });\n\ncreateRoot(document.getElementById('root')!)",
-  );
+    src.replace(anchor, "installSomaFeedbackHooks({ supabase });\n\ncreateRoot(document.getElementById('root')!)");
   writeFileSync(full, src);
 }
 
