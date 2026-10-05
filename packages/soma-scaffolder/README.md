@@ -62,11 +62,11 @@ Verified round-trip (2026-07-09): `examples/legends.soma.json` â†’ `react-app` â
 
 Measured with `npm run standup-check` (scaffold + `npm ci` + typecheck + `npm run build`
 for `examples/legends.soma.json` react-app output). **2026-10-05**, commit
-`138bdc3b6c31ea334615c93feaa4e9e05059ed45`:
+`5a466320b4b14abde3dc747a1cac803d05a8015b`:
 
 | scaffold_s | install_s | typecheck_s | build_s | total_s |
 |------------|-----------|-------------|---------|---------|
-| 0.05       | 1.23      | 1.49        | 2.82    | 5.60    |
+| 0.06       | 1.45      | 2.23        | 2.84    | 6.59    |
 
 CI runs the same check on PRs that touch `packages/**` (`.github/workflows/standup-check.yml`).
 
