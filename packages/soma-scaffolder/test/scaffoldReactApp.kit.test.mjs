@@ -8,6 +8,7 @@ import { randomBytes } from "node:crypto";
 import { loadSpec } from "../src/spec.mjs";
 import {
   scaffoldReactApp,
+  resolveAppTemplateDir,
   VENDORED_TICKETS_DIR,
   VENDORED_METER_DIR,
   VENDORED_SIGNIN_DIR,
@@ -23,12 +24,14 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const SCAFFOLDER_ROOT = join(__dirname, "..");
 const PLATFORM_ROOT = join(SCAFFOLDER_ROOT, "..", "..");
 const LEGENDS_SPEC = join(SCAFFOLDER_ROOT, "examples", "legends.soma.json");
-const APP_TEMPLATE = process.env.SOMA_APP_TEMPLATE_DIR || join(PLATFORM_ROOT, "..", "soma-app-template");
-
 function scaffoldLegendsToTemp() {
   const outDir = join(tmpdir(), `soma-react-app-kit-${randomBytes(8).toString("hex")}`);
   const doc = loadSpec(LEGENDS_SPEC);
-  scaffoldReactApp(doc, { outDir, appTemplateDir: APP_TEMPLATE, platformRoot: PLATFORM_ROOT });
+  scaffoldReactApp(doc, {
+    outDir,
+    appTemplateDir: resolveAppTemplateDir(),
+    platformRoot: PLATFORM_ROOT,
+  });
   return outDir;
 }
 

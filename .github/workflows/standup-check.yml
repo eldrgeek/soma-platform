@@ -1,0 +1,28 @@
+name: standup-check
+
+on:
+  pull_request:
+    paths:
+      - "packages/**"
+      - ".github/workflows/standup-check.yml"
+
+jobs:
+  standup-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Clone soma-app-template
+        run: |
+          git clone --depth 1 https://github.com/eldrgeek/soma-app-template.git "$RUNNER_TEMP/soma-app-template"
+
+      - name: npm run standup-check
+        working-directory: packages/soma-scaffolder
+        env:
+          SOMA_APP_TEMPLATE_DIR: ${{ runner.temp }}/soma-app-template
+        run: timeout 900 npm run standup-check
