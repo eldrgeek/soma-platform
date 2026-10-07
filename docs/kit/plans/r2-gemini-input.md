@@ -1,3 +1,63 @@
+You are a reviewer in a revision round of SOMA's brain trust. The document under review is the living plan `~/Projects/soma-platform/docs/kit/10-plan.md` (the SOMA app kit v1). Its brief is `~/Projects/soma-platform/docs/kit/01-brief.md`. You are in a fresh conversation on purpose: you have no stake in earlier rounds.
+
+Carefully review the entire plan. Then give your best revisions: changes that make it better on architecture, missing capabilities, correctness, security, robustness, simplicity, or usefulness to the people who will use SOMA apps and to the builders who will implement it. Cut what does not earn its place. Check concrete claims against the code under `~/Projects/` where you can.
+
+Do not write a critique essay. Write revisions. For each one give:
+
+### R<n>: <short title>
+- **Why:** one to three sentences.
+- **Change:** the exact edit as a unified diff against `10-plan.md` (```diff fenced, with enough context lines to locate it), or, for a large new section, the full replacement text and where it goes.
+
+Order revisions by importance. There is no quota: if the plan is close to right, give few revisions. If you think you have found everything, look again; first passes usually miss a good deal.
+
+Output only the revisions document, starting with `# Revisions, round 2, <your model name>`.
+
+
+You cannot read files, so the brief and the plan follow in full. You cannot check code; skip that step.
+
+===== 01-brief.md =====
+# Brief: the SOMA app kit spec, v1
+
+_The concept every planner receives in round 0 of the brain-trust convergence loop (bead sp-zf0). Written by Claude Opus 5.5 (Claude Code) for Mike Wolf, 2026-10-07, from Mike's request: "consolidate and spec and make that our first attempt." Read this whole file, then `00-inventory.md` (what is built) and `00-capability-ideas.md` (what SOMA says every app should do). You may read anything else under `~/Projects/` that helps; cite paths._
+
+## What SOMA is, in four lines
+
+SOMA (Society of Minds Aligned) is Mike Wolf's organization of humans and AIs. Its goal is alignment across three axes: human with human, human with AI, and AI with AI. It ships small web apps, each one helping people align with other people. Every app has a named human host and a named AI host (PlayMaker: Eric and V'Eric; Legends: Greg and Bill).
+
+## The job
+
+Write the plan for **the SOMA app kit**: the set of capabilities every SOMA app gets on day one, so the second app (chosen in November 2026; candidates are V'Eric coaching and OLLI) stands up in hours, not weeks, and so every app behaves like a SOMA app, not just a web app with a login.
+
+The kit has two layers. Your plan must cover both and say how they connect.
+
+1. **Plumbing that exists** in pieces across PlayMaker, Legends and soma-platform (`00-inventory.md`). Four parts are packaged already. The rest is copied, duplicated (five invitation variants, two changelog designs) or stuck inside one app.
+2. **SOMA capabilities that make an app a SOMA app** (`00-capability-ideas.md`). Mike named two in his request:
+   - **Be known.** A person's SOMA identity follows them across every SOMA app and, where possible, beyond SOMA. An app does not re-tell a person what they already know about SOMA, does not re-ask what they already answered, and greets them as who they are.
+   - **Ask, show, or do.** On any app, a person can ask how to do something. The app answers, shows them on the page, or does it for them, behind a risk gate.
+   Mike said "there may have been other ideas". Find them in the canon, judge them, and propose more.
+
+## Facts that constrain the plan
+
+- **Stack.** Netlify sites with Functions; one shared Supabase project (`omfwcodoimjmbrhssvfl`) for auth and cross-app tables; React + Vite apps (PlayMaker, the react-app scaffold) and plain static sites (Legends). Both kinds must be served.
+- **Builders.** Cursor and Codex build from beads; at most three at once. Claude writes briefs, reviews and merges. PlayMaker is Eric's repo and takes pull requests only.
+- **Delivery.** Packages in `soma-platform/packages/` are vendored into apps by the scaffolder; the Guide engine is served from a CDN. Say which delivery each part should use and why.
+- **Outside AIs are arriving.** OpenAI launched Dots (always-on personal agents), ChatGPT Space and Pages on 2026-09-29. A person may come to a SOMA app with their own AI acting for them. Claude, Gemini and Grok users will too. Plan for the person's own AI as a first-class visitor, not only for our in-app guide.
+- **Mike's rules that apply.** Mike's time goes to people, not computer tasks. Every claim of done is a demonstration. Gates are executable checks that fail loudly. AIs are credited as named co-creators.
+
+## What the plan must contain
+
+1. **The capability list.** Each capability: what it does for the person (one sentence), the SOMA principle it serves, what exists today (paths), and the target design. Keep, merge or drop every inventory item; say which and why. Resolve each duplication (pick one invitation design and one changelog design, or say why two are needed).
+2. **The architecture.** How identity, the knowledge of what a person has seen, the action registry, consent, and the AI-visitor door fit together. Data model (tables, who owns them, RLS). Package boundaries. What lives in the shared project versus per app.
+3. **The contract an app signs.** What an app must declare (hosts, concepts it teaches, actions it exposes, risk levels) and what it gets in return. A conformance check that proves an app meets the contract.
+4. **Migration.** How PlayMaker and Legends move onto the kit without breaking Eric's work. Order of work.
+5. **The second-app test.** A measurable definition of "a new app stands up on the kit", and the time target.
+6. **Product questions for Mike.** At most five, each with your recommendation. Only questions a model cannot settle (taste, people, money, promises to users).
+7. **Assumptions to test with a person.** Each with a cheap test that does not need code.
+8. **Risks and what you would cut** if the kit had to ship in two weeks.
+
+Write it as one markdown document. Be specific: names, tables, function signatures, file paths. Length is not the goal; completeness and correctness are. Do not pad.
+
+===== 10-plan.md =====
 # SOMA App Kit v1 — the living plan
 
 _Paths are relative to `~/Projects/` unless stated otherwise._
@@ -68,7 +128,7 @@ _Paths are relative to `~/Projects/` unless stated otherwise._
 
 | Capability | What it does for the person | SOMA principle | What exists today | Target design |
 |---|---|---|---|---|
-| Host pair and human handoff | The person always knows which human and AI host the app, how to reach the human, and how soon to expect a human reply. | Named minds remain accountable. | `SOMA/SOMA-APP-STANDARD.md`; `soma-app-template/src/lib/hostPair.ts`. | Declare both hosts, their roles, one escalation route, and the human host's expected response time in `soma.app.json`. Expose them in the UI and discovery document. |
+| Host pair and human handoff | The person always knows which human and AI host the app and how to reach the human. | Named minds remain accountable. | `SOMA/SOMA-APP-STANDARD.md`; `soma-app-template/src/lib/hostPair.ts`. | Declare both hosts, their roles, and one escalation route in `soma.app.json`. Expose them in the UI and discovery document. |
 | Be known | A returning person is recognized without being exposed to an unfamiliar app first. | One identity, consumed rather than forked. | `soma-platform/packages/soma-signin`; PlayMaker’s known-device flow; `soma-platform/docs/SOMA-IDENTITY-STATES.md`. | Use the shared identity broker, pairwise app IDs, an opaque device marker, and a one-tap recognition offer on first cross-app entry. |
 | Learn once, answer once, resume | An app does not repeat concepts or questions already settled and returns the person to useful context. | Respect accumulated understanding. | Guide `_recordSeen`; `soma-app-template/supabase/migrations/0005_last_location.sql`; Legends’ `guide_seen`. | Store versioned concept state and explicitly shareable answers centrally. Keep the last app location in the app membership. |
 | Invitations | A personal or shared invitation admits the person without creating another identity system. | Relationships precede accounts. | `packages/soma-tickets`; `packages/soma-onboard`; three standards folders; PlayMaker’s flow. | Make `@soma/tickets` canonical. Add personal/shared presentation, QR, channels, abuse controls, and membership creation. |
@@ -82,7 +142,7 @@ _Paths are relative to `~/Projects/` unless stated otherwise._
 | Where your words go | The person can see which outside providers receive their text, audio, or files and why. | Honest human–AI relationships require visible data flow. | Privacy material is fragmented; legal pages are mostly missing. | Declare data flows in the manifest and render them in `/privacy`, `/where-your-words-go`, and machine-readable discovery. |
 | Credits and provenance | The person can see which human or AI created or changed an artifact. | Every mind receives credit and remains accountable. | `SOMA/standards/SIGNATURES-AND-BYLINES.md`; `SOMA-STD-credits.md`. | Store actor, principal, app, action, model or substrate when known, artifact, and time. Use server-signed receipts in v1. |
 | Usage and optional billing | The person sees limits and prices before consuming a metered resource. | Cost belongs to the principal who benefits. | `packages/soma-meter`; PlayMaker `UsageChip.tsx`; billing templates. | Keep metering in the core. Add a generic usage component. Enable billing only through an app-specific declaration. |
-| Proof and drift beacon | A person or steward can verify which kit version the app runs and when its live journey last passed. | A claim of done is a demonstration. | `soma-ship-check.py`; scaffolder stand-up check. | Publish release SHA, canonical manifest hash (section 3.1), kit lock hash, and last live conformance result through `/api/soma/v1/status`. |
+| Proof and drift beacon | A person or steward can verify which kit version the app runs and when its live journey last passed. | A claim of done is a demonstration. | `soma-ship-check.py`; scaffolder stand-up check. | Publish release SHA, manifest hash, kit lock hash, and last live conformance result through `/api/soma/v1/status`. |
 
 ### 1.2 Inventory disposition
 
@@ -206,15 +266,7 @@ Only the identity broker stores the Supabase service-role credential.
 
 The broker validates the app credential, binds the request to one `app_id`, validates the person or AI session, and calls narrow database functions.
 
-Static apps receive short-lived Supabase JWTs minted by the broker after authorization.
-
-Each JWT carries `app_id` and `app_person_id` claims and lets the browser call PostgREST directly against its own app's RLS-protected `app_<app_id>` tables.
-
-The broker signs these JWTs with a key the shared project trusts, such as a registered third-party issuer or the project's current signing keys. It does not use the legacy shared JWT secret.
-
-RLS policies in `app_<app_id>` tables must match both the `app_id` claim and the row's `app_person_id`.
-
-The JWT grants no direct access to the `soma` schema. Shared records remain reachable only through the broker's narrow functions.
+Static apps receive short-lived app-scoped broker tokens after authorization.
 
 Browser code never receives an installation credential or service-role key.
 
@@ -237,7 +289,7 @@ Existing `public.tickets`, `ticket_requests`, `usage_events`, and entitlement ta
 | `soma.people` | `person_id`, `auth_user_id`, `display_name`, `locale`, `timezone`, `created_at`, `erased_at` | The person owns the row. Apps never receive `person_id`. |
 | `soma.actors` | `actor_id`, `kind`, `name`, `substrate`, `person_id`, `created_at` | Represents humans, AI hosts, and external AIs for credit and lineage. |
 | `soma.apps` | `app_id`, `name`, `origins`, `manifest_sha256`, `kit_version`, `status` | Platform-managed. Public reads expose only active metadata. |
-| `soma.app_hosts` | `app_id`, `actor_id`, `role`, `escalation_url`, `expected_response` | Public for active apps. Writes are platform-managed. |
+| `soma.app_hosts` | `app_id`, `actor_id`, `role`, `escalation_url` | Public for active apps. Writes are platform-managed. |
 | `soma.app_installations` | `app_id`, `credential_hash`, `created_at`, `last_used_at`, `revoked_at` | Broker-only. Raw credentials are never stored. |
 | `soma.memberships` | `person_id`, `app_id`, `app_person_id`, `role`, `trust`, `joined_at`, `last_seen_at`, `last_location`, `left_at` | The person reads their rows. App admins use a narrow broker call. |
 | `soma.consents` | `person_id`, `app_id`, `fields`, `purpose`, `policy_version`, `granted_at`, `revoked_at` | The person reads and revokes. The broker enforces disclosure. |
@@ -248,11 +300,9 @@ Existing `public.tickets`, `ticket_requests`, `usage_events`, and entitlement ta
 | `soma.action_receipts` | `receipt_id`, `app_id`, `action_id`, `version`, `idempotency_key`, `input_hash`, `actor_id`, `principal_id`, `grant_id`, `risk`, `status`, `effect_summary`, `reversal`, `created_at`, `completed_at` | Principal and actor read their rows. App admins receive redacted app rows. |
 | `soma.erasure_requests` | `request_id`, `person_id`, `scope`, `status`, `requested_at`, `effective_at`, `completed_at`, `receipt` | The person reads their requests. Platform workers update status. |
 
-The receipt table must have a unique constraint on `(app_id, action_id, principal_id, idempotency_key)`.
+The receipt table must have a unique constraint on `(app_id, action_id, idempotency_key)`.
 
-Scoping the key to the principal means one person cannot block another person's action by guessing or reusing their key.
-
-Reusing an idempotency key with a different `input_hash` for the same principal must fail.
+Reusing an idempotency key with a different `input_hash` must fail.
 
 #### Per-app schema
 
@@ -349,20 +399,8 @@ The server enforces the risk gate.
 |---|---|---|
 | `observe` | Run immediately. | Run with the matching read scope. |
 | `reversible` | Run and show receipt plus undo when available. | Run only within a live grant and risk ceiling. |
-| `consequential` | Show an effect preview and require confirmation. | Require a fresh approval token bound to the action, version, input hash, principal, and expiry. Without one, return `approval_required` with an `approval_url` the AI relays to the person. |
-| `irreversible` | Require explicit final wording and a cool-off step. | Never run from standing authority. Require fresh human approval through the same `approval_url` flow, including the cool-off step. |
-
-An outside AI has no screen of SOMA's own, so approval is asynchronous.
-
-When a consequential or irreversible request arrives without a valid approval token, the server returns HTTP 403 with `error: "approval_required"`, an `approval_id`, an `approval_url`, an expiry, and the ID of a `pending_approval` receipt.
-
-The AI relays the `approval_url` to the person through whatever channel it already uses with them.
-
-The `approval_url` opens the app's own effect preview, which the person confirms or declines while signed in.
-
-The AI polls `GET /api/soma/v1/approvals/:id`. After the person confirms, that call returns the approval token once.
-
-The AI then repeats the execute request with the same `Idempotency-Key` and the token.
+| `consequential` | Show an effect preview and require confirmation. | Require a fresh approval token bound to the action, version, input hash, principal, and expiry. |
+| `irreversible` | Require explicit final wording and a cool-off step. | Never run from standing authority. Require fresh human approval. |
 
 Every mutating request requires `Idempotency-Key`.
 
@@ -370,13 +408,7 @@ Every outcome writes a receipt, including refusal and failure.
 
 UI controls use the same action definition as the Guide and remote API.
 
-AI-only actions are permitted only when the action has no honest visual equivalent and its risk is `observe` or `reversible`.
-
-An AI-only `reversible` action must declare a `ui_exception` with a reason in the manifest, and that exception is reviewed under C5.
-
-Its receipts must appear in the person's receipt view with an undo control, so the person can see and reverse the effect without the AI.
-
-`consequential` and `irreversible` actions are never AI-only.
+AI-only actions are permitted only when `risk="observe"` and the action exposes machine-useful inspection with no honest visual equivalent.
 
 ### 2.7 AI visitor door
 
@@ -392,7 +424,6 @@ POST /api/soma/v1/agents/token
 POST /api/soma/v1/actions/:id/prepare
 POST /api/soma/v1/actions/:id/execute
 POST /api/soma/v1/actions/:id/compensate
-GET /api/soma/v1/approvals/:id
 GET /api/soma/v1/receipts/:id
 GET /api/soma/v1/status
 ```
@@ -471,12 +502,6 @@ Keep a compatibility entry point at:
 soma-platform/packages/soma-scaffolder/schema/soma-app.schema.json
 ```
 
-The manifest hash is the SHA-256 of the manifest's RFC 8785 (JSON Canonicalization Scheme) form, so reformatting the file does not change the hash.
-
-`soma.apps.manifest_sha256`, the status endpoint, the lock file checks, and the evidence bundle all use this canonical hash.
-
-`expected_response` states how soon the human host normally replies. It is a stated expectation shown to the person, not a contractual service-level agreement.
-
 A minimal contract looks like:
 
 ```json
@@ -495,8 +520,7 @@ A minimal contract looks like:
       "id": "eric",
       "name": "Eric",
       "role": "Human host",
-      "escalation_url": "/contact",
-      "expected_response": "Within two working days"
+      "escalation_url": "/contact"
     },
     "ai": {
       "id": "veric",
@@ -685,17 +709,17 @@ The gate must check:
 | ID | Check |
 |---|---|
 | C1 | The manifest passes JSON Schema validation. |
-| C2 | Both hosts, their roles, human escalation, and the human host's expected response time are declared and rendered. |
+| C2 | Both hosts, their roles, and human escalation are declared and rendered. |
 | C3 | Every concept and question has an ID and version. |
 | C4 | Every action has schemas, scopes, risk, effects, and idempotency behavior. |
-| C5 | Every non-inspection action has a UI binding or a reviewed `ui_exception`. An exception is allowed only for `reversible` actions whose receipts offer undo in the UI. |
-| C6 | Consequential and irreversible actions cannot bypass confirmation. A remote request without a valid approval token returns `approval_required` with an `approval_url`. |
+| C5 | Every non-inspection action has a UI binding or an explicit reviewed exception. |
+| C6 | Consequential and irreversible actions cannot bypass confirmation. |
 | C7 | Repeated idempotency keys do not repeat effects, and conflicting input hashes fail. |
 | C8 | A paired AI cannot exceed its app, scope, expiry, or risk ceiling. |
 | C9 | A revoked AI grant fails on the next request. |
 | C10 | The device marker contains no PII, user ID, or credential. |
 | C11 | An unvisited app cannot learn or display the person’s name before consent. |
-| C12 | Cross-person and cross-app RLS probes fail, including direct PostgREST probes made with a broker-minted JWT for another person, another app, or the `soma` schema. |
+| C12 | Cross-person and cross-app RLS probes fail. |
 | C13 | Vendored files and the Guide asset match `soma-kit.lock.json`. |
 | C14 | Discovery, OpenAPI, runtime actions, and manifest actions agree. |
 | C15 | Feedback creates both the app record and a retryable outbox event. |
@@ -703,7 +727,7 @@ The gate must check:
 | C17 | Declared dependency failures expose the declared fallback. |
 | C18 | Required routes exist. Public MVP also requires ratified content. |
 | C19 | Credits name human and AI contributors and record model or substrate when known. |
-| C20 | The live status endpoint reports the tested release SHA, canonicalized manifest hash (RFC 8785), result, and timestamp. |
+| C20 | The live status endpoint reports the tested release SHA, manifest hash, result, and timestamp. |
 
 Existing package checks remain runnable:
 
@@ -810,7 +834,7 @@ The timed run then restarts.
 
 The test must demonstrate:
 
-1. An unknown visitor sees both named hosts, the human handoff, and the expected human response time.
+1. An unknown visitor sees both named hosts and the human handoff.
 2. The visitor signs in and receives one app membership.
 3. A person already known to another SOMA app sees a neutral recognition offer.
 4. The new app does not receive or display the person’s name before acceptance.
@@ -821,7 +845,7 @@ The test must demonstrate:
 9. Ask returns an answer grounded in declared knowledge.
 10. Show highlights the controls for the declared workflow.
 11. Do performs a reversible action and returns an undoable receipt.
-12. A consequential action stops for fresh confirmation. When an outside AI requests it, the AI receives an `approval_url`, and the action runs only after the person approves.
+12. A consequential action stops for fresh confirmation.
 13. An outside AI discovers the app from its URL without vendor-specific instructions.
 14. The AI pairs without a copied secret.
 15. The AI performs one permitted inspection and one permitted reversible action.
