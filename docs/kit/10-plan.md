@@ -30,37 +30,39 @@ _Paths are relative to `~/Projects/` unless stated otherwise._
 
 ## 1. The capability list
 
+This section says what each capability does and becomes. Section 2 says how it works, section 3 what an app declares, and Appendix A the mechanics a builder needs for one milestone.
+
 ### 1.1 Required capabilities
 
 | Capability | What it does for the person | SOMA principle | What exists today | Target design |
 |---|---|---|---|---|
-| Host pair and human handoff | The person always knows which human and AI host the app, how to reach the human, and how soon to expect a human reply. | Named minds remain accountable. | `SOMA/SOMA-APP-STANDARD.md`; `soma-app-template/src/lib/hostPair.ts`. | Declare both hosts, their roles, one escalation route, and the human host's expected response time in `soma-app.json`. Expose them in the UI and discovery document. The kit's `POST /api/soma/v1/contact` writes a `feedback_items` row with `kind = 'contact'`, a `soma.estate_inbox` event, and an idempotent notification job in one broker transaction. A worker retries delivery to the human host's private registered address. The person sees that the message was received, the stated response time, and later the host's reply in the app. The AI host offers this route whenever Ask returns `grounded: false`. |
-| Be known | A returning person is recognized without being exposed to an unfamiliar app first. | One identity, consumed rather than forked. | `soma-platform/packages/soma-signin`; PlayMaker’s known-device flow; `soma-platform/docs/SOMA-IDENTITY-STATES.md`. | Use the shared identity broker, pairwise app IDs, an origin-scoped boolean device marker, and a one-tap recognition offer on first cross-app entry. |
-| Learn once, answer once, resume | An app does not repeat concepts or questions already settled and returns the person to useful context. | Respect accumulated understanding. | Guide `_recordSeen`; `soma-app-template/supabase/migrations/0005_last_location.sql`; Legends’ `guide_seen`. | Store versioned concept state and explicitly shareable answers centrally. Keep the last app location in the app's own schema, because it is app-internal and changes on every navigation. |
-| Invitations | A personal or shared invitation admits the person without creating another identity system. | Relationships precede accounts. | `packages/soma-tickets`; `packages/soma-onboard`; three standards folders; PlayMaker’s flow. | Make `@soma/tickets` canonical. Add personal/shared presentation, QR, channels, abuse controls, and membership creation. |
-| Ask, Show, and Do | The person can ask for an explanation, see the relevant controls, or ask the host to act. | Alignment joins understanding with agency. | `packages/soma-guide`; its independent `inferenceUrl` and optional ElevenLabs voice paths; PlayMaker `src/agent-portal/`; Legends Guide actions. | Make one typed action registry serve the UI, Guide, and outside AIs. Bind controls with `data-soma-action="<id>"`. In-app Ask uses a provider-neutral server endpoint implementing the kit's Ask interface and grounded in declared knowledge. Voice is an optional adapter. An outside AI can read `/llms.txt` and `/knowledge/*.md` without SOMA inference. |
-| Consent and action receipts | The person sees expected effects before consequential acts and receives a durable result afterward. | Authority must be visible, bounded, and reviewable. | Guide risk flag; PlayMaker audit and pairing code; template delegation migrations. | Enforce risk, scope, expiry, confirmation, idempotency, and undo on the server. Write receipts for authenticated effect attempts, authorization refusals, and reads an AI performs on the person's behalf. Reject malformed, unauthenticated, and rate-limited traffic before any receipt is created. |
-| AI visitor door | A person’s own AI can discover, understand, pair with, and use the app without vendor-specific instructions. | Outside AIs are first-class visitors. | PlayMaker `netlify/functions/agent-v1.ts`, `public/llms.txt`, pairing functions, and Agent Portal. | Publish `/.well-known/soma-app.json`, `/llms.txt`, and OpenAPI. Use device-code pairing and per-app grants. |
-| Feedback and improvement loop | A person can report a problem or request a change and later see its disposition and demonstration. | The user participates in the outer RSI loop. | `packages/soma-feedback`; PlayMaker’s feedback queue and build requests. | Make the package the widget’s source of truth. Keep full reports per app; forward only a minimal event through the broker; return disposition and demonstration updates to the app. |
+| Host pair and human handoff | The person always knows which human and AI host the app, how to reach the human, and how soon to expect a human reply. | Named minds remain accountable. | `SOMA/SOMA-APP-STANDARD.md`; `soma-app-template/src/lib/hostPair.ts`. | Declare both hosts, their roles, one escalation route, and the human host's expected response time in `soma-app.json` (section 3.1). Render them in the UI and the discovery document. The kit's contact route (section 2.7) delivers the message to the human host and shows the person the receipt, the stated response time, and later the reply. The AI host offers this route whenever Ask returns `grounded: false`. |
+| Be known | A returning person is recognized without being exposed to an unfamiliar app first. | One identity, consumed rather than forked. | `soma-platform/packages/soma-signin`; PlayMaker’s known-device flow; `soma-platform/docs/SOMA-IDENTITY-STATES.md`. | The shared identity broker, pairwise app IDs, and an origin-scoped boolean device marker (section 2.2). On first entry to another app the person sees a neutral "Continue with SOMA" offer, and the identity origin then recognizes them in one tap. |
+| Learn once, answer once, resume | An app does not repeat concepts or questions already settled and returns the person to useful context. | Respect accumulated understanding. | Guide `_recordSeen`; `soma-app-template/supabase/migrations/0005_last_location.sql`; Legends’ `guide_seen`. | Store versioned concept state and explicitly shared answers centrally (section 2.5). Keep the last app location in the app's own schema, because it is app-internal and changes on every navigation. |
+| Invitations | A personal or shared invitation admits the person without creating another identity system. | Relationships precede accounts. | `packages/soma-tickets`; `packages/soma-onboard`; three standards folders; PlayMaker’s flow. | Make `@soma/tickets` canonical (section 1.2). Add personal and shared presentation, QR, channels, abuse controls, and membership creation. |
+| Ask, Show, and Do | The person can ask for an explanation, see the relevant controls, or ask the host to act. | Alignment joins understanding with agency. | `packages/soma-guide`; its independent `inferenceUrl` and optional ElevenLabs voice paths; PlayMaker `src/agent-portal/`; Legends Guide actions. | One typed action registry serves the UI, the Guide, and outside AIs (section 2.6). Controls bind with `data-soma-action="<id>"`. In-app Ask is a provider-neutral server endpoint grounded in declared knowledge (section 2.6a). Voice is an optional adapter. An outside AI can read `/llms.txt` and `/knowledge/*.md` without SOMA inference. |
+| Consent and action receipts | The person sees expected effects before consequential acts and receives a durable result afterward. | Authority must be visible, bounded, and reviewable. | Guide risk flag; PlayMaker audit and pairing code; template delegation migrations. | The server enforces risk, scope, expiry, confirmation, idempotency, and undo, and writes receipts (section 2.6). |
+| AI visitor door | A person’s own AI can discover, understand, pair with, and use the app without vendor-specific instructions. | Outside AIs are first-class visitors. | PlayMaker `netlify/functions/agent-v1.ts`, `public/llms.txt`, pairing functions, and Agent Portal. | Discovery, OpenAPI, device-code pairing, and per-app grants (section 2.7). |
+| Feedback and improvement loop | A person can report a problem or request a change and later see its disposition and demonstration. | The user participates in the outer RSI loop. | `packages/soma-feedback`; PlayMaker’s feedback queue and build requests. | Make the package the widget’s source of truth. Keep full reports per app. The broker forwards only a minimal estate event and returns disposition and demonstration updates to the app (section 2.4). |
 | Changes and review | Stewards approve changes, while participants see only relevant shipped changes they have not seen. | Change remains legible to every participant. | Legends admin changelog; PlayMaker `Changelog` and `WhatsNewList`. | Use one per-app `app_changes` ledger with admin and participant views. |
 | Honest operation and recovery | The person sees started, succeeded, failed, retryable, and reversible states. | No silent success and no concealed failure. | PlayMaker error/crash code; template toast and reload helpers. | Standardize action status and error capture. Require a declared fallback for unavailable shared dependencies. |
-| Data control and context export | The person can inspect, export, revoke, and erase the information SOMA holds about them. | The person remains the principal of their data. | Consent and erasure specifications exist, but implementation is incomplete. | Provide “What do you know?”, Markdown/JSON export, per-app forget, global erasure request, and AI-grant revocation. |
+| Data control and context export | The person can inspect, export, revoke, and erase the information SOMA holds about them. | The person remains the principal of their data. | Consent and erasure specifications exist, but implementation is incomplete. | Provide “What do you know?”, Markdown/JSON export, per-app forget, global erasure request, and AI-grant revocation (section 2.5a). |
 | Where your words go | The person can see which outside providers receive their text, audio, or files and why. | Honest human–AI relationships require visible data flow. | Privacy material is fragmented; legal pages are mostly missing. | Declare data flows in the manifest and render them in `/privacy`, `/where-your-words-go`, and machine-readable discovery. |
 | Credits and provenance | The person can see which human or AI created or changed an artifact. | Every mind receives credit and remains accountable. | `SOMA/standards/SIGNATURES-AND-BYLINES.md`; `SOMA/standards/SOMA-STD-credits.md`. | Store actor, principal, app, action, model or substrate when known, artifact, and time. Use server-signed receipts in v1. |
 | Usage and optional billing | The person sees limits and prices before consuming a metered resource. | Cost belongs to the principal who benefits. | `packages/soma-meter`; PlayMaker `UsageChip.tsx`; billing templates. | Keep metering in the core. Add a generic usage component. Enable billing only through an app-specific declaration. |
-| Proof and drift beacon | A person or steward can verify which kit version the app runs and when its live journey last passed. | A claim of done is a demonstration. | `soma-ship-check.py`; scaffolder stand-up check. | Publish release SHA, contract hash (section 3.1), kit lock hash, and last live conformance result through `/api/soma/v1/status`. |
+| Proof and drift beacon | A person or steward can verify which kit version the app runs and when its live journey last passed. | A claim of done is a demonstration. | `soma-ship-check.py`; scaffolder stand-up check. | Publish release SHA, contract hash (section 3.1), kit lock hash, and last live conformance result through `/api/soma/v1/status` (section 2.9). |
 
 ### 1.2 Inventory disposition
 
 | Inventory item | Decision |
 |---|---|
-| `soma-platform/packages/soma-signin` | Keep as canonical. Add React and static adapters. Add a broker mode that signs in only through the identity origin (section 2.2); it is the only mode a pairwise app may use. The current direct Supabase Auth mode remains for the two legacy-global apps. |
+| `soma-platform/packages/soma-signin` | Keep as canonical. Add React and static adapters. Add a broker mode that signs in only through the identity origin (section 2.2); it is the only mode a pairwise app may use. The current direct Supabase Auth mode remains for the two legacy-global apps (section 2.3a). |
 | `soma-platform/packages/auth` | Deprecate after static consumers migrate. |
 | `legends-membership-site/js/soma-auth.js` and `legends-connect/js/soma-auth.js` | Remove only after the vendored static adapter passes the old journeys. |
-| `soma-platform/packages/soma-tickets` | Keep and expand into the sole invitation implementation. Rows stay in `public.tickets`, keyed by its `app` column, because PlayMaker's live tickets are there. Add `kind`, `max_redemptions`, and `token_hash`; `token` becomes nullable, a v2 row stores only the keyed hash, and old rows keep their plaintext token until they expire. Add four v2 functions in the platform-owned `soma` schema, executable only by `soma_broker`. Each takes the app from the `app_id` the broker derives from the installation credential. `soma.ticket_create_v2` admits the inviter by `soma.memberships` role under that app's invitation policy and takes the inviter name only from the display name the inviter consented to share with that app, never from an email address. `soma.ticket_lookup_v2(p_token)` returns only status, kind (`personal` or `shared`), invitee name, inviter name, and quote line. `soma.ticket_admit_v2(p_token, p_guest_session)` lets a person who has not signed in enter the invited scope as a guest, as `ticket_use` does today. `soma.ticket_redeem_v2(p_token)` requires a signed-in principal and, in one transaction, records the redemption and creates or upgrades that person's `soma.memberships` row (section 2.2, admission). A personal ticket admits one person once. A shared ticket admits many people until it expires or reaches `max_redemptions`; `public.ticket_redemptions` records each admission by either `person_id` or a keyed guest-session hash, with uniqueness per ticket and subject, so anonymous admissions count without storing the bearer session. Every app that issues tickets lists `public.tickets` and `public.ticket_redemptions` as a platform `data_stores` entry, so export and erasure reach the invitee names and emails held there. Restrict the existing `ticket_create`, `ticket_lookup`, and `ticket_use` to `p_app = 'playmaker'` until PlayMaker moves to v2, then retire them. (Today `ticket_create` admits anyone with any PlayMaker studio membership, whatever `p_app` says; `ticket_use` is executable by `anon` for any `p_app`; and the token is stored in plaintext.) |
-| `soma-platform/packages/soma-meter` | Keep the gate and pricing logic. Add `createBrokerStore`, which implements a generic billing-subject store over per-app `usage_events` and `entitlements` through broker RPCs. Rename the store's `resolveStudioId` to `resolveBillingSubject`, keeping the old name as a PlayMaker adapter alias. A pairwise app normally bills the person's `app_person_id`; anonymous public Ask bills the app's operator subject, whose entitlement carries the daily cost budget from section 2.7a. PlayMaker keeps `createSupabaseRestStore` and its `public` tables until M11. Add a generic client chip based on `playmaker/src/components/UsageChip.tsx`. |
+| `soma-platform/packages/soma-tickets` | Keep and expand into the sole invitation implementation. Rows stay in `public.tickets`, keyed by its `app` column, because PlayMaker's live tickets are there. Four new broker-only functions in the `soma` schema store only a keyed token hash, take the app from the installation credential, and create or upgrade the membership on redemption (section 2.2, admission). A personal ticket admits one person once. A shared ticket admits many people until it expires or reaches `max_redemptions`. Restrict the existing `ticket_create`, `ticket_lookup`, and `ticket_use` to `p_app = 'playmaker'` until PlayMaker moves to v2, then retire them, because today they admit any PlayMaker studio member whatever `p_app` says, run for `anon` on any app, and store the token in plaintext. Function signatures and columns: Appendix A, M5. |
+| `soma-platform/packages/soma-meter` | Keep the gate and pricing logic. Add a broker-backed store with a generic billing subject. A pairwise app bills the person's `app_person_id`. Anonymous public Ask bills the app's operator subject, whose entitlement carries the daily cost budget (section 2.7a). PlayMaker keeps its current store and `public` tables until M11. Add a generic client usage chip. Detail: Appendix A, M5. |
 | `soma-platform/packages/soma-feedback` | Keep. Promote `packages/soma-feedback/widget/` from a documented copy to the canonical widget source, then replace the other copies. |
-| `soma-platform/packages/soma-guide` | Keep on the CDN. Publish immutable semantic-version paths and SRI hashes. Keep text Ask independent from voice. When voice is enabled, the page loads a pinned ElevenLabs voice adapter from the same immutable release through its own integrity-checked script tag, rather than the Guide importing `esm.sh/@elevenlabs/client@latest` at runtime (section 2.8). Keep the root path as the moving channel for non-kit consumers. |
+| `soma-platform/packages/soma-guide` | Keep on the CDN as immutable versioned releases with SRI hashes (section 2.8). Keep text Ask independent from voice. Keep the root path as the moving channel for non-kit consumers. |
 | `soma-platform/packages/soma-assist-core` | Keep the chat shell as an internal Guide dependency. Do not create a second public chat contract. Its feedback and heartbeat clients stay only for the Adrian and Yeshie browser extensions. A SOMA app never loads them: app feedback goes through `@soma/feedback`, and app health goes through `/api/soma/v1/status`. |
 | `soma-platform/packages/soma-onboard` | Merge QR, channel, privacy, and abuse behavior into `@soma/tickets`; stop generating its member tables. |
 | `soma-platform/packages/soma-scaffolder` | Keep as the only supported generator and updater. |
@@ -125,25 +127,18 @@ _Paths are relative to `~/Projects/` unless stated otherwise._
 
 ### 2.1 System shape
 
-The canonical product contract is `soma-app.json`.
-
-The scaffolder compiles the contract into vendored runtime code, discovery files, legal-page shells, database migrations, tests, and `soma-kit.lock.json`.
-
-The Guide loads from an immutable CDN URL.
-
-The app UI, Guide, and outside AIs use one action registry.
-
-The identity broker owns cross-app recognition and consent.
-
-The shared Supabase project stores authentication and cross-app records.
-
-Each app owns its domain records, detailed feedback, changes, errors, and unpublished content.
-
-No new app receives a service-role credential that can read the entire shared project. M11 removes the legacy credentials from PlayMaker and Legends.
+- The canonical product contract is `soma-app.json` (section 3.1).
+- The scaffolder compiles the contract into vendored runtime code, discovery files, legal-page shells, database migrations, tests, and `soma-kit.lock.json`.
+- The Guide loads from an immutable CDN URL.
+- The app UI, the Guide, and outside AIs use one action registry.
+- The identity broker owns cross-app recognition and consent.
+- The shared Supabase project stores authentication and cross-app records.
+- Each app owns its domain records, detailed feedback, changes, errors, and unpublished content.
+- No new app receives a service-role credential that can read the entire shared project. M11 removes the legacy credentials from PlayMaker and Legends (section 2.3a).
 
 ### 2.2 Identity flow
 
-1. The app reads only its own origin-scoped boolean marker, `soma.known.device`, which `@soma/signin` already writes as the literal `1` (`soma-platform/packages/soma-signin/src/somaKnownDevice.js`). The marker means only “this browser has signed in to this app before.”
+1. The app reads only its own origin-scoped boolean marker, `soma.known.device`, which `@soma/signin` already writes as the literal `1` (`soma-platform/packages/soma-signin/src/somaKnownDevice.js`; why a boolean: section 0). The marker means only “this browser has signed in to this app before.”
 2. An app with an existing valid membership and session resumes silently. An app with the marker but no session shows “Come back in.”
 3. Every other visitor sees the same neutral “Continue with SOMA” control. An unvisited app cannot tell whether a visitor is known to SOMA. Only the identity origin, which keeps its own first-party session, can recognize the person.
 4. Selecting it opens `https://id.<SOMA_APEX>/authorize` as a top-level navigation.
@@ -151,45 +146,35 @@ No new app receives a service-role credential that can read the entire shared pr
 6. The identity origin authenticates the person.
 7. The identity origin shows the person’s name, the destination app, and the fields that will be disclosed. When the app declares `soma:` concepts, the list includes “SOMA basics you have already seen.”
 8. Acceptance creates a pending authorization bound to the exact disclosure preview the person saw. It does not yet create a durable membership.
-9. The origin returns a single-use authorization code, which is stored only as a keyed hash.
+9. The origin returns a short-lived, single-use authorization code, which is stored only as a keyed hash.
 10. The app's Netlify Function, not the browser, exchanges the code. It presents the PKCE verifier and the app's installation credential. In one transaction the broker consumes the code, rechecks the pending authorization, creates or updates membership and consent, and creates the browser session. An abandoned or failed exchange leaves no membership.
 11. The function sets broker-issued access and rotating refresh handles in `__Host-` prefixed, `HttpOnly`, `Secure`, `SameSite=Lax` cookies. The broker stores only keyed hashes of those handles. The function does not expose a Supabase Data API JWT to browser JavaScript. The browser obtains the pairwise identity and consented fields through the same-origin `/api/soma/v1/me` route.
 12. The app may now greet the person by name and say that the name came from the person's SOMA identity. It never names another SOMA app as the source.
 
-The authorization code must be short-lived and single-use.
+The redirect URI must exactly match a registered origin. Cookie-authenticated unsafe methods require both an exact allowed `Origin` and a CSRF token bound to the session. Bearer-token agent calls do not use cookies. The transaction, callback, and cookie rules a builder needs are in Appendix A, M3.
 
-The membership that step 10 creates follows the manifest's `identity.admission`:
+Access tokens, authorization codes, refresh handles, invitation tokens, device codes, and approval identifiers are redacted from logs, analytics, error reports, referrers, and evidence screenshots.
+
+**Admission.** The membership that step 10 creates follows the manifest's `identity.admission`:
 
 - `open`: the person becomes a `member`.
 - `invitation`: the person becomes a `member` only when the authorization carries a ticket that `soma.ticket_redeem_v2` redeems in the same transaction (section 1.2). Without a ticket, the person receives a `visitor` membership. A visitor may run `visitor` actions and use the contact route, and nothing else.
 - `request`: the person receives a `visitor` membership and an access request. An app `owner` or `admin` approves the request through a registered `consequential` action.
 
-Changing a member's role is a registered action. Raising a role to `owner` or `admin` is `consequential` and requires an existing `owner`. Lowering a role is `reversible`. The first owner comes from the time-limited `ADMIN_EMAILS` bootstrap (section 1.2).
+Membership roles are `visitor`, `member`, `editor`, `owner`, and `admin`. Changing a member's role is a registered action. Raising a role to `owner` or `admin` is `consequential` and requires an existing `owner`. Lowering a role is `reversible`. The first owner comes from the time-limited `ADMIN_EMAILS` bootstrap (section 1.2).
 
-The redirect URI must exactly match a registered origin.
-
-The app must not receive a global `person_id`.
-
-Pairwise identity covers every identifier an app can observe, not only the person's own ID, because one shared value is enough for two apps to join their records:
+**Pairwise identity.** The app must not receive a global `person_id`. Pairwise identity covers every identifier an app can observe, not only the person's own ID, because one shared value is enough for two apps to join their records:
 
 - A person acting in an app is recorded in that app's tables by `app_person_id`, never by `soma.actors.actor_id`.
-- An outside AI appears to each app as `app_agent_id`, a random handle per agent and app, stored in `soma.agent_app_handles`. Access tokens carry `sub = app_agent_id` and `grant_ref`, a per-app keyed handle for the grant. They never carry the global `agent_id` or `grant_id`. A grant the person made for `app_id='*'` therefore looks different in each app.
+- An outside AI appears to each app as `app_agent_id`, a random handle per agent and app, stored in `soma.agent_app_handles`. Its tokens carry a per-app `grant_ref`, never the global `agent_id` or `grant_id` (section 2.7). A grant the person made for `app_id='*'` therefore looks different in each app.
 - Responses from `/api/soma/v1/me` and `/api/soma/v1/me/*` never include another app's `source_app_id`, consent rows, memberships, or receipts. Concept state reports only the state and the concept version. A shared answer reports only its value, schema version, and expiry.
 - `email` is a correlating field, because the same address identifies the person in every app and outside SOMA. An app may list `email` in `identity.profile_fields` only together with an `email_reason`. The consent screen then says that sharing the address lets the app recognize the person outside SOMA. An app that only needs to send the person a message uses the broker's person notification (section 2.3b) and does not request `email`.
-
-The app starts authorization through a same-origin Function that creates `state`, `nonce`, and a PKCE verifier using a cryptographic random source. The broker records the transaction in `soma.oauth_transactions` with keyed hashes of `state` and `nonce` and the PKCE challenge; that record expires within ten minutes and is consumed once. The verifier itself never leaves the app: the Function keeps it in a short-lived `__Host-` `HttpOnly` cookie bound to the transaction and presents it at exchange.
-
-The callback rejects an unknown or reused state, verifier mismatch, issuer mismatch, audience mismatch, nonce mismatch, non-HTTPS redirect, or redirect URI that is not an exact registered value.
-
-Session cookies use the `__Host-` prefix, `Path=/`, no `Domain`, `Secure`, `HttpOnly`, and `SameSite=Lax`. Cookie-authenticated unsafe methods require both an exact allowed `Origin` and a CSRF token bound to the session. Bearer-token agent calls do not use cookies.
-
-Access tokens, authorization codes, refresh handles, invitation tokens, device codes, and approval identifiers are redacted from logs, analytics, error reports, referrers, and evidence screenshots.
 
 ### 2.3 Authentication boundary for apps
 
 Neither shared nor per-app database access trusts a browser-supplied `app_id`, `person_id`, `app_person_id`, role, or grant.
 
-Each deployed app receives two overlapping, independently revocable installation credentials so one can rotate without downtime. They are stored only in Netlify Functions and authenticate the app to the broker; they are not database credentials.
+Each deployed app receives two overlapping, independently revocable installation credentials, so one can rotate without downtime. They are stored only in Netlify Functions and authenticate the app to the broker. They are not database credentials.
 
 The browser calls same-origin app Functions. A Function makes one broker call per database operation, `POST /broker/v1/invoke`. The call carries the installation credential, the contract hash compiled into that server release, the person's session handle or the agent's access token, the registered RPC name, and its arguments. Browser input cannot select the contract hash. The broker validates the installation, the contract, the principal, and the policy, and then runs the RPC inside one database transaction.
 
@@ -199,23 +184,19 @@ The broker may invoke, through its platform-owned wrapper (section 2.3b), only R
 
 Per-app tables and `soma` tables are not exposed to browser PostgREST in v1. No pairwise app token carries the generic Supabase `authenticated` database role.
 
-The ordinary data path uses a least-privilege broker database role. Supabase Auth administration that genuinely requires the project secret runs only through the steward CLI or outbound-only worker in section 2.3b; ordinary app data calls never receive or use that secret.
+The ordinary data path uses a least-privilege broker database role. Supabase Auth administration that genuinely requires the project secret runs only through the path in section 2.3b; ordinary app data calls never receive or use that secret.
 
 Browser code never receives an installation credential, database credential, Supabase secret key, or shared-project JWT-signing key.
 
-Because every private read and effect passes through the broker, a broker outage stops private reads and effects for every pairwise app. They fail closed; section 2.3a and section 8.1 describe what keeps working.
+**Broker outage.** Every private read and effect passes through the broker, so a broker outage stops private reads and effects for every pairwise app. They fail closed. Public pages keep working. Ask degrades to the provider-free knowledge search in section 2.6a. The sign-in control states the outage and shows the human host's contact route. A pairwise app has no local sign-in fallback, because signing in directly to Supabase Auth inside the app would give it a global `auth.uid()` and skip the consent screen. C17 and the degraded-mode journey test this.
 
-Each private request pays two Function invocations and a pooled database round trip. The broker site and each app's Functions run in the Netlify Functions region closest to the shared project's database region, where the Netlify plan allows choosing one. `GET /api/soma/v1/me` returns membership, consented fields, the CSRF token, every declared concept's state, and every declared compatible shared answer the app may read in one broker call, so an ordinary page load needs one round trip. Live conformance records p50 and p95 latency for `/me`, a private `observe` action, and a reversible `execute` on the staging alias. The evidence bundle reports them against an initial observational target of p95 under 800 ms for a warm `/me`; latency does not fail the run until measurements support a ratified budget.
+**Cost of the boundary.** Each private request pays two Function invocations and a pooled database round trip. To keep that small, the broker site and each app's Functions run in the Netlify Functions region closest to the shared database, where the Netlify plan allows choosing one, and `GET /api/soma/v1/me` returns everything an ordinary page load needs in one broker call (section 2.7). Live conformance reports latency without failing on it until a budget is ratified (Appendix A, M1).
 
-This boundary must replace existing app-held service-role access incrementally because the current shared `public` schema contains legacy role-wide policies and callable functions. Pairwise IDs do not make those legacy grants safe.
+This boundary must replace existing app-held service-role access incrementally, because the current shared `public` schema contains legacy role-wide policies and callable functions. Pairwise IDs do not make those legacy grants safe.
 
 ### 2.3a Apps that predate the broker
 
-PlayMaker and Legends sign people in directly against Supabase Auth in the shared project.
-
-PlayMaker's tables key on `auth.users.id`, so PlayMaker already holds a global identifier for every person.
-
-Rekeying PlayMaker to pairwise IDs would change its domain model, which section 4.2 forbids.
+PlayMaker and Legends sign people in directly against Supabase Auth in the shared project. PlayMaker's tables key on `auth.users.id`, so PlayMaker already holds a global identifier for every person. Rekeying PlayMaker to pairwise IDs would change its domain model, which section 4.2 forbids.
 
 Therefore the manifest gains `identity.subject`, with two values:
 
@@ -224,135 +205,74 @@ Therefore the manifest gains `identity.subject`, with two values:
 
 A legacy-global app still receives cross-app data (shared answers, `soma:` concept state) only after consent, exactly like a pairwise app.
 
-A legacy-global app signs people in on its own origin, so its session does not create a session on the identity origin. A PlayMaker writer who opens a new SOMA app for the first time therefore signs in once on the identity origin with the same email. That sign-in resolves to the same `auth.users` row and the same `soma.people` row, so the writer is known from then on, and first visits to further apps take one tap. M9 adds “Continue with SOMA” to PlayMaker's sign-in as a second path that goes through the identity origin and returns `app_person_id = auth_user_id`, so PlayMaker's tables do not change. Until M9 ships, the kit's status page and evidence do not claim one-tap recognition for people who have only ever signed in to a legacy app. M0 records what a PlayMaker writer sees today on a first visit to the fixture app.
+**Recognition before M9.** A legacy-global app signs people in on its own origin, so its session does not create a session on the identity origin. A PlayMaker writer who opens a new SOMA app for the first time therefore signs in once on the identity origin with the same email. That sign-in resolves to the same `auth.users` row and the same `soma.people` row, so the writer is known from then on, and first visits to further apps take one tap. M9 adds “Continue with SOMA” to PlayMaker's sign-in as a second path through the identity origin that returns `app_person_id = auth_user_id`, so PlayMaker's tables do not change. Until M9 ships, the status page and evidence do not claim one-tap recognition for people who have only ever signed in to a legacy app.
 
-PlayMaker's Netlify Functions hold the shared project's secret key (`playmaker/netlify/functions/lib/agentIngress.ts`, `lib/metering.ts`) and mint agent sessions with the legacy JWT secret (`lib/agentJwt.ts`).
+**Isolation before M11.** PlayMaker's Netlify Functions hold the shared project's secret key (`playmaker/netlify/functions/lib/agentIngress.ts`, `lib/metering.ts`) and mint agent sessions with the legacy JWT secret (`lib/agentJwt.ts`). `soma-app-template` does the same (`netlify/functions/lib/supabaseAdmin.ts`, `lib/agentJwt.ts`, `.env.example`), so every app the scaffolder generates today inherits both secrets; M3 removes them from the generator. Until M11 completes, the isolation in section 2.3 holds for new apps only, and a compromised PlayMaker function can still read every shared table. The status page and evidence bundle must say so rather than claim estate-wide isolation.
 
-`soma-app-template` does the same (`netlify/functions/lib/supabaseAdmin.ts`, `lib/agentJwt.ts`, `.env.example`), so every app the scaffolder generates today inherits both secrets.
-
-Until migration phase M11 completes, the isolation described in section 2.3 holds for new apps only. A compromised PlayMaker function can still read every shared table. The kit's status page and evidence bundle must say so rather than claim estate-wide isolation.
-
-Interim control in week one: give each app that still holds a secret key its own `sb_secret_…` key. The shared project already uses the new key format, so one app's key can then be revoked without rotating every other consumer.
-
-The shared project must not revoke the legacy JWT secret or rotate to asymmetric signing keys until PlayMaker's agent seam has moved to broker-issued agent tokens (M8). Otherwise every paired PlayMaker agent stops working at once.
-
-A pairwise app has no local sign-in fallback. Signing in directly to Supabase Auth inside the app would give it a global `auth.uid()` and skip the consent screen. During a broker outage, private reads and effects fail closed, public pages keep working, Ask degrades to the provider-free knowledge search in section 2.6a, and the sign-in control states the outage and shows the human host's contact route.
+- Interim control in week one: give each app that still holds a secret key its own `sb_secret_…` key. The shared project already uses the new key format, so one app's key can then be revoked without rotating every other consumer.
+- Ordering constraint: the shared project must not revoke the legacy JWT secret or rotate to asymmetric signing keys until PlayMaker's agent seam has moved to broker-issued agent tokens (M8). Otherwise every paired PlayMaker agent stops working at once.
 
 ### 2.3b Where the broker runs
 
 The identity origin and broker are one Netlify site, `soma-id`, built from `soma-platform/apps/soma-id/` with its own `netlify.toml`. The existing root `netlify.toml`, which publishes `dist/` for the Guide CDN, is left unchanged. A second site, `soma-id-staging`, is built from the same commit against the staging Supabase project.
 
-Broker Functions reach Postgres with the `pg` driver through the Supavisor pooler in transaction mode, with prepared statements disabled.
+The broker reaches Postgres as `soma_broker`, a role with no `BYPASSRLS` and no direct privileges on app tables. It calls app RPCs only through one platform-owned invocation wrapper, which installs the authenticated app, person, actor, and grant as transaction-local request context and clears it before returning.
 
-They log in as `soma_broker`, a role with no `BYPASSRLS`. It has no direct privileges on app tables. It holds the `soma` grants it needs, nothing in `public` except the named legacy RPCs it wraps, and `EXECUTE` on one platform-owned invocation wrapper. The wrapper selects a registered `app_*_api` function, installs the authenticated app, person, actor, and grant as transaction-local request context, calls the function, and clears the context before returning.
+Each app has two no-login roles. `app_<app_id>_owner` owns the app's tables and is used only by the migration runner. `app_<app_id>_runtime` owns the app's API functions, owns no tables, and has no DDL privilege. A table owner is exempt from RLS unless the table forces it, so this split is what keeps runtime functions subject to RLS.
 
-Each app has two no-login roles. `app_<app_id>_owner` owns the app's tables and is used only by the migration runner. `app_<app_id>_runtime` owns the app's API functions. It owns no tables, has no DDL privilege, has no `BYPASSRLS`, and receives only the table privileges each function requires. A table owner is exempt from RLS unless the table forces it, so this split is what keeps runtime functions subject to RLS.
+RLS policies obtain identity only through platform-owned, read-only accessor functions such as `soma_ctx.app_person_id()`, backed by a platform-owned table that neither app role can touch. Identity is not a custom PostgreSQL setting, because any role can call `set_config` and could otherwise impersonate another person or app.
 
-RLS policies obtain identity only through platform-owned, read-only accessor functions such as `soma_ctx.app_person_id()`. The backing store is a platform-owned table keyed by the current transaction ID, on which neither app role holds any privilege. It is not a custom PostgreSQL setting, because any role can call `set_config` and could otherwise impersonate another person or app.
+The Mac-side estate importer logs in as `soma_estate`, a role that can only claim `soma.estate_inbox` rows and write `soma.estate_dispositions`. Its password lives in the Mac keychain and in no Netlify site.
 
-Every broker transaction sets `statement_timeout` to 5 seconds.
+The Supabase secret key used for Auth administration is deployed to no HTTP-addressable site in v1. A separate Function on the broker site would share its environment, and a separate public site would need a private invocation mechanism that v1 has not designed. Auth-administration work, such as deleting the Auth user during global erasure, therefore runs through a steward-operated CLI or an outbound-only scheduled worker with no request handler. If a later release needs an online admin service, its private invocation and authentication must be designed and threat-tested before the secret is deployed.
 
-The Mac-side estate importer and disposition writer log in as `soma_estate`, a login role with no `BYPASSRLS`. It holds `SELECT` and `UPDATE (claimed_at)` on `soma.estate_inbox`, `INSERT` and `UPDATE` on `soma.estate_dispositions`, `SELECT` on `soma.apps`, and nothing else. Forced-RLS policies allow only those claim and disposition operations; table privileges alone do not bypass RLS. Its password lives in the Mac keychain and in no Netlify site. The C12 probes include `soma_estate` and prove it cannot read any app schema, `public` table, or other `soma` table.
+The identity origin is hardened as a credential page: server-side Auth session cookies, no third-party or app-supplied script, and strict caching, framing, referrer, and form policies. Only the identity origin's callback URLs are entered in Supabase Auth's redirect allowlist; app origins are registered in `soma.apps` and checked by the broker. A new app therefore adds no entry to the shared project's allowlist, which was at 1,998 of 2,048 bytes on 2026-10-05 (`SOMA/tools/auth/README.md`).
 
-The `soma_broker` password, the agent-token signing key, the refresh-hash key, the receipt-signing key, the master key from which per-app request-fingerprint keys are derived, and a send-only mail-provider key are the broker site's only secrets. Only the scheduled notification worker reads the mail key; it has no request handler.
+**Notifications.** An app sends a person a message through the broker RPC `notify_person(app_person_id, template_id, params)`. Templates are declared in the manifest's `notifications` list, belong to the privileged projection (section 2.4a), and accept only declared fields. One scheduled notification worker, with no request handler, resolves the person's verified address at send time, so the app never receives it. Each app has a per-person daily notification cap, and the person can mute an app's notifications from `/api/soma/v1/me`. The host contact notice (section 2.7) and the AI-partner announcement (section 2.7) use the same queue.
 
-An app sends a person a message through the broker RPC `notify_person(app_person_id, template_id, params)`. Templates are declared in the manifest's `notifications` list, belong to the privileged projection (section 2.4a), and accept only declared fields. The worker resolves the person's verified address at send time, so the app never receives it. Each app has a per-person daily notification cap, and the person can mute an app's notifications from `/api/soma/v1/me`. The AI-partner announcement in section 2.7 and the host contact notice in section 1.1 use the same queue.
-
-V1 deploys the Supabase secret key used for Auth administration to no HTTP-addressable site. A separate Function on the broker site would share its environment, and a separate public site would need a private invocation mechanism that v1 has not designed. Auth-administration work, such as deleting the Auth user during global erasure, therefore runs through a steward-operated CLI or an outbound-only scheduled worker with no request handler. If a later release needs an online admin service, its private invocation and authentication mechanism must be designed and threat-tested before the secret is deployed.
-
-The person signs in on the identity origin through Supabase Auth with server-side cookie storage. The Auth session never sits in `localStorage` on the identity origin, so browser JavaScript cannot read the session token.
-
-The identity origin serves no Guide, analytics, advertising, app-supplied script, or third-party JavaScript. It sends `Cache-Control: no-store`, `frame-ancestors 'none'`, a restrictive script and connection Content Security Policy, `Referrer-Policy: no-referrer`, and an allowlisted `form-action`.
-
-The identity origin's own cookies, including the Supabase Auth session cookies, use the `__Host-` prefix. Cookie-authenticated state changes still require the exact allowed `Origin` and the session's CSRF token; when `Sec-Fetch-Site` is present, the origin also refuses any value other than `same-origin`. The token and device-code endpoints are exempt because they accept only bearer or form credentials and never cookies. These controls prevent a sibling subdomain from exploiting same-site cookie delivery, while a dedicated identity domain (section 6) keeps that sibling-site boundary out of the design entirely.
-
-Only the identity origin's callback URLs are entered in Supabase Auth's redirect allowlist. App origins are registered in `soma.apps` and checked by the broker. A new app therefore adds no entry to the shared project's allowlist, which was at 1,998 of 2,048 bytes on 2026-10-05 (`SOMA/tools/auth/README.md`).
+Broker roles, privileges, secrets, timeouts, and identity-origin headers: Appendix A, M3.
 
 ### 2.4 Data model
 
-Migrations live under `soma-platform/sql/soma/`.
-
-New app migrations live under the generated app’s `supabase/migrations/`.
-
-PlayMaker’s current domain tables remain in `public` during migration.
-
-Existing `public.tickets`, `ticket_requests`, `usage_events`, and entitlement tables remain in place until their package owners can migrate them without breaking consumers.
+Platform migrations live under `soma-platform/sql/soma/`. New app migrations live under the generated app’s `supabase/migrations/`. PlayMaker’s current domain tables remain in `public` during migration. Existing `public.tickets`, `ticket_requests`, `usage_events`, and entitlement tables remain in place until their package owners can migrate them without breaking consumers.
 
 #### Shared schema
+
+No `soma` table is exposed to browser PostgREST (section 2.3). “Public reads” below means the broker's unauthenticated discovery calls.
 
 | Table | Essential fields | Ownership and access |
 |---|---|---|
 | `soma.people` | `person_id`, `auth_user_id`, `display_name`, `locale`, `timezone`, `is_test`, `created_at`, `erased_at` | The person owns the row. Apps never receive `person_id`. |
 | `soma.actors` | `actor_id`, `kind`, `name`, `substrate`, `person_id`, `created_at` | Represents humans, AI hosts, and external AIs for credit and lineage. |
 | `soma.apps` | `app_id`, `name`, `origins`, `identity_subject`, `admission`, `kit_version`, `status` | Platform-managed. Public reads expose only active metadata. There is no single “current contract” column for concurrent builds to race over. |
-| `soma.app_policies` | `app_id`, `policy_version`, `projection_sha256`, `projection`, `authoring_seat`, `approved_by`, `review_url`, `approved_at`, `withdrawn_at` | Written only by the steward's `register`. One row per approved privileged projection (section 2.4a). Several versions may be active at once, so a rollback to an older release keeps working until the steward withdraws its policy. The authoring and approving seats must differ. |
-| `soma.app_contracts` | `app_id`, `contract_sha256`, `release_sha`, `deploy_context`, `policy_version`, `kit_version`, `lock_sha256`, `synced_at`, `retired_at`, `retirement_reason` | Written by `sync-contract` through the broker. One row per accepted release contract. Read by the broker on every call; a lookup may be cached for at most 60 seconds. The broker accepts a contract only while its bound policy version is not withdrawn and its kit version meets the active security floor. |
-| `soma.app_hosts` | `app_id`, `actor_id`, `role`, `escalation_url`, `expected_response`, `notify_address` | Platform-managed. Public reads of active apps expose every listed field except `notify_address`; only the contact notifier can read that private field. |
+| `soma.app_policies` | `app_id`, `policy_version`, `projection_sha256`, `projection`, `authoring_seat`, `approved_by`, `review_url`, `approved_at`, `withdrawn_at` | Written only by the steward's `register`. One row per approved privileged projection (section 2.4a). Several versions may be active at once, so a rollback keeps working until the steward withdraws its policy. |
+| `soma.app_contracts` | `app_id`, `contract_sha256`, `release_sha`, `deploy_context`, `policy_version`, `kit_version`, `lock_sha256`, `synced_at`, `retired_at`, `retirement_reason` | Written by `sync-contract` through the broker; one row per accepted release contract (section 2.4a). Read by the broker on every call; a lookup may be cached for at most 60 seconds. |
+| `soma.app_hosts` | `app_id`, `actor_id`, `role`, `escalation_url`, `expected_response`, `notify_address` | Platform-managed. Public reads of active apps expose every field except `notify_address`, which only the notification worker reads. |
 | `soma.app_installations` | `app_id`, `purpose` (`runtime` or `release`), `credential_hash`, `created_at`, `last_used_at`, `revoked_at` | Broker-only. Raw credentials are never stored. |
 | `soma.oauth_transactions` | `transaction_id`, `app_id`, `state_hash`, `nonce_hash`, `pkce_challenge`, `redirect_uri`, `disclosure_hash`, `expires_at`, `consumed_at` | Broker-only pending authorization. Every secret value is stored as a keyed hash. |
-| `soma.authorization_codes` | `code_id`, `transaction_id`, `code_hash`, `person_id`, `expires_at`, `consumed_at` | Broker-only, short-lived, and single-use. Consuming the code and creating the membership, consent, and session happen in one transaction. |
+| `soma.authorization_codes` | `code_id`, `transaction_id`, `code_hash`, `person_id`, `expires_at`, `consumed_at` | Broker-only, short-lived, and single-use (section 2.2, step 10). |
 | `soma.browser_sessions` | `session_id`, `person_id`, `app_id`, `access_handle_hash`, `refresh_family_id`, `created_at`, `last_seen_at`, `idle_expires_at`, `absolute_expires_at`, `revoked_at` | Broker-only. Access handles rotate after authentication and after privilege changes. |
 | `soma.refresh_families` | `family_id`, `kind` (`browser` or `agent`), `subject_id`, `app_id`, `grant_id`, `current_generation`, `expires_at`, `revoked_at`, `compromised_at` | Broker-only lifecycle for rotating browser and agent refresh credentials. |
 | `soma.refresh_credentials` | `credential_id`, `family_id`, `generation`, `credential_hash`, `issued_at`, `used_at`, `replaced_by`, `revoked_at` | Broker-only. Presenting any already-consumed generation marks the family compromised and revokes it. |
-| `soma.device_authorizations` | `device_id`, `app_id`, `device_code_hash`, `user_code_hash`, `agent_label`, `requested_scopes`, `risk_ceiling`, `purpose`, `attempts`, `status`, `person_id`, `expires_at`, `consumed_at` | Broker-only RFC 8628 state. User-code comparisons are constant-time; the attempt limit and expiry are enforced transactionally. |
+| `soma.device_authorizations` | `device_id`, `app_id`, `device_code_hash`, `user_code_hash`, `agent_label`, `requested_scopes`, `risk_ceiling`, `purpose`, `attempts`, `status`, `person_id`, `expires_at`, `consumed_at` | Broker-only RFC 8628 state (section 2.7). |
 | `soma.security_events` | `event_id`, `person_id`, `app_id`, `kind`, `subject_id`, `safe_metadata`, `created_at` | Holds no token, code, request body, or raw credential. Records refresh reuse, pairing, revocation, and suspicious authorization failures. |
 | `soma.memberships` | `person_id`, `app_id`, `app_person_id`, `role`, `trust`, `joined_at`, `last_seen_at`, `left_at` | The person reads their rows. App admins use a narrow broker call. |
 | `soma.consents` | `person_id`, `app_id`, `fields`, `purpose`, `policy_version`, `granted_at`, `revoked_at` | The person reads and revokes. The broker enforces disclosure. |
 | `soma.concepts` | `concept_id`, `version`, `owner_app_id`, `definition_hash`, `supersedes`, `status` | Platform-managed registry. Only the platform steward may publish or revise `soma:*`; an app owns only its namespace. |
 | `soma.question_definitions` | `question_id`, `schema_version`, `owner_app_id`, `schema_hash`, `portable`, `compatible_with`, `status` | Platform-managed registry. Cross-app compatibility is explicit and hash-bound, never inferred from matching strings. |
-| `soma.concept_state` | `person_id`, `concept_id`, `concept_version`, `state`, `source_app_id`, `receipt_id`, `first_at`, `last_at`, `evidence` | Writes require a concept declared by the app's registered contract. `acknowledged` requires a direct person gesture; `done` requires a successful receipt bound to the concept. `soma:*` state reaches an app only after consent. |
-| `soma.shared_answers` | `person_id`, `question_id`, `schema_version`, `answer`, `source_app_id`, `sensitivity`, `purpose`, `allowed_destination`, `expires_at`, `shared_at`, `revoked_at` | Size-limited typed JSON holding only the projection a person explicitly approved for cross-app use. Private source answers never enter the `soma` schema. |
-| `soma.agent_partners` | `agent_id`, `principal_id`, `label`, `created_at`, `last_used_at`, `revoked_at` | Registers an AI relationship without granting app authority. Its rotating refresh credentials live in `soma.refresh_families` and `soma.refresh_credentials`, not on this row. |
+| `soma.concept_state` | `person_id`, `concept_id`, `concept_version`, `state`, `source_app_id`, `receipt_id`, `first_at`, `last_at`, `evidence` | Write rules: section 2.5. `soma:*` state reaches an app only after consent. |
+| `soma.shared_answers` | `person_id`, `question_id`, `schema_version`, `answer`, `source_app_id`, `sensitivity`, `purpose`, `allowed_destination`, `expires_at`, `shared_at`, `revoked_at` | Size-limited typed JSON holding only the projection a person explicitly approved for cross-app use (section 2.5). Private source answers never enter the `soma` schema. |
+| `soma.agent_partners` | `agent_id`, `principal_id`, `label`, `created_at`, `last_used_at`, `revoked_at` | Registers an AI relationship without granting app authority. Its refresh credentials live in the two refresh tables, not on this row. |
 | `soma.agent_app_handles` | `agent_id`, `app_id`, `app_agent_id`, `created_at` | Broker-only. Created on the first grant for that app. `app_agent_id` is random, so it cannot be derived from `agent_id`. Per-app forget and grant revocation do not delete it; erasure of the principal does. |
 | `soma.agent_grants` | `grant_id`, `grant_version`, `agent_id`, `principal_id`, `app_id`, `scopes`, `risk_ceiling`, `purpose`, `expires_at`, `revoked_at` | The principal controls the grant. App scope is required unless `app_id='*'` was explicitly chosen. |
 | `soma.grant_app_handles` | `grant_id`, `app_id`, `grant_ref`, `created_at` | Broker-only per-app lookup for agent tokens. A wildcard grant receives a different random `grant_ref` in each app; apps never receive `grant_id`. Erasure of the principal deletes these rows. |
 | `soma.receipt_index` | `receipt_id`, `app_id`, `person_id`, `actor_id`, `action_id`, `risk`, `status`, `created_at` | Written by the broker in the same transaction that writes or settles the app's receipt. Holds no input, output, or effect text. Powers the person's cross-app receipt list and AI-grant audit. |
 | `soma.erasure_requests` | `request_id`, `person_id`, `scope`, `status`, `requested_at`, `effective_at`, `completed_at`, `receipt` | The person reads their requests. Platform workers update status. |
-| `soma.erasure_targets` | `request_id`, `target_kind`, `app_id`, `store_id`, `status`, `attempts`, `next_attempt_at`, `completed_at`, `exception_reason`, `receipt` | One idempotent target per app database, object store, notification adapter, or declared provider (section 2.5a). A global request is complete only when every target is complete or shows the person a lawful retained exception. |
-| `soma.conformance_runs` | `run_id`, `app_id`, `release_sha`, `contract_sha256`, `tier`, `result`, `failed_checks`, `evidence_url`, `runner_actor_id`, `ran_at` | Written by the conformance runner through the broker with the steward's conformance credential. Read by `/api/soma/v1/status`. |
+| `soma.erasure_targets` | `request_id`, `target_kind`, `app_id`, `store_id`, `status`, `attempts`, `next_attempt_at`, `completed_at`, `exception_reason`, `receipt` | One idempotent target per app database, object store, notification adapter, or declared provider (section 2.5a). |
+| `soma.conformance_runs` | `run_id`, `app_id`, `release_sha`, `contract_sha256`, `tier`, `result`, `failed_checks`, `evidence_url`, `runner_actor_id`, `ran_at` | Written by the conformance runner through the broker with the conformance credential that the `kit-release` seat holds (section 2.4a). Read by `/api/soma/v1/status`. |
 | `soma.estate_inbox` | `event_id`, `app_id`, `app_record_id`, `kind`, `consent_safe_summary`, `created_at`, `claimed_at` | Written only by the broker, in the same transaction as the app's local record. `(app_id, kind, app_record_id)` is unique, so a retried submission cannot create a second event. It contains no attachments, transcripts, raw diagnostics, contact fields, or full report body. The Mac-side board importer reads and claims rows, so apps never depend on the Mac being up. |
-| `soma.estate_dispositions` | `event_id`, `app_id`, `app_record_id`, `status`, `public_note`, `demonstration_url`, `updated_at` | Written by the authorized estate processor and read by the originating app through the broker. |
-| `soma.notifications` | `notification_id`, `event_id`, `app_id`, `recipient_kind` (`host` or `person`), `recipient_id`, `template_id`, `params`, `status`, `attempts`, `next_attempt_at`, `sent_at` | Broker-only idempotent delivery queue for host contact notices, AI-partner announcements, and app messages to a person. The worker resolves the private address at send time and never copies it into the row. `params` holds only the template's declared fields, never a message body; a contact notice links to the message in the app. Erasure deletes a person's rows. |
-
-### 2.4a Registering an app in the shared project
-
-`soma-scaffold register <soma-app.json>` registers an app. The platform steward seat runs it, because it needs the Supabase Management API token. The builder never holds that token.
-
-The kit adds two seats to `_estate/seats.json`, which today defines neither. `kit-steward` owns `key:supabase-management`, `key:soma-id`, `deploy:soma-id`, and `db:soma`, and it is the only seat that runs `register`, `migrate`, and `--approve-contract-diff`. `kit-release` claims `repo:<app>:preview` for each kit app, runs conformance, and flips feature flags. Every later mention of “the steward” or “the release seat” in this plan means these seats.
-
-`kit-steward` never approves a contract diff from a pull request that its own seat authored. `soma.app_policies` records the approving seat, the authoring seat, and a link to the reviewed diff. A diff that lowers a risk, broadens remote access, adds a provider, makes an answer portable, opens admission, or changes a host also needs a recorded review by the `frontier-adversary` seat before approval. Conformance fails a policy version whose approver and author are the same seat.
-
-Registration is idempotent and does five things:
-
-1. Inserts or updates `soma.apps`, `soma.app_hosts`, and the registered origins, and records the manifest's privileged projection as an approved policy version in `soma.app_policies`. Registration performs no third-party provisioning by default. An optional voice recipe may create an ElevenLabs agent only when `guide.voice.enabled` and `guide.voice.provision` are explicitly declared.
-2. Creates private schemas `app_<app_id>` and `app_<app_id>_api`, with hyphens replaced by underscores (`veric-coaching` becomes `app_veric_coaching`), plus the no-login `app_<app_id>_owner` and `app_<app_id>_runtime` roles described in section 2.3b. The platform, not either app role, owns both schemas. The migration runner may assume the owner role; deployed code never can. Neither schema is added to PostgREST's exposed schemas, and neither grants access to `PUBLIC`, `anon`, or `authenticated`. Registration also runs `ALTER DEFAULT PRIVILEGES FOR ROLE <app owner> REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC`.
-3. Applies an approved migration bundle with `soma-scaffold migrate`. The runner acquires a per-app advisory lock, verifies immutable migration checksums, and executes each migration transactionally as the app's owner role, constrained to that app's two schemas. It cannot create roles, extensions, event triggers, publications, cross-schema objects, or grants outside its schemas. Tables stay owned by the owner role. After each migration the runner transfers every function in `app_<app_id>_api` to the runtime role. History lives in `app_<app_id>.schema_migrations`; a changed checksum or partially applied migration fails loudly. Inside the same transaction, after each migration, the runner queries the catalog. It rolls the migration back if either schema now holds any of these: a privilege granted to `PUBLIC`, `anon`, or `authenticated`; a table without both `ENABLE ROW LEVEL SECURITY` and `FORCE ROW LEVEL SECURITY`; a runtime role that owns a table or holds a DDL privilege; an API function that is not owned by the runtime role or lacks a `search_path` fixed to `pg_catalog` plus the app's own schema; a view without `security_invoker = true`; a materialized view or foreign table; or an object outside the app's two schemas. Nobody runs `supabase db push` against the shared project, because that project's single migration history already holds PlayMaker's numbered migrations (`0001`–`0089` on 2026-10-07) and a second repository's `0001_…` would collide.
-4. Mints overlapping runtime installation credentials and a release credential for each broker, and writes them to the app's Netlify environment through the Netlify API. No value appears in command output, shell history, generated files, or process arguments that another process could read.
-   - `SOMA_APP_INSTALLATION_KEY` and `SOMA_APP_INSTALLATION_KEY_NEXT` have the Netlify "Functions" scope only. Build code and browser code cannot read them.
-   - `SOMA_APP_RELEASE_KEY` has the Netlify "Builds" scope only. Functions and browser code cannot read it.
-   - Server-side provider keys have the "Functions" scope only, unless the steward explicitly approves a separately named build credential. No provider secret is ever exposed to browser code, for example through a `VITE_` prefix.
-   - `SOMA_BROKER_URL` is not secret and may be available to both Builds and Functions.
-   - The `production` context receives only production values.
-   - The fixed `preview` branch receives only staging values, set on that branch's own context. The repository protects the branch so that only the conformance runner and the release seat can update it. Other branch deploys receive no SOMA credential.
-   - The `deploy-preview` context receives no SOMA credential. A per-pull-request build cannot complete sign-in (item 5), and it must not move any registry.
-5. Registers exactly two redirect origins at prototype tier: the production origin and one fixed branch-deploy alias, `https://preview--<site>.netlify.app`. The alias is registered only with the staging broker. Per-deploy URLs are not registrable, and no wildcard is ever accepted. Before registering, `register` verifies three things: the Netlify site exists, it is linked to the app repository, and it builds branch deploys for the `preview` branch. If any is missing, `register` fails and names the missing setting.
-
-An ordinary pull request that edits the manifest or a file it references changes the contract hash. The broker enforces that hash, so without a registry update an auto-deployed change would stop working until the steward intervened. Most such edits, such as knowledge text, workflow step text, or a referenced schema file, do not change policy and should not wait for the steward. Therefore the app's build command runs `node vendor/soma/bin/sync-contract.mjs soma-app.json` before the deploy publishes. The scaffolder vendors this script with `@soma/contracts`, including the RFC 8785 canonicalizer, and `soma-kit.lock.json` hashes it. Vendoring matters for two reasons: the app's Netlify build has no access to `soma-platform`, and the build must compute the contract hash with exactly the code the broker uses.
-
-- It authenticates with the app's release credential. The runtime installation credential cannot call it.
-- It submits the manifest, the referenced files' hashes, and the checksums of the app's migration files. The broker recomputes the contract hash itself.
-- `sync-contract` registers a release. It does not approve policy. It accepts a new hash automatically only when the manifest's privileged projection is identical to a policy version in `soma.app_policies` that has not been withdrawn.
-- The privileged projection contains: origins; identity mode, subject, and admission; hosts, escalation routes, and expected responses; concepts and question definitions, including portability; each action's ID, version, kind, risk, scopes, required role, surfaces, effects, effect target, timeout, recovery rule, cool-off, and UI exception; AI-visitor limits; promises; notifications; data flows, data stores, and retention; legal operator; dependency fallbacks; and provisioning requests.
-- A change to the privileged projection fails the build with a machine-readable diff. The steward reviews it and runs `soma-scaffold register --approve-contract-diff <hash>`, which records a new policy version. Lowering a risk, broadening remote access, adding a provider, making an answer portable, or changing a host therefore never rides through on a build credential.
-- The broker also refuses a contract that carries a migration checksum not yet recorded in `app_<app_id>.schema_migrations`; that change waits for the steward's `migrate`.
-- `sync-contract` never updates `soma.apps`, `soma.app_hosts`, `soma.app_policies`, origins, or migrations. It records only the contract hash, release SHA, deploy context, and the already-approved policy version in `soma.app_contracts`.
-- The broker accepts every non-retired contract of that app whose policy version has not been withdrawn. Keeping only the current and previous hash would fail in two ways. First, a Netlify rollback republishes an old build without rebuilding it, so the old hash must keep working. Second, builds for two commits can finish in either order. Binding each contract to a policy version keeps rollback deterministic without letting an old release revive a policy the steward has withdrawn.
-- A contract is retired when the steward retires it, when its policy version is withdrawn, when a security fix declares it unsafe, or when an approved migration removes an RPC its actions call. Retiring a contract is the documented way to stop an old release from calling the broker.
-- `sync-contract` contacts a broker only in the `production` context and on the fixed `preview` branch deploy. In every other context, including `deploy-preview` and other branch deploys, it exits successfully without contacting any broker. That build continues as a static preview with sign-in disabled.
-
-Running `register`, including any `--approve-contract-diff`, is not an edit to `soma-platform`, so it does not fail the second-app test. Its time counts toward the 30-minute branch-deploy target.
-
-Before the first registration in an environment, the steward captures and reviews the live database catalog: exposed schemas, roles and memberships, grants, RLS state, policies, views, triggers on `auth.users`, callable functions, `SECURITY DEFINER` ownership and `search_path`, publications, storage policies, and installed extensions. The generated report becomes the isolation baseline and is rerun after every platform migration.
+| `soma.estate_dispositions` | `event_id`, `app_id`, `app_record_id`, `status`, `public_note`, `demonstration_url`, `updated_at` | Written by the estate processor (`soma_estate`) and read by the originating app through the broker. |
+| `soma.notifications` | `notification_id`, `event_id`, `app_id`, `recipient_kind` (`host` or `person`), `recipient_id`, `template_id`, `params`, `status`, `attempts`, `next_attempt_at`, `sent_at` | Broker-only idempotent delivery queue (section 2.3b). Never holds an address or a message body; `params` holds only the template's declared fields, and a contact notice links to the message in the app. Erasure deletes a person's rows. |
 
 #### Per-app schema
 
@@ -360,84 +280,84 @@ New apps receive an `app_<app_id>` schema for tables and an `app_<app_id>_api` s
 
 | Table | Purpose |
 |---|---|
-| `feedback_items` | The canonical user report and its evidence. |
+| `feedback_items` | The canonical user report and its evidence, including host contact threads (`kind = 'contact'`). |
 | `build_requests` | The report-to-build lifecycle and demonstration links. |
 | `feedback_status_inbox` | Idempotently applies estate disposition and demonstration updates to the canonical app record so the person can see what happened. |
-| `action_receipts` | `receipt_id`, `action_id`, `action_version`, `idempotency_key`, `request_fingerprint`, `actor_id`, `principal` (`app_person_id`), `grant_id`, `declared_risk`, `effective_risk`, `status`, `resource_version`, `effect_summary`, `output_ref`, `undo_of`, `expires_at`, `created_at`, `completed_at`, `payload_sha256`, `signing_key_id`, `signature`. The canonical intent, approval, receipt, and idempotency record. `request_fingerprint` is a keyed digest of the action ID, action version, canonical input, principal, and target resource; the broker computes it with a per-app fingerprint key. When the receipt settles, the broker signs the immutable receipt envelope and payload hash with its receipt-signing key. |
+| `action_receipts` | `receipt_id`, `action_id`, `action_version`, `idempotency_key`, `request_fingerprint`, `actor_id`, `principal` (`app_person_id`), `grant_ref`, `declared_risk`, `effective_risk`, `status`, `resource_version`, `effect_summary`, `output_ref`, `undo_of`, `expires_at`, `created_at`, `completed_at`, `payload_sha256`, `signing_key_id`, `signature`. The canonical intent, approval, receipt, and idempotency record, signed by the broker when it settles (Appendix A, M2). |
 | `action_receipt_payloads` | Erasable preview, input, and output material referenced by a receipt. A receipt for an AI-performed `observe` action stores only the resource class and outcome, never the content read. |
-| `answers` | The app's canonical private typed answers. Sharing copies only the approved projection to `soma.shared_answers`, in the same broker transaction that records the consent. |
+| `answers` | The app's canonical private typed answers. Sharing copies only the approved projection to `soma.shared_answers` (section 2.5). |
 | `last_location` | The person's resume point in this app (from `soma-app-template/supabase/migrations/0005_last_location.sql`). |
 | `app_changes` | Proposed, accepted, building, shipped, and rejected changes. |
-| `error_reports` | Fingerprinted client and function failures. The first unhandled crash with a new fingerprint in a release, and each tenfold rise in that fingerprint's count, also writes a `kind = "error"` event to `soma.estate_inbox` in the same broker transaction. The event's summary holds only the fingerprint, route, release SHA, and count, with no stack, message text, or person identifier. Its `app_record_id` combines the fingerprint, the release SHA, and the count threshold, so each alert is filed once. This replaces today's estate crash alarm, which reads PlayMaker's tables with the shared secret key and loses that path in M11. |
+| `error_reports` | Fingerprinted client and function failures. A new crash fingerprint raises a minimal `kind = "error"` estate event (Appendix A, M5). This replaces today's estate crash alarm, which reads PlayMaker's tables with the shared secret key and loses that path in M11. |
 | `front_door_events` | Consent-aware arrival and conversion events. |
 | `usage_events` | Metered consumption with `billing_subject_kind` (`person` or `operator`), `billing_subject_id`, and an optional `principal_app_person_id` for attribution. A person subject uses the pairwise `app_person_id`; the singleton operator subject funds anonymous use without pretending to be a person. |
 | `entitlements` | Caps, allowances, billing mode, and daily cost budget keyed by `(billing_subject_kind, billing_subject_id)`. |
 | Domain tables | The app’s actual product data. |
 
-In `action_receipts`, `actor_id` holds `app_person_id` when the person acted, `app_agent_id` when an outside AI acted, and the AI host's actor ID when the in-app host acted. `grant_id` holds the per-app `grant_ref`. The broker translates both back to global IDs only when it writes `soma.receipt_index`.
+In `action_receipts`, `actor_id` holds `app_person_id` when the person acted, `app_agent_id` when an outside AI acted, and the AI host's actor ID when the in-app host acted. `grant_ref` holds the per-app grant handle. The broker translates both back to global IDs only when it writes `soma.receipt_index`.
 
-The broker writes a per-app record and its `soma` counterpart (`soma.estate_inbox` for feedback and crash alerts, `soma.receipt_index` for receipts) in one database transaction that the broker opens itself. The broker calls the app RPC and inserts the `soma` row inside that transaction. The app RPC cannot write the `soma` schema, because its owner, the app's runtime role, holds no privilege there (section 2.3b). No transaction is held open across an HTTP call. If the transaction fails, neither row exists and the person sees the failure, so no event can be lost between the two schemas.
+**One transaction across two schemas.** The broker writes a per-app record and its `soma` counterpart (`soma.estate_inbox` for feedback, contact messages, and crash alerts; `soma.receipt_index` for receipts) in one database transaction that the broker opens itself. The broker calls the app RPC and inserts the `soma` row inside that transaction. The app RPC cannot write the `soma` schema, because its owner, the app's runtime role, holds no privilege there. No transaction is held open across an HTTP call. If the transaction fails, neither row exists and the person sees the failure, so no event can be lost between the two schemas. A legacy-global app that commits its feedback record outside the broker (PlayMaker and Legends until M11) files the event through the same broker call after its own commit and retries until the broker acknowledges; the unique `(app_id, kind, app_record_id)` makes the retry safe.
 
-A legacy-global app that commits its feedback record outside the broker (PlayMaker and Legends until M11) files the event through the same broker call after its own commit. It retries until the broker acknowledges. The unique `(app_id, kind, app_record_id)` makes the retry safe.
+**RLS.** Every table has RLS enabled and forced. Table-owner roles are never used at runtime. Every `SECURITY DEFINER` function is owned by the app's non-table-owning runtime role, sets `search_path` to `pg_catalog` plus its exact app schema, obtains identity only from the platform request-context accessors, and returns explicit columns. Conformance must prove that neither the broker, nor the runtime role, nor any registered RPC can read or change another person's or another app's rows, and that no table owner is on the runtime path (C12, C12a).
 
-Every table has RLS enabled and forced. Table-owner roles are never used at runtime.
+**Receipt state machine.** `action_receipts` has a unique constraint on `(principal, idempotency_key)`. Reusing a key for a different action, version, canonical input, or target produces an idempotency conflict. Scoping the key to the principal means one person cannot block another person's action by guessing their key. `status` is one of `prepared`, `approval_required`, `approved`, `running`, `succeeded`, `failed`, `refused`, `expired`, or `undone`.
 
-Every `SECURITY DEFINER` function is owned by the app's non-table-owning runtime role, sets `search_path` to `pg_catalog` plus its exact app schema, obtains identity only from the platform request-context accessors, and returns explicit columns.
+- Preparation is side-effect free and ends by inserting the idempotency row (steps: Appendix A, M2). Malformed, unauthenticated, and rate-limited traffic stops before this point and writes no receipt.
+- Execution claims a prepared or approved row by moving it to `running`, runs the effect, then settles the row with its output reference.
+- A PostgreSQL transaction cannot stay open across the HTTP calls between the app's Function and the broker. So a database-effect action's `execute` makes exactly one broker call, to an app RPC that claims the row, applies the effect, and settles the row inside one transaction. This works because `action_receipts` and the domain tables live in the same app schema.
+- An external-effect action claims the row, calls the provider, and settles the row in separate broker calls. A failure between those calls is resolved by the idempotency key and the action's declared timeout and recovery rule.
 
-A conformance test must prove that neither the broker, nor the runtime role, nor any registered RPC can read or change another person's or another app's rows. It must also prove that no table owner is on the runtime path.
+Repeat-key responses, fingerprint, claiming, reconciliation, and signing: Appendix A, M2.
 
-`action_receipts` has a unique constraint on `(principal, idempotency_key)`. Reusing a key for a different action, version, canonical input, or target produces an idempotency conflict. Scoping the key to the principal means one person cannot block another person's action by guessing their key.
+### 2.4a Registering an app in the shared project
 
-`status` is one of `prepared`, `approval_required`, `approved`, `running`, `succeeded`, `failed`, `refused`, `expired`, or `undone`.
+**Seats.** The kit adds two seats to `_estate/seats.json`, which today defines neither. Every mention of “the steward” or “the release seat” in this plan means these seats.
 
-Preparation authenticates the principal, applies admission limits, validates and canonicalizes the input, computes the keyed request fingerprint, records the current resource version, calculates the effective risk and effects, and inserts the idempotency row. Malformed, unauthenticated, and rate-limited traffic stops before this point and writes no receipt. Preparation is side-effect free.
+- `kit-steward` owns `key:supabase-management`, `key:soma-id`, `deploy:soma-id`, and `db:soma`. It is the only seat that runs `register`, `migrate`, and `--approve-contract-diff`, because those need the Supabase Management API token, which a builder never holds.
+- `kit-release` claims `repo:<app>:preview` for each kit app, holds the conformance credential, runs conformance, and flips feature flags.
 
-Execution claims a prepared or approved row by moving it to `running`, runs the effect, then settles the row with its output reference.
+**Separation of duties.** `kit-steward` never approves a contract diff from a pull request that its own seat authored. `soma.app_policies` records the approving seat, the authoring seat, and a link to the reviewed diff. A diff that lowers a risk, broadens remote access, adds a provider, makes an answer portable, opens admission, or changes a host also needs a recorded review by the `frontier-adversary` seat before approval. Conformance fails a policy version whose approver and author are the same seat.
 
-A PostgreSQL transaction cannot stay open across the HTTP calls between the app's Netlify Function and the broker. So a database-effect action's `execute` makes exactly one broker call, to an app RPC that claims the row, applies the effect, and settles the row inside one transaction. This works because `action_receipts` and the domain tables live in the same app schema.
+**`soma-scaffold register <soma-app.json>`** is idempotent and does five things:
 
-An external-effect action claims the row, calls the provider, and settles the row in separate broker calls. A failure between those calls is resolved by the idempotency key and the timeout reconciliation rule below.
+1. Inserts or updates `soma.apps`, `soma.app_hosts`, and the registered origins, and records the manifest's privileged projection as an approved policy version in `soma.app_policies`. It performs no third-party provisioning by default. An optional voice recipe may create an ElevenLabs agent only when `guide.voice.enabled` and `guide.voice.provision` are both explicitly declared.
+2. Creates the private schemas `app_<app_id>` and `app_<app_id>_api` and the two app roles from section 2.3b. Neither schema is exposed to PostgREST or granted to `PUBLIC`, `anon`, or `authenticated`.
+3. Applies an approved migration bundle with `soma-scaffold migrate`, which runs each migration as the app's owner role, confined to the app's two schemas, and rolls back any migration that leaves an unsafe object. Nobody runs `supabase db push` against the shared project, because that project's single migration history already holds PlayMaker's numbered migrations (`0001`–`0089` on 2026-10-07) and a second repository's `0001_…` would collide.
+4. Mints overlapping runtime installation credentials and a release credential for each broker (staging and production) and writes them to the app's Netlify environment through the Netlify API, scoped so that only Functions read runtime credentials and only Builds read the release credential. Only production and the fixed `preview` branch receive SOMA credentials.
+5. Registers exactly two redirect origins at prototype tier: the production origin and one fixed branch-deploy alias, `https://preview--<site>.netlify.app`, registered only with the staging broker. Per-deploy URLs are not registrable, and no wildcard is ever accepted.
 
-PlayMaker's `agent_command_requests` (`playmaker/supabase/migrations/0081_agent_api.sql`, used by `playmaker/netlify/functions/agent-v1.ts`) is the idempotency ledger M8 generalizes, rather than adding a second one. It claims, runs, and settles in three separate requests today. M8 first wraps those existing effects (section 4.2), then moves PlayMaker's database effects into the single-RPC form in later pull requests.
+Schema, role, migration-runner, credential-scope, and origin-verification details: Appendix A, M3. The catalog baseline the steward captures before the first registration: Appendix A, M0.
 
-- A repeated key with the same `request_fingerprint` returns the current receipt state and the stored result the caller may see, if any, without creating another intent or repeating the effect.
-- A repeated key while the row is `running` returns HTTP 409 with `code: "idempotency_pending"` and `Retry-After`.
-- A repeated key with a different `request_fingerprint` returns HTTP 422 with `code: "idempotency_conflict"`.
-- Approval transitions the same row from `approval_required` to `approved`; it does not create a second request.
-- The app server, not the requesting AI, atomically claims an approved row, revalidates authorization and the resource version, and executes it. For an `irreversible` action, the claim happens only after the cool-off step has elapsed without the person cancelling. The AI polls the receipt for the outcome.
-- A `running` row older than the action's declared timeout is reconciled using the action's recovery rule. It may be retried only after the system proves the effect did not occur. External effects require a provider idempotency key or an outbox plus reconciliation.
+**Release contracts.** An ordinary pull request that edits the manifest or a file it references changes the contract hash, and the broker enforces that hash. Most such edits (knowledge text, workflow step text, a referenced schema file) do not change policy and should not wait for the steward. So the app's build runs a vendored `sync-contract` script before the deploy publishes, using the release credential. It submits the manifest, the referenced files' hashes, and the app's migration checksums, and the broker recomputes the contract hash itself.
 
-Erasure deletes the receipt's `action_receipt_payloads` rows and its `effect_summary`, replaces `principal` with a tombstone, and keeps only the signed, non-sensitive envelope for the declared retention period. Erasure deletes the person's `soma.receipt_index` rows. The keyed request fingerprint is never exported, and it becomes unlinkable once the app's fingerprint key rotates.
+- `sync-contract` registers a release. It does not approve policy. It accepts a new hash automatically only when the manifest's privileged projection is identical to a policy version in `soma.app_policies` that has not been withdrawn.
+- The privileged projection contains: origins; identity mode, subject, and admission; hosts, escalation routes, and expected responses; concepts and question definitions, including portability; each action's ID, version, kind, risk, scopes, required role, surfaces, effects, effect target, timeout, recovery rule, cool-off, and UI exception; AI-visitor limits; promises; notifications; data flows, data stores, and retention; legal operator; dependency fallbacks; and provisioning requests.
+- A change to the privileged projection fails the build with a machine-readable diff. The steward reviews it and runs `soma-scaffold register --approve-contract-diff <hash>`, which records a new policy version. So no policy change rides through on a build credential.
+- The broker refuses a contract that carries a migration checksum not yet recorded in `app_<app_id>.schema_migrations`; that change waits for the steward's `migrate`.
+- `sync-contract` never updates `soma.apps`, `soma.app_hosts`, `soma.app_policies`, origins, or migrations. It records only the contract hash, release SHA, deploy context, and the already-approved policy version in `soma.app_contracts`.
+- The broker accepts every non-retired contract of the app whose policy version has not been withdrawn and whose kit version meets the active security floor (section 2.8a). Keeping only the current and previous hash would fail in two ways: a Netlify rollback republishes an old build without rebuilding it, so the old hash must keep working; and builds for two commits can finish in either order. Binding each contract to a policy version keeps rollback deterministic without letting an old release revive a policy the steward has withdrawn.
+- A contract is retired when the steward retires it, when its policy version is withdrawn, when a security floor or fix declares it unsafe, or when an approved migration removes an RPC its actions call. Retiring a contract is the documented way to stop an old release from calling the broker.
+- `sync-contract` contacts a broker only in the `production` context and on the fixed `preview` branch deploy. In every other context it exits successfully without contacting any broker, and that build continues as a static preview with sign-in disabled.
+
+Running `register`, including any `--approve-contract-diff`, is not an edit to `soma-platform`, so it does not fail the second-app test. Its time counts toward the 30-minute branch-deploy target.
 
 ### 2.5 Concept and answer semantics
 
-A concept ID is namespaced, such as `soma:host-pair` or `playmaker:stage-read`.
+A concept ID is namespaced, such as `soma:host-pair` or `playmaker:stage-read`. Declaring a concept outside `soma:` and the app's own namespace fails C3. Declaring an unregistered `soma:*` concept, or a definition hash that differs from the registry, also fails C3.
 
-A concept state is one of `told`, `shown`, `done`, or `acknowledged`.
+A concept state is one of `told`, `shown`, `done`, or `acknowledged`. Writes require a concept declared by the app's registered contract.
 
-A new concept version is not automatically treated as understood.
+- `told` suppresses the unprompted introduction of the concept.
+- `shown` and `acknowledged` also suppress the automatic start of its Show workflow.
+- `acknowledged` means the person said they already know it. It can be recorded only from an explicit person control: a request carrying the person's own session and CSRF token, never an agent token or an authorization created for the in-app AI host.
+- `done` means a successful action receipt bound to that concept and version exists. The broker records `done` when it settles such a receipt; no route, AI, or app can assert `done` or `acknowledged` from prose.
+- No state suppresses an explicit request. Ask and Show always answer when the person asks.
 
-Declaring a concept outside `soma:` and the app's own namespace fails C3.
+A new concept version is not automatically treated as understood. The manifest may declare that version `2` supersedes version `1`.
 
-Declaring an unregistered `soma:*` concept or a definition hash that differs from the registry also fails C3.
+A question has a stable ID and answer schema version. An answer is written first to the source app's `answers` table and stays there by default.
 
-`told` suppresses the unprompted introduction of the concept.
-
-`shown` and `acknowledged` also suppress the automatic start of its Show workflow. `acknowledged` means the person said they already know it.
-
-`acknowledged` can be recorded only from an explicit person control: a request carrying the person's own session and CSRF token, never an agent token or an authorization created for the in-app AI host.
-
-`done` means a successful action receipt bound to that concept and version exists. An AI or app cannot assert either state from prose.
-
-No state suppresses an explicit request. Ask and Show always answer when the person asks.
-
-The manifest may declare that version `2` supersedes version `1`.
-
-A question has a stable ID and answer schema version.
-
-An answer is written first to the source app's `answers` table and stays there by default.
-
-Sharing is an explicit copy operation. The person approves the exact projected fields, destination class, purpose, sensitivity, and duration, and the broker then writes that projection to `soma.shared_answers`. An app may request portability but cannot create or broaden the shared projection on the person's behalf. Changing the source answer later does not change the shared projection; the shared copy is updated only when the person approves a new share.
+Sharing is an explicit copy operation. The person approves the exact projected fields, destination class, purpose, sensitivity, and duration, and the broker then writes that projection to `soma.shared_answers` in the same transaction that records the consent. An app may request portability but cannot create or broaden the shared projection on the person's behalf. Changing the source answer later does not change the shared projection; the shared copy is updated only when the person approves a new share.
 
 The approval screen for a share is on the identity origin, reached by a top-level navigation like authorization (section 2.2). The app's own pages cannot serve as the witness, because the app could imitate the person's gesture there. The app calls `POST /api/soma/v1/me/answers/:question_id/share`, which records a pending share bound to the projection hash and returns a `share_url` on the identity origin. The broker writes `soma.shared_answers` only when the identity origin records the person's approval of that exact pending share. A pending share expires after 10 minutes.
 
@@ -449,15 +369,13 @@ Revoking answer consent immediately deletes or tombstones the shared projection,
 
 Every manifest declares `data_stores`. Each entry names its owner, its kind (`database`, `object-storage`, `notification`, or `provider`), its data classes, its export handler, its erasure handler, its retention rule, and whether a lawful-retention exception can apply. A prototype with an incomplete `data_stores` list receives a warning; public MVP fails on it (C18a).
 
-Private files use an app-specific private bucket or prefix. An upload requires a short-lived signed grant bound to the person, the app, a MIME allowlist, a byte limit, a checksum, and the destination. A download requires a fresh authorization check. A user-supplied filename never becomes a storage path. Public buckets, permanent signed URLs, and client-held storage administration keys fail conformance.
-
-A per-app export combines the app's domain rows, private answers, files, grants, the receipts retention permits, and the central records disclosed to that app. A global export is an identity-origin job. It fans out to every current or former membership and produces a manifest showing each target's result. “Complete JSON” means all exported records plus file metadata and checksums; Markdown is the readable projection.
+A per-app export combines the app's domain rows, private answers, files, grants, the receipts retention permits, and the central records disclosed to that app. A global export is an identity-origin job that fans out to every current or former membership and produces a manifest showing each target's result. “Complete JSON” means all exported records plus file metadata and checksums; Markdown is the readable projection.
 
 A global erasure request immediately revokes browser sessions, AI grants, refresh families, pending approvals, and outstanding invitations. It then creates one `soma.erasure_targets` row for every store named by every affected app contract. Handlers are idempotent and retryable. Completion requires proof from every target, so a provider outage leaves the request visibly pending rather than reporting success. Deleting the Supabase Auth user runs through the Auth-administration path in section 2.3b.
 
 Lawfully retained payment or security records are minimized, separated from product data, and shown to the person as named exceptions with their deletion dates. Backups are not rewritten in place. Instead, the restore procedure in section 2.9 replays completed erasure requests before a restored system admits traffic, so erased data cannot return to service, and backups age out under the declared backup-retention period.
 
-An app that cannot demonstrate export and erasure for each declared store cannot advance to public MVP.
+An app that cannot demonstrate export and erasure for each declared store cannot advance to public MVP. Private-file rules and receipt erasure: Appendix A, "Before public MVP".
 
 ### 2.6 Action registry
 
@@ -510,7 +428,7 @@ export function executeAction<I>(
     actionId: string;
     actionVersion: string;
     input: I;
-    idempotencyKey?: string;
+    idempotencyKey?: string; // required when the action's kind is "effect"
   },
   context: ActionContext
 ): Promise<ActionReceipt>;
@@ -522,13 +440,9 @@ The server enforces the risk gate.
 
 A `view` action changes only what is on the person's screen. It runs in the browser, writes no receipt, needs no idempotency key, and may list only the `ui` and `guide` surfaces, because a remote AI must not drive a person's screen.
 
-`requiredRole: "visitor"` is allowed only for `view` and `observe` actions over public data. Every `effect` action requires a person session or an agent access token.
+`requiredRole: "visitor"` is allowed only for `view` and `observe` actions over public data, and only when the manifest says so. Every `effect` action requires a person session or a broker-issued agent access token.
 
-The in-app AI host has no ambient effect grant. It may explain, run `observe` actions inside the person's current session, prepare an action preview, or offer a declared Do control.
-
-Selecting that Do control is a person gesture carrying the person's session and CSRF token. It creates a one-request authorization bound to the current person session, the action ID and version, the canonical input hash, the target resource version, the AI host's actor, and a short expiry. It may authorize at most a `reversible` action. Model output, retrieved knowledge, page context, and action output can never create this authorization.
-
-An AI host that needs asynchronous or standing authority must receive the same named, scoped, expiring grant as an outside AI. Every receipt records the AI host's `actor_id` and the person as principal.
+**The in-app AI host** has no ambient effect grant. It may explain, run `observe` actions inside the person's current session, prepare an action preview, or offer a declared Do control. Selecting that Do control is a person gesture carrying the person's session and CSRF token. It creates a one-request authorization bound to the current person session, the action ID and version, the canonical input hash, the target resource version, the AI host's actor, and a short expiry. It may authorize at most a `reversible` action. Model output, retrieved knowledge, page context, and action output can never create this authorization. An AI host that needs asynchronous or standing authority must receive the same named, scoped, expiring grant as an outside AI. Every receipt records the AI host's `actor_id` and the person as principal.
 
 | Risk | Person in current UI | AI host or paired outside AI |
 |---|---|---|
@@ -537,33 +451,17 @@ An AI host that needs asynchronous or standing authority must receive the same n
 | `consequential` | Show an effect preview and require confirmation. | Require fresh person approval of the recorded intent, bound to the action, version, input hash, principal, and expiry. Return `approval_required` with an `approval_url` the AI relays to the person. |
 | `irreversible` | Require explicit final wording and a cool-off step. | Never run from standing authority. Require fresh human approval through the same `approval_url` flow, including the cool-off step. |
 
-An outside AI has no screen of SOMA's own, so approval is asynchronous.
+**Asynchronous approval.** An outside AI has no screen of SOMA's own, so approval is asynchronous.
 
-When a consequential or irreversible request arrives, the server returns HTTP 202 with `status: "approval_required"`, an `approval_id`, an `approval_url`, an expiry, and the ID of the same receipt that will eventually contain the outcome.
+1. When a consequential or irreversible request arrives, the server returns HTTP 202 with `status: "approval_required"`, an `approval_id`, an `approval_url`, an expiry, and the ID of the same receipt that will eventually contain the outcome.
+2. The AI relays the `approval_url` to the person through whatever channel it already uses with them.
+3. The `approval_url` opens the app's own effect preview, which the person confirms or declines while signed in. The approval bindings are in section 2.7.
+4. The approval page re-runs `prepare`. If the effective risk, effects, input, authorization, or resource version changed, the old approval expires and the person sees a new preview.
+5. After confirmation, the app server executes the already-recorded intent. For an `irreversible` action it does so only after the cool-off step has elapsed without the person cancelling. The AI polls the receipt; no bearer approval token is returned through the AI's channel.
 
-The AI relays the `approval_url` to the person through whatever channel it already uses with them.
+**Receipts.** Every effect request requires `Idempotency-Key`. An action labeled `reversible` must implement and pass a round-trip undo test; otherwise conformance requires it to be labeled `consequential`. Every authenticated `effect` attempt that reaches preparation writes a receipt, including authorization refusal and execution failure. An `observe` action writes a metadata-only receipt when an AI host or a paired outside AI runs it, naming the action and resource class but not retaining the content returned, so the person can audit what an AI read on their behalf. A person's own reads in the UI write none. Invalid credentials, malformed requests, admission-limit failures, and unknown actions produce bounded security metrics or `soma.security_events` rows, not action receipts.
 
-The `approval_url` opens the app's own effect preview, which the person confirms or declines while signed in.
-
-The approval page re-runs `prepare`. If the effective risk, effects, input, authorization, or resource version changed, the old approval expires and the person sees a new preview.
-
-After confirmation, the app server executes the already-recorded intent. The AI polls the receipt; no bearer approval token is returned through the AI's channel.
-
-Every effect request requires `Idempotency-Key`. An action labeled `reversible` must implement and pass a round-trip undo test; otherwise conformance requires it to be labeled `consequential`.
-
-Every authenticated `effect` attempt that reaches preparation writes a receipt, including authorization refusal and execution failure. An `observe` action writes a metadata-only receipt when an AI host or a paired outside AI runs it, naming the action and resource class but not retaining the content returned, so the person can audit what an AI read on their behalf. A person's own reads in the UI write none.
-
-Invalid credentials, malformed requests, admission-limit failures, and unknown actions produce bounded security metrics or `soma.security_events` rows, not action receipts.
-
-UI controls use the same action definition as the Guide and remote API.
-
-AI-only actions are permitted only when the action has no honest visual equivalent and is either an `observe` action or a `reversible` effect action.
-
-An AI-only `reversible` action must declare a `ui_exception` with a reason in the manifest, and that exception is reviewed under C5.
-
-Its receipts must appear in the person's receipt view with an undo control, so the person can see and reverse the effect without the AI.
-
-`consequential` and `irreversible` actions are never AI-only.
+**UI parity.** UI controls use the same action definition as the Guide and remote API. AI-only actions are permitted only when the action has no honest visual equivalent and is either an `observe` action or a `reversible` effect action. An AI-only `reversible` action must declare a `ui_exception` with a reason in the manifest, reviewed under C5, and its receipts must appear in the person's receipt view with an undo control, so the person can see and reverse the effect without the AI. `consequential` and `irreversible` actions are never AI-only.
 
 ### 2.6a Ask interface
 
@@ -588,29 +486,23 @@ export interface AskResponse {
 }
 ```
 
-The server loads knowledge only from the files listed in `guide.ask.knowledge`, bundled at build time and covered by the contract hash. It never accepts knowledge from the request.
+The server takes `app_id` from its own installation, never from the request. It loads knowledge only from the files listed in `guide.ask.knowledge`, bundled at build time and covered by the contract hash, and never accepts knowledge from the request.
 
 The Ask endpoint stores no question, answer, or history. Metering records only counts and cost. An app that wants Ask transcripts for diagnostics must declare them as a data store with a retention rule.
 
-The server takes `app_id` from its own installation, never from the request.
+`page_context` is off by default. An app that turns it on must declare a data flow that names page text, and the server treats that text as untrusted data under section 2.7a. Web search is off unless the manifest sets `guide.ask.web: true` and declares the search provider as a data flow.
 
-`page_context` is off by default. An app that turns it on must declare a data flow that names page text, and the server treats that text as untrusted data under section 2.7a.
-
-Web search is off unless the manifest sets `guide.ask.web: true` and declares the search provider as a data flow.
-
-When `grounded` is false, the answer says that the app's knowledge does not cover the question, and it offers the human host's escalation route.
+When `grounded` is false, the answer says that the app's knowledge does not cover the question, and it offers the human host's escalation route. The endpoint either streams its answer or returns within Netlify's synchronous Function execution limit. A timeout returns `grounded: false` with the human host's route, never an empty answer.
 
 A `do` offer is only an invitation. Running it goes through `prepare` and the risk gate like any other request.
 
-The endpoint either streams its answer or returns within Netlify's synchronous Function execution limit. A timeout returns `grounded: false` with the human host's route, never an empty answer.
-
-Ask makes a provider call only after the broker has charged the request against the caller's quota and the operator's daily cost budget (section 2.7a). Both live in the shared database, so an Ask Function cannot enforce them while the broker is down, and an unmetered provider call would let anonymous traffic spend without limit. During a broker outage, or after the daily budget is spent, Ask makes no provider call. It returns `degraded: true`, `grounded: false`, citations to the declared knowledge sections whose headings or text contain the question's words, and the human host's route. The search runs over the knowledge bundled into the release, so it needs no network call.
+**Degraded Ask.** Ask makes a provider call only after the broker has charged the request against the caller's quota and the operator's daily cost budget (section 2.7a). Both live in the shared database, so an Ask Function cannot enforce them while the broker is down, and an unmetered provider call would let anonymous traffic spend without limit. During a broker outage, or after the daily budget is spent, Ask makes no provider call. It returns `degraded: true`, `grounded: false`, citations to the declared knowledge sections whose headings or text contain the question's words, and the human host's route. The search runs over the knowledge bundled into the release, so it needs no network call.
 
 The Guide's current request shape, `{ question, context, persona, allowWeb, app_id }`, remains acceptable to legacy endpoints only. The kit endpoint ignores `context`, `persona`, `allowWeb`, and `app_id`.
 
 ### 2.7 AI visitor door
 
-Every conforming app publishes:
+Every conforming app publishes these discovery and action routes:
 
 ```text
 GET /.well-known/soma-app.json
@@ -626,16 +518,16 @@ GET /api/soma/v1/receipts/:id
 GET /api/soma/v1/status
 ```
 
-Every conforming app also publishes person-facing routes. Each one is an app function that authenticates the person or agent and calls a narrow broker function, so browser code never touches the `soma` schema.
+Every conforming app also publishes person-facing routes. Each one is an app Function that authenticates the person or agent and calls a narrow broker function, so browser code never touches the `soma` schema.
 
 ```text
 GET    /api/soma/v1/auth/start?return_to=…     create the PKCE transaction and navigate top-level to the identity origin
 GET    /api/soma/v1/auth/callback              exchange the code server-side, set session cookies, then 303 to `return_to`
 POST   /api/soma/v1/auth/logout                revoke this app session (person session and CSRF token)
-GET    /api/soma/v1/me                         membership, role, consented fields, CSRF token, declared concept state, and compatible shared answers
+GET    /api/soma/v1/me                         membership, role, consented fields, CSRF token, declared concept state, and compatible shared answers, in one broker call
 POST   /api/soma/v1/approvals/:id/decision     record the signed-in principal's confirmation or refusal (person session and CSRF token only)
 GET    /api/soma/v1/me/concepts?ids=…          state of declared concepts
-POST   /api/soma/v1/me/concepts/:id            record told, shown, done, or acknowledged
+POST   /api/soma/v1/me/concepts/:id            record told, shown, or acknowledged (done comes only from receipts, section 2.5)
 GET    /api/soma/v1/me/answers?ids=…           compatible answers this app may read
 PUT    /api/soma/v1/me/answers/:question_id    store a private app answer; a separate, person-approved share operation creates the central projection
 POST   /api/soma/v1/me/answers/:question_id/share   create a pending share and return its identity-origin `share_url`
@@ -649,25 +541,9 @@ POST   /api/soma/v1/receipts/:id/undo          run the action's undo
 
 The approval decision route is never listed in `/.well-known/soma-app.json`, `/llms.txt`, or the OpenAPI document, so an AI is not invited to approve its own request.
 
-`return_to` must be a same-origin path that begins with exactly one `/`; any other value becomes `/`. The callback answers with a 303 to a URL that carries no `code` or `state`, so no page script runs while those values are in the address bar. `GET /api/soma/v1/me` returns the session's CSRF token, and the vendored client sends it as `X-CSRF-Token` on every unsafe request.
+**Contact.** `POST /api/soma/v1/contact` accepts a signed-in person or an anonymous visitor. It writes a `feedback_items` row with `kind = 'contact'`, a `soma.estate_inbox` event, and an idempotent notification job in one broker transaction (section 2.4); the notification worker retries delivery to the human host's private registered address. A signed-in person sees the human host's reply at `/contact` in the app. An anonymous visitor receives a thread link once (Appendix A, M5). The host answers through the registered `contact.reply` action, which writes to the same thread.
 
-`POST /api/soma/v1/contact` accepts a signed-in person or an anonymous visitor. A signed-in person sees the human host's reply at `/contact` in the app. An anonymous visitor receives, once, on the confirmation screen, a thread link carrying an unguessable token, and may add an email address for a reply notice; that address is a declared data flow and is erased with the thread. The host answers from the app's admin feedback queue through the registered `contact.reply` action, which writes to the same `feedback_items` thread. A thread token expires 90 days after the last message and is redacted like other bearer values (section 2.2).
-
-The Guide gains a kit mode, enabled by `cfg.kit = { app_id, me, actions, concepts }`. It needs one because its current hooks do not have the kit's meaning:
-
-- Today `cfg.identity.recordSeen` receives four different things: a walkthrough ID when a tour starts, a Do action ID, `{ display_name }`, and `{ email }`. In kit mode the Guide does not call `recordSeen`. It calls three separate hooks instead: `cfg.kit.concepts.told(concept_id)` when it presents a concept's `tell` text without being asked, `cfg.kit.concepts.workflowCompleted(workflow_id)` after the last step of a workflow, and `cfg.kit.concepts.acknowledged(concept_id)` from an explicit "I already know this" control.
-- The vendored adapter maps a workflow to a concept only through the manifest's `concepts[].show` field, and only then records `shown`. Action IDs never become concept state, because `done` comes only from receipts. The adapter rejects every argument that is not a declared ID.
-- In kit mode the Guide never writes `name` or `email` to `localStorage`. It reads the display name from `GET /api/soma/v1/me`.
-- In kit mode the Guide persists only UI preferences on the app origin: panel size, text or voice mode, and mute. It writes no `anon-id`, no transcript, no `default-account`, and no `introduced` or `last-seen` key; concept state replaces “introduce once.” Session diagnostics stay in memory. The Guide ignores `cfg.telemetry.logUrl` unless the manifest declares the Guide transcript as a data flow, and then every record carries the route path without its query or fragment.
-- In kit mode the observer records element labels only. It captures no field values. Intake attaches recent activity only when the person ticks “include what I just did” in the feedback form.
-- In kit mode Ask sends the `AskRequest` from section 2.6a. It sends `page_context` only when `guide.ask.page_context` is true. The Guide renders the response's `citations`, the `grounded: false` escalation, and the server's `offers`; it adds no keyword-matched walkthrough offer of its own.
-- In kit mode, Do calls `cfg.kit.actions.prepare` and `cfg.kit.actions.execute` from the vendored `@soma/actions` client, with the AI host as actor. The Guide calls `execute` only from the person's click on the Do control for that prepared request (section 2.6). The server's preview and risk gate replace the Guide's local confirm text and its `risk: 'high'` flag. DOM-replay `steps` remain available only for `view` actions.
-- The scaffolder compiles each manifest step's `text` field into the Guide's `narration` field.
-- The release's Content Security Policy must allow what the Guide actually does: the known inline `<style>` from `soma-assist-core` by hash or nonce rather than blanket `unsafe-inline`, and `data:` audio when voice is enabled. Golden Journeys run under the generated policy, not a relaxed one.
-
-Consumers that do not set `cfg.kit` keep today's behavior on the root channel.
-
-Pairing and token issuance live on the identity origin, not on the app:
+**Pairing and tokens** live on the identity origin, not on the app:
 
 ```text
 GET  https://id.<SOMA_APEX>/.well-known/oauth-authorization-server
@@ -676,45 +552,24 @@ POST https://id.<SOMA_APEX>/agents/token            (device_code and refresh_tok
 GET  https://id.<SOMA_APEX>/.well-known/jwks.json
 ```
 
-The app's `/.well-known/soma-app.json` names these URLs, so the AI still starts from the app's own URL.
+The app's `/.well-known/soma-app.json` names these URLs, so the AI still starts from the app's own URL. The broker publishes RFC 8414 metadata so that the v1.1 MCP adapter can reuse the same authorization server instead of adding a second auth design.
 
-The AI's long-lived refresh credential is presented only to the broker.
+- The AI's long-lived refresh credential is returned once, presented only to the broker, stored only as a keyed hash, and rotated on every use. Reuse of an older credential revokes the credential family and records a security event.
+- The broker exchanges it for an app-audience access token that lives at most 10 minutes (claims: Appendix A, M4). A token captured by one app is useless at another, because both its audience and its online grant bind it to one registered app.
+- Token validation in the app Function establishes authenticity only. The broker authorizes every request online, inside the same `invoke` call and database transaction that performs the read or effect, and never from a cache. Broker failure fails closed for effects and private reads.
+- Revocation increments `grant_version` and revokes the refresh family, so an access token minted before revocation fails its next authorization check.
 
-The broker exchanges it for an access token that lives at most 10 minutes. The token carries `aud = "app:<app_id>"`, `sub = <app_agent_id>`, `grant_ref`, `grant_version`, `jti`, `scopes`, and `risk_ceiling`. The broker maps `grant_ref` back to `grant_id` inside the `invoke` transaction.
+**Pairing screen.** The device-code screen shows the AI label, destination app, requested scopes, risk ceiling, purpose, and expiry, and marks the label as chosen by the AI, not verified by SOMA. The person must type the user code their own AI displayed; there is no prefilled link. The person may narrow the request before approval. Every new AI partner is announced to the person through a channel the attacker does not control: a message to the person's verified email (section 2.3b), naming the label, the app, and the scopes, with a one-tap revoke link that opens the identity origin. A phished pairing is therefore visible to the person even when they never open their grant list. Limits and rate controls: Appendix A, M4.
 
-Signature, issuer, expiry, and audience validation establish token authenticity only. The app Function may use them to reject a bad token early, but it never authorizes on that basis. The broker checks `grant_id`, `grant_version`, scope, risk, principal, and action inside the same `invoke` call and database transaction that performs the read or effect. It reads the grant row with `FOR SHARE`, so a revocation either commits before the request and refuses it, or waits until the request finishes. An external-effect action is authorized this way at the call that claims its receipt. Authorization is never served from a cache. Broker failure fails closed for effects and private reads.
-
-A token captured by one app is useless at another because both its audience and online grant bind it to one registered app.
-
-The broker publishes RFC 8414 metadata so that the v1.1 MCP adapter can reuse the same authorization server instead of adding a second auth design.
-
-The unauthenticated device-code endpoint uses a database-backed rate limit per IP address and per app. PlayMaker's current in-memory, per-instance throttle (`playmaker/netlify/functions/agent-pair-start.ts`) does not hold across function instances.
-
-An approval has three bindings:
+**Approval bindings.** An approval has three bindings:
 
 - The `approval_url` must be on the app's registered origin or the identity origin. The page shows the requesting AI's label and the grant's principal.
 - Only the grant's principal, signed in, can confirm. Anyone else sees a refusal.
 - `GET /api/soma/v1/approvals/:id` returns the approval's state and receipt ID only to an access token for the same broker-resolved grant. It never returns a bearer approval token. An approval expires within 10 minutes if the person has not decided.
 
-Public discovery and public knowledge require no authentication.
+Public discovery and public knowledge require no authentication. Which actions a visitor may run is set in section 2.6.
 
-Effect actions require a person session or broker-issued agent access token. Public `view` and `observe` actions may allow visitors when the manifest says so.
-
-The device-code screen shows the AI label, destination app, requested scopes, risk ceiling, purpose, and expiry. It marks the label as chosen by the AI, not verified by SOMA.
-
-The identity origin never offers a `verification_uri_complete` link. The person must type the user code that their own AI displayed to them, and the screen says to continue only if they started this pairing themselves a moment ago.
-
-A device code lives at most 10 minutes. Each one accepts at most five wrong user-code entries.
-
-Every new AI partner is announced to the person through a channel the attacker does not control: a message to the person's verified email, naming the label, the app, the scopes, and a one-tap revoke link that opens the identity origin. A phished pairing is therefore visible to the person even when they never open their grant list.
-
-The person may narrow the request before approval.
-
-The broker returns the long-lived refresh credential once and stores only its keyed hash. Refresh credentials rotate on every use; reuse of an older credential revokes the credential family and records a security event. Apps see only short-lived, app-audience access tokens.
-
-Revocation increments `grant_version`, revokes the refresh family, and causes an access token minted before revocation to fail its next authorization check.
-
-Outside AIs fall into two classes. A chat AI that can only fetch pages can read discovery, `/llms.txt`, and public knowledge, and can tell its person how to connect an AI that can act. An AI with an HTTP or code tool can pair, receive grants, and act. M0 records which current assistants fall in each class.
+**Two classes of outside AI.** A chat AI that can only fetch pages can read discovery, `/llms.txt`, and public knowledge, and can tell its person how to connect an AI that can act. An AI with an HTTP or code tool can pair, receive grants, and act. M0 records which current assistants fall in each class.
 
 A generated MCP adapter is the first v1.1 feature. It is generated from the same action registry and uses the broker's OAuth metadata and per-app grants from this section, because Claude and ChatGPT connectors speak MCP rather than OpenAPI.
 
@@ -775,68 +630,11 @@ The OpenAPI document contains the common error schema, authentication requiremen
 | `packages/soma-conformance` | Development and CI tool | It proves the manifest and live behavior agree. |
 | Template recipes | Copied by the scaffolder | Changelog views, legal routes, notifications, analytics, UI helpers, and optional billing do not justify runtime packages yet. |
 
-The lock file is:
+**Lock file.** `soma-kit.lock.json` pins the template commit, the contract hash, every Guide asset with its integrity hash, and every vendored package's hash (shape and provenance rules: Appendix A, M1). React-app mode already vendors `@soma/signin`, `@soma/tickets`, `@soma/meter`, and `@soma/feedback` and records their source commit in `VENDORED.md` (`packages/soma-scaffolder/README.md`). The lock file replaces `VENDORED.md`, so there is one provenance record, not two. Updates: section 2.8a.
 
-```json
-{
-  "kit_version": "1.0.0",
-  "source_commit": "<soma-platform-sha>",
-  "template": {
-    "repository": "eldrgeek/soma-app-template",
-    "commit": "<soma-app-template-sha>"
-  },
-  "contract_sha256": "<canonical-contract-hash>",
-  "guide": {
-    "version": "1.0.0",
-    "assets": [
-      {
-        "url": "https://soma-guide.netlify.app/v1.0.0/soma-guide.js",
-        "integrity": "sha384-..."
-      },
-      {
-        "url": "https://soma-guide.netlify.app/v1.0.0/soma-guide.css",
-        "integrity": "sha384-..."
-      }
-    ]
-  },
-  "packages": {
-    "@soma/signin": {
-      "version": "1.0.0",
-      "sha256": "..."
-    },
-    "@soma/actions": {
-      "version": "1.0.0",
-      "sha256": "..."
-    }
-  }
-}
-```
+**Guide delivery.** The Guide's package name is `@soma-platform/soma-guide`; its delivery is the immutable CDN asset. Each release is published to `/v<semver>/`, which kit apps load and which never changes, and to the root path, which non-kit consumers load and which keeps moving. In kit mode the Guide loads no executable code at runtime: every executable asset, including an enabled voice adapter, reaches the page through a `<script>` tag carrying the lock file's integrity value, so the browser enforces Subresource Integrity on all of it. This replaces today's runtime import of `https://esm.sh/@elevenlabs/client@latest` (`packages/soma-guide/soma-guide.js`). Release mechanics: Appendix A, M5.
 
-The updater must refuse to overwrite locally modified vendored files.
-
-The scaffolder refuses to generate from a template checkout that has uncommitted or untracked files, or whose commit is not on the template repository's default branch, and records that commit in the lock. Each kit release names the template commit it was tested with.
-
-React-app mode already vendors `@soma/signin`, `@soma/tickets`, `@soma/meter`, and `@soma/feedback`, with `VENDORED.md` recording the source commit (`packages/soma-scaffolder/README.md`). `soma-kit.lock.json` replaces `VENDORED.md`; it does not create a second provenance record.
-
-The Guide's package name is `@soma-platform/soma-guide`, while its delivery remains the immutable CDN asset above.
-
-In kit mode the Guide loads no executable code at runtime. Every executable asset reaches the page only through a `<script>` tag that the scaffolder emits with the `integrity` value from the lock file, so the browser enforces Subresource Integrity on all of it. Kit mode permits no runtime JavaScript `import()`, worker script, JSONP callback, injected script element, or configurable executable URL. The Guide entry script bundles `soma-assist-core`. An enabled voice adapter is a separate script in the same immutable release, emitted with its own integrity value only when `guide.voice.enabled` is true, so apps without voice do not carry the voice client. Non-executable media may use content-addressed relative paths listed in the lock.
-
-Today the Guide imports `https://esm.sh/@elevenlabs/client@latest` at runtime, or `cfg.voiceAgentEsmUrl` when set (`packages/soma-guide/soma-guide.js`). Kit apps cannot use `voiceAgentEsmUrl`. `deploy-guide.sh` fails a versioned release whose bundle contains a remote or dynamic executable import.
-
-`deploy-guide.sh` publishes each release twice: to `/v<semver>/` with `Cache-Control: public, max-age=31536000, immutable`, and to the root path that existing non-kit consumers load. Every script and stylesheet is listed in the lock file and receives an integrity hash. Publishing an existing semantic version is a no-op only when every byte matches; otherwise it fails. Kit apps load only the versioned path. `dist/releases.json` maps each semver to its `SOMA_GUIDE_VERSION` date string and its complete asset manifest.
-
-Because every Netlify production deploy replaces the whole site, `deploy-guide.sh` adds three checks:
-
-- Before it builds or copies anything, it refuses to run when `dist/` or `packages/` has uncommitted or untracked files. Release inputs and retained artifacts therefore come from one clean commit.
-- Before deploying, it verifies that every version in `dist/releases.json` is present under `dist/v<semver>/` and matches its recorded hashes.
-- After deploying, it fetches every asset of every listed version from the CDN and compares its SHA-384 with the lock value.
-
-`dist/v*/` is committed to git and is never deleted.
-
-Versioned paths are served with `Access-Control-Allow-Origin: *`, and kit pages load them with `crossorigin="anonymous"`, because the browser refuses a cross-origin integrity check without CORS.
-
-`soma-assist-core` is a separate global script today, and Legends does not load it. When it is absent, the Guide shows its legacy panel. Bundling it into a kit release therefore changes the Guide's interface for kit apps, and Golden Journeys must cover the panel that actually ships. The lock lists every asset the release actually loads.
+**Guide kit mode.** `cfg.kit = { app_id, me, actions, concepts }` turns on a kit mode, because the Guide's current hooks do not have the kit's meaning. Consumers that do not set `cfg.kit` keep today's behavior on the root channel. Hook-by-hook behavior: Appendix A, M5.
 
 ### 2.8a Kit updates and security floors
 
@@ -860,44 +658,25 @@ A restore rehearsal must rebuild staging from backup, rotate every restored cred
 
 Broker signing keys, receipt-signing and request-fingerprint keys, app installation credentials, app release credentials, conformance credentials, and refresh-token hashing keys have named owners, creation and expiry dates, overlapping rotation procedures, emergency revocation procedures, and audit events. JWKS retains an old public key only through the maximum lifetime of tokens it signed.
 
-The public status route exposes only release and pass/fail metadata. Detailed failed checks, infrastructure identifiers, and evidence URLs require steward authorization.
+The public status route exposes release metadata (release SHA, contract hash, kit lock hash, security-floor state, and declared conformance exceptions) and pass/fail results with their timestamps. Detailed failed checks, infrastructure identifiers, and evidence URLs require steward authorization.
 
 ## 3. The contract an app signs
 
 ### 3.1 Canonical manifest
 
-Move the canonical schema to:
+The canonical v1 schema lives at `soma-platform/packages/soma-contracts/schema/soma-app-v1.schema.json`. The old path, `soma-platform/packages/soma-scaffolder/schema/soma-app.schema.json`, keeps the **v0** schema unchanged and is not an entry point for v1.
 
-```text
-soma-platform/packages/soma-contracts/schema/soma-app-v1.schema.json
-```
+The v1 manifest is a new document shape, not an extension of v0. The v0 spec has a root `soma_app` object with `slug`, `targets`, `affordances`, and `meta`, and forbids other root keys, so it cannot validate a v1 manifest. The scaffolder therefore dispatches on the document: `"schema_version": "soma.app/1"` validates against the v1 schema, and a root `soma_app` is accepted only by the converter `soma-scaffold migrate-spec` (Appendix A, M1).
 
-Keep a compatibility entry point at:
+**Contract hash.** `contract_sha256` is the SHA-256 of the RFC 8785 (JSON Canonicalization Scheme) form of `{ "manifest": <manifest>, "files": { "<path>": "<sha256 of file bytes>" } }`, where `files` lists every path the manifest references. Reformatting the manifest does not change the hash. Changing a referenced schema, persona, or knowledge file does. `soma.app_contracts.contract_sha256`, the running release's status endpoint, the lock file checks, and the evidence bundle all use this hash. The status endpoint reports the hash compiled into the running release, not whichever concurrent build synced most recently.
 
-```text
-soma-platform/packages/soma-scaffolder/schema/soma-app.schema.json
-```
+**Paths.** The schema distinguishes repository source paths from public routes. `knowledge/host-pair.md` is a source path, and the compiler may publish it at `/knowledge/host-pair.md`. Legal paths such as `/privacy` are routes and are never opened as files. A source path can never escape the repository (rules: Appendix A, M1).
 
-That path keeps the **v0** schema unchanged. It is not an entry point for v1.
+**Field meanings that the schema alone does not convey:**
 
-The v1 manifest is a new document shape, not an extension of v0. The v0 spec has a root `soma_app` object with `slug`, `targets`, `affordances`, and `meta`, and forbids other root keys, so it cannot validate a v1 manifest.
-
-The scaffolder dispatches on the document:
-
-- A document with `"schema_version": "soma.app/1"` validates against `soma-app-v1.schema.json` with Ajv (draft 2020-12). Ajv becomes a scaffolder and conformance development dependency; it is never vendored into apps.
-- A document with a root `soma_app` is accepted only by `soma-scaffold migrate-spec <v0.json> > soma-app.json`. The converter emits a v1 manifest and prints every v0 field it could not map. The three existing examples (`examples/legends.soma.json`, `legends-billing.soma.json`, `soma-forge.soma.json`) are its test fixtures.
-
-The contract hash, `contract_sha256`, is the SHA-256 of the RFC 8785 (JSON Canonicalization Scheme) form of `{ "manifest": <manifest>, "files": { "<path>": "<sha256 of file bytes>" } }`, where `files` lists every path the manifest references. Reformatting the manifest does not change the hash. Changing a referenced schema, persona, or knowledge file does.
-
-The schema distinguishes repository source paths from public routes. A source path is a normalized, repository-relative POSIX path with no leading slash, no `..` segment, no URL scheme, no control character, and no empty segment. The resolver rejects symlinks, non-regular files, any file whose `realpath` lies outside the repository, and files above the declared size limit. It reads each file once and hashes the bytes it actually compiles or copies, so a file replaced between hashing and use cannot slip through.
-
-For example, `knowledge/host-pair.md` is a source path, and the compiler may publish it at `/knowledge/host-pair.md`. Legal paths such as `/privacy` are routes and are never opened as files.
-
-`soma.app_contracts.contract_sha256`, the running release's status endpoint, the lock file checks, and the evidence bundle all use this contract hash. The status endpoint reports the hash compiled into the running release, not whichever concurrent build synced most recently.
-
-`expected_response` states how soon the human host normally replies. It is a stated expectation shown to the person, not a contractual service-level agreement.
-
-Each data flow's `retention_days` is a non-negative integer or the literal `"undeclared"`. The integer is how many days the vendor keeps the data under the operator's actual agreement with that vendor; `0` means the vendor keeps nothing after the request. A prototype may say `"undeclared"` and receives a warning; public MVP fails on it (C18). `/privacy` and `/where-your-words-go` render retention from this field, so the prose cannot drift from the manifest. The example below says `"undeclared"` because only the operator's vendor agreement can support a number.
+- `expected_response` states how soon the human host normally replies. It is a stated expectation shown to the person, not a contractual service-level agreement.
+- Each data flow's `retention_days` is a non-negative integer or the literal `"undeclared"`. The integer is how many days the vendor keeps the data under the operator's actual agreement with that vendor; `0` means the vendor keeps nothing after the request. A prototype may say `"undeclared"` and receives a warning; public MVP fails on it (C18). `/privacy` and `/where-your-words-go` render retention from this field, so the prose cannot drift from the manifest. The example below says `"undeclared"` because only the operator's vendor agreement can support a number.
+- `app.origins` lists the production origin and the fixed preview alias; `register` registers exactly these two (section 2.4a).
 
 A minimal contract looks like the example below. It uses a V’Eric-shaped app only as an illustration; it does not choose the second app (section 5).
 
@@ -909,7 +688,10 @@ A minimal contract looks like the example below. It uses a V’Eric-shaped app o
     "id": "veric-coaching",
     "name": "V'Eric Coaching",
     "tier": "prototype",
-    "origins": ["https://preview--veric-coaching.netlify.app"],
+    "origins": [
+      "https://veric-coaching.netlify.app",
+      "https://preview--veric-coaching.netlify.app"
+    ],
     "repository": "eldrgeek/veric-coaching"
   },
   "hosts": {
@@ -1092,20 +874,7 @@ A conforming app receives:
 
 ### 3.3 Conformance command
 
-Add:
-
-```text
-soma-platform/packages/soma-conformance/
-├── bin/soma-conform.mjs
-├── checks/
-├── journeys/
-│   ├── anonymous-visitor.spec.ts
-│   ├── known-person.spec.ts
-│   ├── outside-ai.spec.ts
-│   ├── revoked-agent.spec.ts
-│   └── degraded-mode.spec.ts
-└── package.json
-```
+`soma-platform/packages/soma-conformance/` holds `bin/soma-conform.mjs`, `checks/`, and five journeys under `journeys/`: `anonymous-visitor`, `known-person`, `outside-ai`, `revoked-agent`, and `degraded-mode` (each a `.spec.ts`).
 
 Run locally:
 
@@ -1131,7 +900,7 @@ node packages/soma-conformance/bin/soma-conform.mjs \
   --journeys
 ```
 
-The runner pushes the candidate commit to the app's `preview` branch. It then waits until `/api/soma/v1/status` on the alias reports that commit's SHA, and only then runs the journeys. It never tests whatever happens to be deployed. Only one run per app holds the alias at a time; a second run waits for the first. Per-pull-request deploy previews remain useful for visual review, but they never carry SOMA credentials and never count as conformance evidence.
+A live run tests exactly the candidate commit, never whatever happens to be deployed. Per-pull-request deploy previews are useful for visual review, but they never carry SOMA credentials and never count as conformance evidence. How the runner holds the alias: Appendix A, M1.
 
 The gate must check:
 
@@ -1170,21 +939,11 @@ The gate must check:
 | C23 | Public endpoints enforce body, rate, concurrency, timeout, and cost limits before provider calls. Untrusted content cannot select tools, scopes, principals, or risk levels. |
 | C24 | The build output contains no path sourced from `netlify/functions/`, `supabase/`, `migrations/`, or `vendor/soma/` server code, and no `*.sql`, `.env*`, `package.json`, `CLAUDE.md`, or `AGENTS.md`. The check derives candidate URLs from the repository and deploy manifest, requests each one from the live origin, and expects 404. |
 
-CI and branch-deploy journeys run against a separate staging Supabase project and staging broker built from the same migrations and configuration. Production secrets, sessions, people, and grants are unavailable to every non-production deploy context.
+CI and branch-deploy journeys run against a separate staging Supabase project and staging broker built from the same migrations and configuration. Production secrets, sessions, people, and grants are unavailable to every non-production deploy context. Production has no conformance sign-in bypass. After production promotion, a narrow production smoke journey runs with a dedicated synthetic person through the ordinary sign-in method. The status endpoint distinguishes `staging_conformance` from `production_smoke`; a staging pass must never be displayed as a production pass. Test sign-in, the fixture app, cleanup, and the smoke journey: Appendix A, M1.
 
-A `legacy-global` app runs every check. An individual assertion it cannot pass until a named migration phase reports `declared_exception` with that phase and a target date, never `pass`; the rest of the check still runs. PlayMaker and Legends may declare exceptions only for the C12 and C12b assertions that require removal of their app-held shared secrets (until M11), and the C22 assertions that require their own direct sign-in to use the broker flow (until M9). An exception without a target date, or past its date, fails. The status endpoint and evidence bundle list every exception. A `pairwise` app may declare none.
+**Legacy exceptions.** A `legacy-global` app runs every check. An individual assertion it cannot pass until a named migration phase reports `declared_exception` with that phase and a target date, never `pass`; the rest of the check still runs. PlayMaker and Legends may declare exceptions only for the C12 and C12b assertions that require removal of their app-held shared secrets (until M11), and the C22 assertions that require their own direct sign-in to use the broker flow (until M9). An exception without a target date, or past its date, fails. The status endpoint and evidence bundle list every exception. A `pairwise` app may declare none.
 
 Live conformance on PlayMaker needs a protected `preview` branch in Eric's repository. Question 2 in section 6 includes asking Eric for it.
-
-The staging broker exposes a test sign-in only for staging test people and only to the conformance runner. Production has no conformance sign-in bypass. Automated staging journeys never wait for a magic-link email.
-
-A permanently registered staging fixture app, `soma-fixture`, gives each test person a prior membership, so the known-person journey always has an “other SOMA app.”
-
-Each run first writes a redacted evidence bundle, then deletes or expires its staging memberships, grants, answers, and receipts. Cleanup is idempotent and is itself checked.
-
-After production promotion, a narrow production smoke journey uses a dedicated synthetic person (`soma.people.is_test = true`). That person signs in through the ordinary production sign-in method, with the one-time code delivered to a steward-controlled mailbox the runner reads, because production has no bypass. The journey performs public discovery, sign-in, one private read, one reversible action followed immediately by undo, revocation, and status verification. It cannot exercise irreversible actions or destructive erasure. Metrics and the estate board exclude the synthetic person.
-
-The status endpoint distinguishes `staging_conformance` from `production_smoke`; a staging pass must never be displayed as a production pass.
 
 Existing package checks remain runnable:
 
@@ -1205,50 +964,44 @@ npm --prefix packages/soma-conformance test
 
 ### 4.1 Order of work
 
+Each phase's implementation constraints are in Appendix A under the same milestone name.
+
 | Phase | Work | Demonstration |
 |---|---|---|
-| M0: Freeze evidence | Record current package APIs. Generate a fixture from PlayMaker’s current action catalogue. Capture PlayMaker invitation, sign-in, feedback, and Agent API journeys, plus what an existing PlayMaker writer sees on a first visit to the fixture app before M9 creates an identity-origin session. Generate the list of every Legends page that loads the Guide and every shared Guide data or configuration file; on 2026-10-07 that is 33 HTML pages plus `js/legends-guide-config.js` and `js/legends-knowledge.js`, not the 22 pages in the inventory. Count the `public.soma_profiles.guide_seen` entries that are not plain walkthrough-ID strings, without exporting their values. Record which current outside AIs are fetch-only and which have an HTTP or code tool. Generate the live database isolation baseline described in section 2.4a. | The old journeys run before kit code changes. The fixture records the actual action and page counts rather than trusting prose counts. The outside-AI evidence names each AI and its available tool class. The database report accounts for every exposed schema, role grant, policy, trigger, view, and callable privileged function. |
+| M0: Freeze evidence | Record current package APIs. Generate a fixture from PlayMaker’s current action catalogue. Capture PlayMaker invitation, sign-in, feedback, and Agent API journeys, plus what an existing PlayMaker writer sees on a first visit to the fixture app before M9. Generate the Legends Guide page list, count the unsafe `guide_seen` entries, record which outside AIs are fetch-only, and generate the live database isolation baseline. | The old journeys run before kit code changes. The fixture records the actual action and page counts rather than trusting prose counts. The outside-AI evidence names each AI and its available tool class. The database report accounts for every exposed schema, role grant, policy, trigger, view, and callable privileged function. |
 | M1: Contract and conformance | Create `@soma/contracts` with the v1 schema, add Ajv validation, add `soma-scaffold migrate-spec` for v0 specs, add `soma-kit.lock.json`, and build C1–C5 and C13–C14. | A disposable generated app builds and fails when a host, action binding, or vendored file is altered. All three v0 examples convert to valid v1 manifests. |
 | M2: Action foundation | Extract PlayMaker’s registry, catalogue validation, workflow validation, and mapping checks into `@soma/actions`. Add risk, scopes, idempotency, and receipt interfaces without changing PlayMaker. | Package fixtures remain behaviorally equivalent to the frozen PlayMaker fixtures. |
-| M3: Identity foundation | Create the `soma` schema, RLS, broker boundary, app installation credentials, authorization-code flow, concept state, and answers. Backfill test accounts first. Remove every shared credential from the generator: `SUPABASE_SERVICE_ROLE_KEY` and `SUPABASE_JWT_SECRET` from `soma-app-template`, its functions, `soma-scaffolder/src/scaffold.mjs`, and `soma-scaffolder/src/provision.mjs`; the `VITE_SUPABASE_*` values and the shared-project fallback in `src/lib/somaAuthConfig.ts`; and `CLAUDE_EMAIL_*` with `netlify/functions/lib/boardCard.ts`, whose job `soma.estate_inbox` takes over. A generated app receives only the non-secret `SOMA_BROKER_URL`; Functions-only installation credentials (`SOMA_APP_INSTALLATION_KEY` and, during rotation, `SOMA_APP_INSTALLATION_KEY_NEXT`) and Functions-only provider keys for data flows its manifest declares; the Builds-only release credential (`SOMA_APP_RELEASE_KEY`); and standard non-secret build metadata. Delete the template migrations that act outside the app's schemas: `0001_profiles.sql`, whose `public.handle_new_user()` and `on_auth_user_created` trigger have the same names as PlayMaker's sign-up hook (`playmaker/supabase/migrations/0002_auth_bootstrap.sql`, `0014_narrow_handle_new_user.sql`), and `0002_delegations.sql`, `0003_agent_ingress.sql`, and `0006_agent_partners_rpc.sql`, which `soma.agent_partners` and `soma.agent_grants` replace. Rewrite `0004_feedback_and_build_queue.sql` and `0005_last_location.sql` to use unqualified names inside `app_<app_id>`, to key people by `app_person_id` with no reference to `auth.users`, and to read identity only through the `soma_ctx` accessors, because `auth.uid()` is null on the broker path. Replace the template UI and Function calls that depend on the deleted profile, delegation, ingress, and agent-partner RPCs with the vendored broker clients. Remove both scaffolder and provisioner instructions to run `sql/schema.sql` against the shared project. | Two disposable origins complete the offered cross-app journey without exposing a global person ID. A freshly generated app's environment, `.env.example`, and bundled browser code contain no shared-project key, Supabase URL, or estate mailbox credential, and the C12b scope and canary checks pass. A freshly generated app's migrations apply through `soma-scaffold migrate` against staging, and a catalog diff taken before and after shows no change outside the app's two schemas. |
+| M3: Identity foundation | Create the `soma` schema, RLS, broker boundary, app installation credentials, authorization-code flow, concept state, and answers. Backfill test accounts first. Remove every shared credential and every out-of-schema migration from the generator. | Two disposable origins complete the offered cross-app journey without exposing a global person ID. A freshly generated app's environment, `.env.example`, and bundled browser code contain no shared-project key, Supabase URL, or estate mailbox credential, and the C12b scope and canary checks pass. A freshly generated app's migrations apply through `soma-scaffold migrate` against staging, and a catalog diff taken before and after shows no change outside the app's two schemas. |
 | M4: AI door | Generate discovery and OpenAPI from the manifest. Add device-code pairing, app grants, revocation, and C8–C9. | A stranger AI receives only the URL and completes an allowed inspection. A revoked token then fails. |
-| M5: Consolidate plumbing | Expand `@soma/tickets`. Make `@soma/feedback` canonical. Add static adapters, versioned Guide assets, Guide kit mode (section 2.7), meter UI, and transactional estate-event delivery. | Package tests pass. A generated React app and generated static fixture use the same contracts. A Guide test proves that kit mode persists only the boolean device marker and declared UI preferences, captures no field values or URL queries, sends page context only when declared, and records `shown` only on workflow completion. |
-| M6: Legends preview | First change Legends' build to copy only public pages and assets into `_site/` and publish that directory, so Function source, SQL, migrations, agent documents, and `package.json` stop being served. Then generate `legends-membership-site/soma-app.json`. Vendor static identity and action adapters. Pin the Guide. Adapt its changelog and concept state behind flags. | C24 passes on the live site. Existing anonymous, member, admin, Guide, and degraded-CDN journeys pass on the branch deploy. |
+| M5: Consolidate plumbing | Expand `@soma/tickets`. Make `@soma/feedback` canonical. Add static adapters, versioned Guide assets, Guide kit mode (section 2.8), meter UI, and transactional estate-event delivery. | Package tests pass. A generated React app and generated static fixture use the same contracts. A Guide test proves that kit mode persists only the boolean device marker and declared UI preferences, captures no field values or URL queries, sends page context only when declared, and records `shown` only on workflow completion. |
+| M6: Legends preview | First stop Legends serving its repository root (landed 2026-10-07; Appendix A, M6). Then generate `legends-membership-site/soma-app.json`. Vendor static identity and action adapters. Pin the Guide. Adapt its changelog and concept state behind flags. | C24 passes on the live site. Existing anonymous, member, admin, Guide, and degraded-CDN journeys pass on the branch deploy. |
 | M7: PlayMaker manifest PR | Add the manifest, lock file, discovery documents, status endpoint, and conformance report without changing product behavior. | PlayMaker’s existing tests and live smoke checks remain green. |
 | M8: PlayMaker action PRs | Replace internal registry imports with the vendored package. Generalize the existing `agent_command_requests` idempotency into receipts, in shadow mode. Move the agent seam from the legacy JWT secret to broker-issued agent tokens. | Existing UI and Agent API produce equivalent outcomes. Shadow receipts agree before cutover. Paired agents keep working through the alias routes. |
 | M9: PlayMaker identity and plumbing PRs | Adopt identity, tickets, feedback, concept state, and changelog through separate flagged adapters. Add “Continue with SOMA” through the identity origin as a second PlayMaker sign-in path (section 2.3a). | Eric’s current workflow passes with each flag off and on. Each flag ships off; the release seat flips it only after recorded acceptance from Eric or Mike. A writer who signed in to PlayMaker through the identity origin opens the fixture app with one tap. |
 | M10: Rehearsal, then second-app acceptance | First run the timed build with the disposable kit fixture. After the November product choice, repeat it in the chosen product's repository. Neither run edits `soma-platform` or `soma-app-template`. | The fixture run proves repeatability. Only the chosen product passing section 5 on its registered live Netlify branch deploy earns the claim that a second SOMA app stood up on the kit. |
-| M11: Retire app-held shared secrets | Move PlayMaker's metering, agent ingress, and admin functions behind broker calls or PlayMaker-scoped `SECURITY DEFINER` functions. Do the same for Legends. Remove both apps' shared secret keys. Then revoke the legacy JWT secret and rotate the shared project to asymmetric signing keys. | A scan of every SOMA Netlify site's environment finds no shared-project secret key outside the broker. PlayMaker's and Legends' journeys pass after the legacy secret is revoked. |
+| M11: Retire app-held shared secrets | Move PlayMaker's metering, agent ingress, and admin functions behind broker calls or PlayMaker-scoped `SECURITY DEFINER` functions. Do the same for Legends. Remove both apps' shared secret keys. Then revoke the legacy JWT secret and rotate the shared project to asymmetric signing keys (order: section 2.3a). | A scan of every SOMA Netlify site's environment finds no shared-project secret key outside the broker. PlayMaker's and Legends' journeys pass after the legacy secret is revoked. |
 
 ### 4.2 PlayMaker safeguards
 
-PlayMaker remains Eric’s repository.
-
-Every PlayMaker change arrives as a reviewable pull request.
-
-Database migrations stay additive until old and new readers have completed the compatibility window.
-
-Existing invitations remain redeemable until they expire.
-
-Existing paired agents remain valid during a published transition window.
-
-Existing action implementations are wrapped before they are rewritten.
-
-No migration renames PlayMaker concepts or changes its domain model.
+- PlayMaker remains Eric’s repository.
+- Every PlayMaker change arrives as a reviewable pull request.
+- Database migrations stay additive until old and new readers have completed the compatibility window.
+- Existing invitations remain redeemable until they expire.
+- Existing paired agents remain valid during a published transition window.
+- Existing action implementations are wrapped before they are rewritten.
+- No migration renames PlayMaker concepts or changes its domain model.
+- Every feature flag has a tested rollback path.
 
 PlayMaker ships straight to production after `pr-merge-green`, gated on typecheck, build, and the full test suite (its default branch is `master`). A kit change that alters a screen lands behind a flag that defaults off. Eric or Mike supplies product acceptance; the release seat records that acceptance and performs the flag change. A deploy preview is used only where tests cannot cover the risk, and then with a test login that works only outside production, because saved passwords autofill only on the production domain.
 
 PlayMaker's existing AI routes (`/api/agent/v1/*`, `/api/agent-pair-start`, `/api/agent-pair-poll`, `/api/agent-pair-approve`) keep working as aliases for at least 90 days after the `/api/soma/v1/*` routes ship. `public/llms.txt` lists both during that window.
 
-Every feature flag has a tested rollback path.
 
 ### 4.3 Retirement rules
 
-`@soma/onboard` stops generating member tables after the ticket migration passes.
-
-Old auth copies retire after the Legends static journey passes in production.
-
-Invitation standards folders archive only after their behavior is represented in tests and their paths point to `@soma/tickets`.
+- `@soma/onboard` stops generating member tables after the ticket migration passes.
+- Old auth copies retire after the Legends static journey passes in production.
+- Invitation standards folders archive only after their behavior is represented in tests and their paths point to `@soma/tickets`.
 
 `public.soma_profiles` remains unchanged until every caller is inventoried. If it becomes a compatibility view, it uses `security_invoker = true`, exposes only the legacy fields required by named legacy consumers, and is granted only to those consumers. Pairwise apps receive no access to it.
 
@@ -1289,11 +1042,7 @@ The manifest must already contain:
 | Live branch deploy on `https://preview--<site>.netlify.app` against the staging broker | 30 minutes |
 | Complete Golden Journey and evidence bundle | Four working hours |
 
-A run that requires an edit to `soma-platform` or `soma-app-template` fails.
-
-The defect is fixed in the kit.
-
-The timed run then restarts.
+A run that requires an edit to `soma-platform` or `soma-app-template` fails. The defect is fixed in the kit, and the timed run then restarts.
 
 ### Golden Journey
 
@@ -1326,7 +1075,7 @@ The test must demonstrate:
 ## 6. Product questions for Mike
 
 1. **Which domain should own SOMA identity?**  
-   Recommendation: register a domain used only for SOMA identity and decide it before the first real person signs in, because sessions, saved passwords, and passkeys bind to that origin and moving it later forces everyone to sign in again. Do not use `id.mike-wolf.com`: even with the `__Host-`, exact-Origin, CSRF, and Fetch Metadata controls in section 2.3b, it would share a site boundary with every other `*.mike-wolf.com` property. A dedicated domain removes that unnecessary coupling. Until the domain exists, the staging broker runs on a Netlify subdomain with test accounts only. `netlify.app` is on the Public Suffix List, so each Netlify site is its own site, and the two-week release needs no DNS change. Buying the domain is the only step that needs Mike.
+   Recommendation: register a domain used only for SOMA identity and decide it before the first real person signs in, because sessions, saved passwords, and passkeys bind to that origin and moving it later forces everyone to sign in again. Do not use `id.mike-wolf.com`: even with the `__Host-`, exact-Origin, CSRF, and Fetch Metadata controls in section 2.3b (Appendix A, M3), it would share a site boundary with every other `*.mike-wolf.com` property. A dedicated domain removes that unnecessary coupling. Until the domain exists, the staging broker runs on a Netlify subdomain with test accounts only. `netlify.app` is on the Public Suffix List, so each Netlify site is its own site, and the two-week release needs no DNS change. Buying the domain is the only step that needs Mike.
 
 2. **What acceptance promise should the team make Eric for the PlayMaker kit sequence?**
    Recommendation: Mike asks Eric once to approve the M7–M9 sequence, to allow a protected `preview` branch that only the release seat and conformance runner update, and to name which screen changes require his personal acceptance. The release seat prepares, merges, flips, verifies, and rolls back flags. If required acceptance has not arrived, the flag remains off; silence is not approval.
@@ -1360,23 +1109,23 @@ The test must demonstrate:
 | Risk | Control |
 |---|---|
 | The kit becomes every SOMA idea at once. | Hold the core to identity, hosts, concept state, Ask/Show/Do, consent, AI access, feedback, receipts, and conformance. |
-| One shared Supabase project becomes an estate-wide breach boundary. | New apps never hold a shared secret. PlayMaker and Legends get separately revocable `sb_secret_…` keys in week one and lose them in M11. Until M11 the evidence bundle states that isolation covers new apps only. Test cross-app and cross-person isolation. |
+| One shared Supabase project becomes an estate-wide breach boundary. | New apps never hold a shared secret. PlayMaker and Legends get separately revocable keys in week one, lose them in M11, and until then the evidence says isolation covers new apps only (section 2.3a). Test cross-app and cross-person isolation. |
 | Cross-app recognition feels like surveillance. | Keep PII out of the device marker. Require consent on the first visit to another app. Provide describe, export, and forget controls. |
-| The broker becomes a single point of failure. | Private reads and effects fail closed, because they all pass through the broker. Keep public pages working, degrade Ask to provider-free knowledge search, and show the outage with the human contact route. Test broker failure in the live journey. Never fall back to in-app Supabase Auth sign-in for a pairwise app. |
-| Shared control-plane data is lost, corrupted, or restored with stale credentials. | Define RPO/RTO, keep an independent encrypted backup, rotate credentials after restore, and pass a restore rehearsal before production launch. |
+| The broker becomes a single point of failure. | Fail closed and degrade as section 2.3 describes. Test broker failure in the live journey. Never fall back to in-app Supabase Auth sign-in for a pairwise app. |
+| Shared control-plane data is lost, corrupted, or restored with stale credentials. | Define RPO/RTO, keep an independent encrypted backup, rotate credentials after restore, and pass a restore rehearsal before production launch (section 2.9). |
 | An outside AI receives excessive authority. | Require app scope, named scopes, expiry, risk ceiling, idempotency, receipts, and fresh approval for consequential acts. |
 | A manifest claims enforcement that runtime code does not perform. | Generate OpenAPI from the registered runtime actions and compare it with the manifest during conformance. |
 | Vendored code drifts. | Hash every vendored file and report drift through the beacon. |
 | A Guide release breaks every site. | Pin immutable versions and SRI hashes. Test a real consumer before promotion. |
 | Shared concept IDs suppress teaching that was actually needed. | Version concepts and require hosts to review cross-app equivalence. |
-| Feedback disappears during forwarding. | Keep the app record canonical. The broker writes it and the `soma.estate_inbox` event in one transaction, and C15 injects a failure to prove neither row survives alone. Legacy apps retry the broker call until it acknowledges. |
+| Feedback disappears during forwarding. | Keep the app record canonical and write it with its estate event in one transaction (section 2.4). C15 injects a failure to prove neither row survives alone. |
 | Legal templates create false confidence. | Require ratified operator, retention, and data-flow content before public MVP. |
-| PlayMaker migration disrupts Eric’s work. | Use small PRs, feature flags that ship off, shadow writes, existing tests, and the established direct-to-production gate. The release seat flips screen flags only after recorded acceptance from Eric or Mike. |
+| PlayMaker migration disrupts Eric’s work. | Use small PRs, feature flags that ship off, shadow writes, existing tests, and the established direct-to-production gate (section 4.2). |
 | “Done” becomes a checklist claim. | Require the live Golden Journey and evidence bundle. |
 
 ### 8.2 Two-week release: the secure vertical slice
 
-The two-week outcome is one generated React reference app and one generated static fixture running against staging. Both complete the same identity, Ask/Show/Do, outside-AI, feedback, and revocation journey. The release makes no production or legacy-app code change.
+The two-week outcome is one generated React reference app and one generated static fixture running against staging. Both complete the same identity, Ask/Show/Do, outside-AI, feedback, and revocation journey. The kit release itself changes no production system and no legacy-app code.
 
 It must include:
 
@@ -1396,7 +1145,7 @@ It must include:
 - Conformance for C1–C17 (including C12a and C12b), C19a, and C20–C24, including adversarial isolation, CSRF, revocation, prompt-injection, broker-outage, and failure-injection cases. Only C18, C18a, and C19 wait for later work.
 - A redacted evidence bundle and a timed rehearsal with the disposable second-app fixture against staging. The rehearsal does not pre-empt the November second-app decision.
 
-Outside the kit build, the release seat still performs two week-one interim controls. The first is from section 2.3a: separate revocable secret keys for PlayMaker and Legends. The second is Legends' publish-directory fix from M6. Both are configuration changes, not product changes, and each reduces a live exposure that the slice does not otherwise touch.
+Separately from the kit release, the release seat performs two week-one interim controls on the legacy apps: the separate revocable secret keys for PlayMaker and Legends (section 2.3a), and Legends' publish-directory fix from M6, which landed on 2026-10-07. Both are configuration changes, not product changes, and each reduces a live exposure that the slice does not otherwise touch.
 
 It explicitly excludes:
 
@@ -1432,47 +1181,218 @@ The release must not cut:
 | 13 | Timed second-app rehearsal | Fix only rehearsal blockers | Re-run the adversarial suite |
 | 14 | Final staging demonstration | Evidence publication | Scope and production-readiness report |
 
-Claude reviews and merges bounded work.
-
-Cursor and Codex build from self-contained beads.
+Cursor and Codex build from self-contained beads. Claude reviews and merges bounded work.
 
 A missed schedule moves an unfinished capability out of the two-week release. It never weakens the isolation, consent, authorization, revocation, or test boundary to preserve the date.
 
 The release is complete only when both fixtures pass the same live staging conformance command and a fresh builder completes the timed rehearsal without editing `soma-platform` or `soma-app-template`.
 
-## Appendix A: Merge notes
+_Merge notes (which source plan each idea came from) moved to [`plans/merge-notes-r1.md`](plans/merge-notes-r1.md)._
 
-### What I took from OpenAI Sol
+## Appendix A — Implementation constraints by milestone
 
-- The kit is a constitutional runtime, not a catalog of every SOMA idea.
-- The app manifest should declare promises, failure modes, actions, concepts, and hosts.
-- Actions need typed inputs, server-enforced risk gates, idempotency, receipts, and compensation.
-- The Guide should use immutable CDN releases, while code executing inside an app should be vendored and hash-locked.
-- Migration should use adapters, additive database changes, feature flags, and Golden Journeys instead of rewrites.
+The detail a builder needs for one milestone. Every item is a requirement. The body keeps each decision and its reason; the bracket names the body section an item moved from.
 
-### What I took from Anthropic Claude Opus
+### M0: Freeze evidence
 
-- The current `soma-app.json` and scaffolder are the correct starting point.
-- “Do not re-ask” requires a versioned answer store in addition to concept-seen state.
-- PlayMaker’s command registry is the strongest implementation source for Ask, Show, and Do.
-- “Where your words go” and the kit beacon turn abstract trust and drift concerns into visible product behavior.
-- Four working hours is a credible full stand-up target when deployment and host configuration are included.
+- **Legends Guide inventory** [4.1]. Generate the list of every Legends page that loads the Guide and every shared Guide data or configuration file. On 2026-10-07 that is 33 HTML pages plus `js/legends-guide-config.js` and `js/legends-knowledge.js`, not the 22 pages in the inventory.
+- **Unsafe `guide_seen` entries** [4.1]. Count the `public.soma_profiles.guide_seen` entries that are not plain walkthrough-ID strings, without exporting their values. Section 4.3 says how they are cleaned up.
+- **Outside-AI classes** [2.7]. Record which current outside AIs are fetch-only and which have an HTTP or code tool.
+- **Database isolation baseline** [2.4a]. Before the first registration in an environment, the steward captures and reviews the live database catalog: exposed schemas, roles and memberships, grants, RLS state, policies, views, triggers on `auth.users`, callable functions, `SECURITY DEFINER` ownership and `search_path`, publications, storage policies, and installed extensions. The generated report becomes the isolation baseline and is rerun after every platform migration.
 
-### What I took from Google Gemini 3.1 Pro
+### M1: Contract and conformance
 
-- Its shorter plan made three sharp product calls: guaranteed human handoff, portable context export, and a universal activity log.
-- Cross-app recognition should always be offered before an unvisited app receives identity.
-- An outside AI may read public discovery material anonymously, but it must authenticate before acting.
-- A fifteen-minute scaffold-to-local-build milestone is useful inside the broader four-hour stand-up test.
+- **Schema dispatch** [3.1]. A document with `"schema_version": "soma.app/1"` validates against `soma-app-v1.schema.json` with Ajv (draft 2020-12). Ajv becomes a scaffolder and conformance development dependency; it is never vendored into apps.
+- **v0 converter** [3.1]. `soma-scaffold migrate-spec <v0.json> > soma-app.json` emits a v1 manifest and prints every v0 field it could not map. The three existing examples (`examples/legends.soma.json`, `legends-billing.soma.json`, `soma-forge.soma.json`) are its test fixtures.
+- **Source paths** [3.1]. A source path is a normalized, repository-relative POSIX path with no leading slash, no `..` segment, no URL scheme, no control character, and no empty segment. The resolver rejects symlinks, non-regular files, any file whose `realpath` lies outside the repository, and files above the declared size limit. It reads each file once and hashes the bytes it actually compiles or copies, so a file replaced between hashing and use cannot slip through (C13).
+- **Template provenance** [2.8]. The scaffolder refuses to generate from a template checkout that has uncommitted or untracked files, or whose commit is not on the template repository's default branch, and records that commit in the lock. Each kit release names the template commit it was tested with.
+- **Lock file shape** [2.8]:
 
-### Rejected from the source plans
+```json
+{
+  "kit_version": "1.0.0",
+  "source_commit": "<soma-platform-sha>",
+  "template": {
+    "repository": "eldrgeek/soma-app-template",
+    "commit": "<soma-app-template-sha>"
+  },
+  "contract_sha256": "<canonical-contract-hash>",
+  "guide": {
+    "version": "1.0.0",
+    "assets": [
+      {
+        "url": "https://soma-guide.netlify.app/v1.0.0/soma-guide.js",
+        "integrity": "sha384-..."
+      },
+      {
+        "url": "https://soma-guide.netlify.app/v1.0.0/soma-guide.css",
+        "integrity": "sha384-..."
+      }
+    ]
+  },
+  "packages": {
+    "@soma/signin": {
+      "version": "1.0.0",
+      "sha256": "..."
+    },
+    "@soma/actions": {
+      "version": "1.0.0",
+      "sha256": "..."
+    }
+  }
+}
+```
 
-- I rejected direct browser writes to shared tables that trust a caller-supplied `app_id`. A malicious client could impersonate another app.
-- I rejected distributing the Supabase service-role key to app runtimes. One compromised app would expose the shared project.
-- I rejected globally reusable AI authority as the default. Pairing and authorization are separate decisions.
-- I rejected generated legal prose as a substitute for an operator’s ratified terms.
-- I rejected “working Vite app” as the complete stand-up definition. The test must demonstrate identity, Ask/Show/Do, outside-AI access, feedback, and revocation.
-- I rejected cutting Do from a two-week release. Ask, Show, and Do is one of the two capabilities Mike explicitly required.
-- I rejected a package for every small helper. Toasts, tooltips, deploy reload, and share-image recipes stay in the template until two independent apps need the same maintained API.
+- **Holding the staging alias** [3.3]. The runner pushes the candidate commit to the app's `preview` branch. It then waits until `/api/soma/v1/status` on the alias reports that commit's SHA, and only then runs the journeys. Only one run per app holds the alias at a time; a second run waits for the first.
+- **Staging test sign-in** [3.3]. The staging broker exposes a test sign-in only for staging test people and only to the conformance runner. Automated staging journeys never wait for a magic-link email.
+- **Fixture app** [3.3]. A permanently registered staging fixture app, `soma-fixture`, gives each test person a prior membership, so the known-person journey always has an “other SOMA app.”
+- **Evidence and cleanup** [3.3]. Each run first writes a redacted evidence bundle, then deletes or expires its staging memberships, grants, answers, and receipts. Cleanup is idempotent and is itself checked.
+- **Production smoke** [3.3]. The smoke journey uses a dedicated synthetic person (`soma.people.is_test = true`). That person signs in through the ordinary production sign-in method, with the one-time code delivered to a steward-controlled mailbox the runner reads. The journey performs public discovery, sign-in, one private read, one reversible action followed immediately by undo, revocation, and status verification. It cannot exercise irreversible actions or destructive erasure. Metrics and the estate board exclude the synthetic person.
+- **Latency** [2.3]. Live conformance records p50 and p95 latency for `/me`, a private `observe` action, and a reversible `execute` on the staging alias. The evidence bundle reports them against an initial observational target of p95 under 800 ms for a warm `/me`. Latency does not fail the run until measurements support a ratified budget.
+
+### M2: Action foundation
+
+- **Preparation** [2.4]. Preparation authenticates the principal, applies admission limits, validates and canonicalizes the input, computes the keyed request fingerprint, records the current resource version, calculates the effective risk and effects, and inserts the idempotency row.
+- **Fingerprint** [2.4]. `request_fingerprint` is a keyed digest of the action ID, action version, canonical input, principal, and target resource. The broker computes it with a per-app fingerprint key.
+- **Signing** [2.4]. When a receipt settles, the broker signs the immutable receipt envelope and payload hash with its receipt-signing key, recording `signing_key_id` and `signature`.
+- **Repeated keys** [2.4]:
+  - A repeated key with the same `request_fingerprint` returns the current receipt state and the stored result the caller may see, if any, without creating another intent or repeating the effect.
+  - A repeated key while the row is `running` returns HTTP 409 with `code: "idempotency_pending"` and `Retry-After`.
+  - A repeated key with a different `request_fingerprint` returns HTTP 422 with `code: "idempotency_conflict"`.
+  - Approval transitions the same row from `approval_required` to `approved`; it does not create a second request.
+- **Claiming an approved row** [2.4]. The app server atomically claims an approved row, revalidates authorization and the resource version, and executes it, after the cool-off for an `irreversible` action (section 2.6).
+- **Reconciliation** [2.4]. A `running` row older than the action's declared timeout is reconciled using the action's recovery rule. It may be retried only after the system proves the effect did not occur. External effects require a provider idempotency key or an outbox plus reconciliation.
+
+### M3: Identity foundation
+
+**Authorization transaction** [2.2]
+
+- The app starts authorization through a same-origin Function that creates `state`, `nonce`, and a PKCE verifier using a cryptographic random source.
+- The broker records the transaction in `soma.oauth_transactions` with keyed hashes of `state` and `nonce` and the PKCE challenge. That record expires within ten minutes and is consumed once.
+- The verifier never leaves the app. The Function keeps it in a short-lived `__Host-` `HttpOnly` cookie bound to the transaction and presents it at exchange.
+- The callback rejects an unknown or reused state, verifier mismatch, issuer mismatch, audience mismatch, nonce mismatch, non-HTTPS redirect, or redirect URI that is not an exact registered value.
+- `return_to` must be a same-origin path that begins with exactly one `/`; any other value becomes `/`. The callback answers with a 303 to a URL that carries no `code` or `state`, so no page script runs while those values are in the address bar.
+- `GET /api/soma/v1/me` returns the session's CSRF token, and the vendored client sends it as `X-CSRF-Token` on every unsafe request.
+- Session cookies use the `__Host-` prefix, `Path=/`, no `Domain`, `Secure`, `HttpOnly`, and `SameSite=Lax`.
+
+**Broker database access** [2.3b]
+
+- Broker Functions reach Postgres with the `pg` driver through the Supavisor pooler in transaction mode, with prepared statements disabled.
+- `soma_broker` holds the `soma` grants it needs, nothing in `public` except the named legacy RPCs it wraps, and `EXECUTE` on the one platform-owned invocation wrapper.
+- `app_<app_id>_runtime` has no `BYPASSRLS` and receives only the table privileges each function requires.
+- The request-context store behind the `soma_ctx` accessors is a platform-owned table keyed by the current transaction ID, on which neither app role holds any privilege.
+- Every broker transaction sets `statement_timeout` to 5 seconds.
+- `soma_estate` is a login role with no `BYPASSRLS`. It holds `SELECT` and `UPDATE (claimed_at)` on `soma.estate_inbox`, `INSERT` and `UPDATE` on `soma.estate_dispositions`, `SELECT` on `soma.apps`, and nothing else. Forced-RLS policies allow only those claim and disposition operations; table privileges alone do not bypass RLS. The C12 probes include `soma_estate` and prove it cannot read any app schema, `public` table, or other `soma` table.
+
+**Broker secrets** [2.3b]. The `soma_broker` password, the agent-token signing key, the refresh-hash key, the receipt-signing key, the master key from which per-app request-fingerprint keys are derived, and a send-only mail-provider key are the broker site's only secrets. Only the scheduled notification worker reads the mail key; it has no request handler.
+
+**Identity-origin hardening** [2.3b]
+
+- The person signs in on the identity origin through Supabase Auth with server-side cookie storage. The Auth session never sits in `localStorage`, so browser JavaScript cannot read the session token.
+- The identity origin serves no Guide, analytics, advertising, app-supplied script, or third-party JavaScript. It sends `Cache-Control: no-store`, `frame-ancestors 'none'`, a restrictive script and connection Content Security Policy, `Referrer-Policy: no-referrer`, and an allowlisted `form-action`.
+- Its own cookies, including the Supabase Auth session cookies, use the `__Host-` prefix. Cookie-authenticated state changes require the exact allowed `Origin` and the session's CSRF token. When `Sec-Fetch-Site` is present, the origin also refuses any value other than `same-origin`. The token and device-code endpoints are exempt, because they accept only bearer or form credentials and never cookies.
+- These controls prevent a sibling subdomain from exploiting same-site cookie delivery, while a dedicated identity domain (section 6, question 1) keeps that sibling-site boundary out of the design entirely.
+
+**Registration: schemas and roles** [2.4a, step 2]. Hyphens in the app ID become underscores (`veric-coaching` becomes `app_veric_coaching`). The platform, not either app role, owns both schemas. The migration runner may assume the owner role; deployed code never can. Registration also runs `ALTER DEFAULT PRIVILEGES FOR ROLE <app owner> REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC`.
+
+**Registration: migration runner** [2.4a, step 3]
+
+- The runner acquires a per-app advisory lock, verifies immutable migration checksums, and executes each migration transactionally as the app's owner role, constrained to that app's two schemas.
+- It cannot create roles, extensions, event triggers, publications, cross-schema objects, or grants outside its schemas. Tables stay owned by the owner role. After each migration the runner transfers every function in `app_<app_id>_api` to the runtime role.
+- History lives in `app_<app_id>.schema_migrations`. A changed checksum or partially applied migration fails loudly.
+- Inside the same transaction, after each migration, the runner queries the catalog. It rolls the migration back if either schema now holds any of these: a privilege granted to `PUBLIC`, `anon`, or `authenticated`; a table without both `ENABLE ROW LEVEL SECURITY` and `FORCE ROW LEVEL SECURITY`; a runtime role that owns a table or holds a DDL privilege; an API function that is not owned by the runtime role or lacks a `search_path` fixed to `pg_catalog` plus the app's own schema; a view without `security_invoker = true`; a materialized view or foreign table; or an object outside the app's two schemas.
+
+**Registration: credentials** [2.4a, step 4]. No credential value appears in command output, shell history, generated files, or process arguments that another process could read.
+
+- `SOMA_APP_INSTALLATION_KEY` and `SOMA_APP_INSTALLATION_KEY_NEXT` have the Netlify "Functions" scope only. Build code and browser code cannot read them. Both are always present, so either can rotate without downtime.
+- `SOMA_APP_RELEASE_KEY` has the Netlify "Builds" scope only. Functions and browser code cannot read it.
+- Server-side provider keys have the "Functions" scope only, unless the steward explicitly approves a separately named build credential. No provider secret is ever exposed to browser code, for example through a `VITE_` prefix.
+- `SOMA_BROKER_URL` is not secret and may be available to both Builds and Functions.
+- The `production` context receives only production values.
+- The fixed `preview` branch receives only staging values, set on that branch's own context. The repository protects the branch so that only the conformance runner and the release seat can update it. Other branch deploys receive no SOMA credential.
+- The `deploy-preview` context receives no SOMA credential. A per-pull-request build cannot complete sign-in, and it must not move any registry.
+
+**Registration: origins** [2.4a, step 5]. Before registering, `register` verifies three things: the Netlify site exists, it is linked to the app repository, and it builds branch deploys for the `preview` branch. If any is missing, `register` fails and names the missing setting.
+
+**`sync-contract` packaging** [2.4a]. The app's build command runs `node vendor/soma/bin/sync-contract.mjs soma-app.json` before the deploy publishes. The scaffolder vendors this script with `@soma/contracts`, including the RFC 8785 canonicalizer, and `soma-kit.lock.json` hashes it. Vendoring matters for two reasons: the app's Netlify build has no access to `soma-platform`, and the build must compute the contract hash with exactly the code the broker uses. The script authenticates with the app's release credential; the runtime installation credential cannot call it.
+
+**Template cleanup** [4.1, M3 row]
+
+- Remove `SUPABASE_SERVICE_ROLE_KEY` and `SUPABASE_JWT_SECRET` from `soma-app-template`, its functions, `soma-scaffolder/src/scaffold.mjs`, and `soma-scaffolder/src/provision.mjs`.
+- Remove the `VITE_SUPABASE_*` values and the shared-project fallback in `src/lib/somaAuthConfig.ts`.
+- Remove `CLAUDE_EMAIL_*` with `netlify/functions/lib/boardCard.ts`, whose job `soma.estate_inbox` takes over.
+- A generated app then receives only the credentials C12b allows, scoped as in “Registration: credentials” above.
+- Delete the template migrations that act outside the app's schemas: `0001_profiles.sql`, whose `public.handle_new_user()` and `on_auth_user_created` trigger have the same names as PlayMaker's sign-up hook (`playmaker/supabase/migrations/0002_auth_bootstrap.sql`, `0014_narrow_handle_new_user.sql`), and `0002_delegations.sql`, `0003_agent_ingress.sql`, and `0006_agent_partners_rpc.sql`, which `soma.agent_partners` and `soma.agent_grants` replace.
+- Rewrite `0004_feedback_and_build_queue.sql` and `0005_last_location.sql` to use unqualified names inside `app_<app_id>`, to key people by `app_person_id` with no reference to `auth.users`, and to read identity only through the `soma_ctx` accessors, because `auth.uid()` is null on the broker path.
+- Replace the template UI and Function calls that depend on the deleted profile, delegation, ingress, and agent-partner RPCs with the vendored broker clients.
+- Remove both scaffolder and provisioner instructions to run `sql/schema.sql` against the shared project.
+
+### M4: AI door
+
+- **Access-token claims** [2.2, 2.7]. The token carries `aud = "app:<app_id>"`, `sub = <app_agent_id>`, `grant_ref`, `grant_version`, `jti`, `scopes`, and `risk_ceiling`. It never carries the global `agent_id` or `grant_id`. The broker maps `grant_ref` back to `grant_id` inside the `invoke` transaction.
+- **Online authorization** [2.7]. Signature, issuer, expiry, and audience validation establish token authenticity only. The app Function may use them to reject a bad token early, but it never authorizes on that basis. The broker checks `grant_id`, `grant_version`, scope, risk, principal, and action inside the same `invoke` call and database transaction that performs the read or effect. It reads the grant row with `FOR SHARE`, so a revocation either commits before the request and refuses it, or waits until the request finishes. An external-effect action is authorized this way at the call that claims its receipt.
+- **Device-code rate limit** [2.7]. The unauthenticated device-code endpoint uses a database-backed rate limit per IP address and per app. PlayMaker's current in-memory, per-instance throttle (`playmaker/netlify/functions/agent-pair-start.ts`) does not hold across function instances.
+- **User code** [2.7]. The identity origin never offers a `verification_uri_complete` link. The person must type the user code that their own AI displayed to them, and the screen says to continue only if they started this pairing themselves a moment ago.
+- **Device-code limits** [2.4, 2.7]. A device code lives at most 10 minutes. Each one accepts at most five wrong user-code entries. User-code comparisons are constant-time; the attempt limit and expiry are enforced transactionally.
+
+### M5: Consolidate plumbing
+
+**Tickets v2** [1.2]
+
+- Add `kind`, `max_redemptions`, and `token_hash` to `public.tickets`. `token` becomes nullable. A v2 row stores only the keyed hash; old rows keep their plaintext token until they expire.
+- Add four v2 functions in the platform-owned `soma` schema, executable only by `soma_broker`. Each takes the app from the `app_id` the broker derives from the installation credential.
+  - `soma.ticket_create_v2` admits the inviter by `soma.memberships` role under that app's invitation policy. It takes the inviter name only from the display name the inviter consented to share with that app, never from an email address.
+  - `soma.ticket_lookup_v2(p_token)` returns only status, kind (`personal` or `shared`), invitee name, inviter name, and quote line.
+  - `soma.ticket_admit_v2(p_token, p_guest_session)` lets a person who has not signed in enter the invited scope as a guest, as `ticket_use` does today.
+  - `soma.ticket_redeem_v2(p_token)` requires a signed-in principal and, in one transaction, records the redemption and creates or upgrades that person's `soma.memberships` row.
+- `public.ticket_redemptions` records each admission by either `person_id` or a keyed guest-session hash, with uniqueness per ticket and subject, so anonymous admissions count without storing the bearer session.
+- Every app that issues tickets lists `public.tickets` and `public.ticket_redemptions` as a platform `data_stores` entry, so export and erasure reach the invitee names and emails held there.
+
+**Meter** [1.2]. Add `createBrokerStore`, which implements a generic billing-subject store over per-app `usage_events` and `entitlements` through broker RPCs. Rename the store's `resolveStudioId` to `resolveBillingSubject`, keeping the old name as a PlayMaker adapter alias. PlayMaker keeps `createSupabaseRestStore` until M11. Base the generic client chip on `playmaker/src/components/UsageChip.tsx`.
+
+**Contact threads** [2.7]. An anonymous visitor receives, once, on the confirmation screen, a thread link carrying an unguessable token, and may add an email address for a reply notice. That address is a declared data flow and is erased with the thread. The host answers from the app's admin feedback queue. A thread token expires 90 days after the last message and is redacted like other bearer values (section 2.2).
+
+**Crash alerts** [2.4]. The first unhandled crash with a new fingerprint in a release, and each tenfold rise in that fingerprint's count, writes a `kind = "error"` event to `soma.estate_inbox` in the same broker transaction as the `error_reports` row. The event's summary holds only the fingerprint, route, release SHA, and count, with no stack, message text, or person identifier. Its `app_record_id` combines the fingerprint, the release SHA, and the count threshold, so each alert is filed once.
+
+**Guide releases** [2.8]
+
+- The versioned path is served with `Cache-Control: public, max-age=31536000, immutable`. Every script and stylesheet is listed in the lock file and receives an integrity hash.
+- Publishing an existing semantic version is a no-op only when every byte matches; otherwise it fails. `dist/releases.json` maps each semver to its `SOMA_GUIDE_VERSION` date string and its complete asset manifest.
+- Because every Netlify production deploy replaces the whole site, `deploy-guide.sh` adds three checks. Before it builds or copies anything, it refuses to run when `dist/` or `packages/` has uncommitted or untracked files, so release inputs and retained artifacts come from one clean commit. Before deploying, it verifies that every version in `dist/releases.json` is present under `dist/v<semver>/` and matches its recorded hashes. After deploying, it fetches every asset of every listed version from the CDN and compares its SHA-384 with the lock value.
+- `dist/v*/` is committed to git and is never deleted.
+- Versioned paths are served with `Access-Control-Allow-Origin: *`, and kit pages load them with `crossorigin="anonymous"`, because the browser refuses a cross-origin integrity check without CORS.
+- Kit mode permits no runtime JavaScript `import()`, worker script, JSONP callback, injected script element, or configurable executable URL. Kit apps cannot use `cfg.voiceAgentEsmUrl`. `deploy-guide.sh` fails a versioned release whose bundle contains a remote or dynamic executable import.
+- The Guide entry script bundles `soma-assist-core`. The voice adapter is a separate script in the same release, emitted with its own integrity value only when `guide.voice.enabled` is true, so apps without voice do not carry the voice client. Non-executable media may use content-addressed relative paths listed in the lock.
+- `soma-assist-core` is a separate global script today, and Legends does not load it. When it is absent, the Guide shows its legacy panel. Bundling it into a kit release therefore changes the Guide's interface for kit apps, and Golden Journeys must cover the panel that actually ships. The lock lists every asset the release actually loads.
+
+**Guide kit mode** [2.7]
+
+- Today `cfg.identity.recordSeen` receives four different things: a walkthrough ID when a tour starts, a Do action ID, `{ display_name }`, and `{ email }`. In kit mode the Guide does not call `recordSeen`. It calls three separate hooks instead: `cfg.kit.concepts.told(concept_id)` when it presents a concept's `tell` text without being asked, `cfg.kit.concepts.workflowCompleted(workflow_id)` after the last step of a workflow, and `cfg.kit.concepts.acknowledged(concept_id)` from an explicit "I already know this" control.
+- The vendored adapter maps a workflow to a concept only through the manifest's `concepts[].show` field, and only then records `shown`. Action IDs never become concept state, because `done` comes only from receipts. The adapter rejects every argument that is not a declared ID.
+- The Guide never writes `name` or `email` to `localStorage`. It reads the display name from `GET /api/soma/v1/me`.
+- The Guide persists only UI preferences on the app origin: panel size, text or voice mode, and mute. It writes no `anon-id`, no transcript, no `default-account`, and no `introduced` or `last-seen` key; concept state replaces “introduce once.” Session diagnostics stay in memory. The Guide ignores `cfg.telemetry.logUrl` unless the manifest declares the Guide transcript as a data flow, and then every record carries the route path without its query or fragment.
+- The observer records element labels only. It captures no field values. Intake attaches recent activity only when the person ticks “include what I just did” in the feedback form.
+- Ask sends the `AskRequest` from section 2.6a. It sends `page_context` only when `guide.ask.page_context` is true. The Guide renders the response's `citations`, the `grounded: false` escalation, and the server's `offers`; it adds no keyword-matched walkthrough offer of its own.
+- Do calls `cfg.kit.actions.prepare` and `cfg.kit.actions.execute` from the vendored `@soma/actions` client, with the AI host as actor. The Guide calls `execute` only from the person's click on the Do control for that prepared request (section 2.6). The server's preview and risk gate replace the Guide's local confirm text and its `risk: 'high'` flag. DOM-replay `steps` remain available only for `view` actions.
+- The scaffolder compiles each manifest step's `text` field into the Guide's `narration` field.
+- The release's Content Security Policy must allow what the Guide actually does: the known inline `<style>` from `soma-assist-core` by hash or nonce rather than blanket `unsafe-inline`, and `data:` audio when voice is enabled. Golden Journeys run under the generated policy, not a relaxed one.
+
+### M6: Legends preview
+
+- **Publish directory** [4.1]. Legends' build copies only public pages and assets into `_site/` and publishes that directory, so Function source, SQL, migrations, agent documents, and `package.json` stop being served. Landed 2026-10-07 (legends-membership PR #2; `ESTATE.md` changelog). C24 keeps it true.
+
+### M8: PlayMaker action PRs
+
+- **Existing idempotency ledger** [2.4]. PlayMaker's `agent_command_requests` (`playmaker/supabase/migrations/0081_agent_api.sql`, used by `playmaker/netlify/functions/agent-v1.ts`) is the idempotency ledger M8 generalizes, rather than adding a second one. It claims, runs, and settles in three separate requests today. M8 first wraps those existing effects (section 4.2), then moves PlayMaker's database effects into the single-RPC form in later pull requests.
+
+### Before public MVP (C18, C18a)
+
+These constraints have no build milestone of their own. They gate an app's move from prototype to public MVP.
+
+- **Private files** [2.5a]. Private files use an app-specific private bucket or prefix. An upload requires a short-lived signed grant bound to the person, the app, a MIME allowlist, a byte limit, a checksum, and the destination. A download requires a fresh authorization check. A user-supplied filename never becomes a storage path. Public buckets, permanent signed URLs, and client-held storage administration keys fail conformance.
+- **Global erasure completion** [2.4]. A global request is complete only when every target is complete or shows the person a lawful retained exception.
+- **Receipt erasure** [2.4]. Erasure deletes the receipt's `action_receipt_payloads` rows and its `effect_summary`, replaces `principal` with a tombstone, and keeps only the signed, non-sensitive envelope for the declared retention period. Erasure deletes the person's `soma.receipt_index` rows. The keyed request fingerprint is never exported, and it becomes unlinkable once the app's fingerprint key rotates.
 
 _Authorship: Mike Wolf, principal and product owner; source plans by OpenAI Sol, Anthropic Claude Opus, and Google Gemini 3.1 Pro; merged by OpenAI Codex for the SOMA brain trust, 2026-10-07._
+
+_Simplification pass: Claude Opus 5.5 (Claude Code), 2026-10-07, for Mike Wolf as the brain trust's simplification editor. Merged duplicate statements, moved per-milestone mechanics to Appendix A, moved merge notes to `plans/merge-notes-r1.md`, and fixed the contradictions listed in `plans/simplify-ledger.md`._
