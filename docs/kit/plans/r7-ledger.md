@@ -1,0 +1,18 @@
+# Round 7 revision ledger
+
+| Revision id | Title | Decision | One-line reason |
+|---|---|---|---|
+| R1 | Make row isolation real | Somewhat agree | A table owner bypasses RLS unless it is forced, so the owner/runtime role split is right; I made the request-context store a platform-owned table keyed by transaction ID rather than a custom setting (any role can call `set_config`), and kept the runner's existing role, extension, and default-privilege limits that the diff dropped. |
+| R2 | Require approval for trust-contract changes | Somewhat agree | The contract is the policy the broker enforces, so a build credential must not lower risk or add data flows; I added a `soma.app_policies` table so several approved policy versions can stay active for rollback, and corrected C12 because a stolen installation credential can still present its own app's live hashes. |
+| R3 | Specify replay-safe session and pairing state | Somewhat agree | The data model had nowhere to enforce single-use codes, refresh rotation, or reuse detection, and an HTTP-addressable admin site was undesigned; I kept the `/me` sentence the diff dropped and said where the PKCE verifier lives. |
+| R4 | Keep private answers inside their source app | Somewhat agree | Keeping private answers out of the cross-app schema is real data minimization; I added that editing the source answer does not silently update the shared copy. |
+| R5 | Correct receipt and idempotency semantics | Somewhat agree | Unauthenticated receipt writes are a storage-abuse vector, and the key was not bound to action version; I named the broker as holder of the fingerprint and receipt-signing keys and added them to the secrets and rotation lists. |
+| R6 | Do not give the in-app AI ambient write authority | Somewhat agree | Prompt injection could otherwise trigger any reversible action; I stated that in-app `observe` reads stay allowed in the person's session, and that the Do gesture carries the person's session and CSRF token. |
+| R7 | Keep every runtime secret out of builds and browsers | Somewhat agree | Netlify scopes (Builds and Functions) make the separation enforceable; I replaced the in-app test Function with a Netlify API scope check plus browser canaries, and aligned `sync-contract` with the `preview`-branch-only staging values. |
+| R8 | Make export and erasure promises executable | Somewhat agree | Erasure had no fan-out to stores or providers; I made C18a a public-MVP check deferred from the two-week slice, added `data_stores` to the example manifest, and made restore replay completed erasures. |
+| R9 | Make contract paths and Guide integrity enforceable | Somewhat agree | The Guide imports `esm.sh/@elevenlabs/client@latest` at runtime today (`packages/soma-guide/soma-guide.js:22`, `:1799`), which SRI cannot cover; I allowed separate integrity-checked script tags rather than one entry bundle so apps without voice do not carry the voice client. |
+| R10 | Give humans and outside AIs a stable API failure contract | Agree | A shared error envelope, status mapping, cache rules, and bounded pagination are needed for outside AIs to tell refusal, retry, approval, and failure apart. |
+| R11 | Describe the known-device marker accurately | Agree | Verified: `packages/soma-signin/src/somaKnownDevice.js` stores the literal `'1'`, so "opaque" was inaccurate and invited a tracking identifier. |
+| R12 | Separate the kit rehearsal from the November product choice | Agree | Verified: `_estate/LEAD.md` parks V'Eric coaching and OLLI until the November choice, so the timed test must use a disposable fixture; I also labeled the V'Eric example manifest as illustration only. |
+
+Applied: 3 agree, 9 somewhat, 0 disagree.
