@@ -111,6 +111,10 @@ fi
 # Cache-Control is max-age=300; a cache-buster query param forces a fresh
 # object (Netlify keys its cache on the full URL). Browsers without the
 # buster may still see the old JS for up to 5 min — that's expected.
+BRANCH="$(git -C "$REPO_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)"
+if [[ "$BRANCH" != "master" ]]; then
+  echo "note: this checkout is on '$BRANCH', not master; the version checked is this checkout's, which may not be what master deployed."
+fi
 echo "verifying CDN serves version $VERSION ..."
 DEADLINE=$((SECONDS + 130))
 while (( SECONDS < DEADLINE )); do

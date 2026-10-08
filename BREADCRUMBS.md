@@ -2,7 +2,7 @@
 
 ## What this project is
 CDN host for the soma-guide widget. Netlify site: **soma-guide.netlify.app**
-Netlify site ID: `f549d1d9-b1d5-4995-92af-df78e5721c2a`
+Netlify site ID: `be7dc842-106c-4aaa-8898-a46e36954b85` (created 2026-09-16; the old site f549d1d9 was deleted)
 GitHub: https://github.com/eldrgeek/soma-platform
 
 ## Critical layout (Chesterton's fence)
@@ -28,23 +28,21 @@ the repo root, which doesn't have soma-guide.js, causing 404s on all consuming s
 
 ## Deployment
 
-**The site is NOT linked to the GitHub repo** (verified 2026-07-03:
-`build_settings.repo_url: None` via the Netlify API). There is no push-to-deploy;
-`git push` changes nothing on the CDN. THE deploy path is:
+**The site is git-linked to eldrgeek/soma-platform master** (site be7dc842,
+created 2026-09-16, publish dir `dist`). Every push to master deploys the
+committed `dist/` to every consuming site at once. The 2026-07-03 note that the
+site was not linked described the old site f549d1d9, which has since been
+deleted (corrected 2026-10-08, bead es-ymg). The release path is:
 
 ```bash
-scripts/deploy-guide.sh            # sync package → dist, deploy, verify CDN
-scripts/deploy-guide.sh --dry-run  # everything except deploy + verification
+scripts/deploy-guide.sh               # build + sync packages -> dist; no deploy
+scripts/deploy-guide.sh --draft       # sync, then deploy a draft URL to test on a consumer page
+# commit dist/ and push to master: the push deploys it
+scripts/deploy-guide.sh --verify-only # poll the CDN for the committed SOMA_GUIDE_VERSION
+scripts/deploy-guide.sh --dry-run     # sync + show site id and version
 ```
 
-The script hardcodes the site id (`f549d1d9-...`) so it can never cross-deploy,
-then polls the CDN until the new `SOMA_GUIDE_VERSION` appears (fails loudly at
-~2 min). Commit + push afterward for history.
-
-**Deliberate future decision, not an oversight:** linking the repo in Netlify
-would restore push-to-deploy, but it changes account-level settings and makes
-every push auto-ship to all consuming sites. Manual deploy is the current gate —
-one command, human-invoked. Revisit only as an explicit decision with Mike.
+The script pins the site id so a draft can never go to another site.
 
 ## Environment variables (on soma-guide Netlify site)
 None required — this is a pure static CDN. No API keys, no functions.

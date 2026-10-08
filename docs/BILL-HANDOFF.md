@@ -20,13 +20,14 @@ A site assistant ("Bill") embedded on the Legends of Basketball membership site,
 
 ### ⚠️ Deploy gotchas (read before deploying)
 
-1. **`git push` to soma-platform does NOT update the CDN.** The soma-guide Netlify site is not repo-linked (verified 2026-07-03: `build_settings.repo_url: None`), and `dist/` is a hand-maintained mirror with no build step. To ship an engine change:
+1. **A push to soma-platform master deploys the CDN.** The soma-guide Netlify site (be7dc842, since 2026-09-16) is git-linked to master and publishes the committed `dist/`, a hand-maintained mirror with no build step (corrected 2026-10-08, bead es-ymg; the 2026-07-03 "not repo-linked" note described the deleted site f549d1d9). To ship an engine change:
    ```
    # edit packages/soma-guide/soma-guide.js, bump SOMA_GUIDE_VERSION
-   scripts/deploy-guide.sh   # syncs package → dist, deploys (site id pinned), verifies CDN
-   git add -A && git commit --no-verify -m "..." && git push   # history only; push ships nothing
+   scripts/deploy-guide.sh               # syncs package → dist (no deploy)
+   scripts/deploy-guide.sh --draft       # draft URL (site id pinned); test on a real consumer page
+   git add -A && git commit -m "..." && git push origin master   # this push deploys
+   scripts/deploy-guide.sh --verify-only # fails loudly if the CDN doesn't serve the new version within ~2 min
    ```
-   The script resolves the `netlify` CLI from PATH or `~/.nvm/versions/node/*/bin` and fails loudly if the CDN doesn't serve the new version within ~2 min.
 2. **CDN `Cache-Control: max-age=300`.** After deploy, hard-refresh (Cmd-Shift-R) to bypass the 5-min JS cache. Bumping `SOMA_GUIDE_VERSION` only invalidates stale sessionStorage state, not the JS cache.
 3. **Legends working tree drifts onto branch `preview/review-work-page-and-history`.** Always check `git rev-parse --abbrev-ref HEAD`; push with `git push origin HEAD:master` and re-`checkout master` if needed.
 4. **Stale `.git/HEAD.lock` / `index.lock`** appear (timed-out sandbox git). `rm -f .git/HEAD.lock .git/index.lock` before committing if commits silently no-op.
