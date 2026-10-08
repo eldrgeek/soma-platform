@@ -14,12 +14,15 @@ curl -I https://soma-guide.netlify.app/soma-guide.js
 **Fix:**
 1. Ensure `~/Projects/soma-platform/netlify.toml` exists with `publish = "dist"`.
 2. Ensure `dist/soma-guide.js` and `dist/soma-guide.css` exist and are up to date.
-3. Deploy — **pushing does nothing; the site is not repo-linked in Netlify:**
+3. Deploy — **a push to master deploys the committed `dist/`; the site is git-linked in Netlify:**
 ```bash
 cd ~/Projects/soma-platform
-scripts/deploy-guide.sh   # deploys dist/ to the pinned site + verifies the CDN
+scripts/deploy-guide.sh               # sync packages -> dist (no deploy)
+scripts/deploy-guide.sh --draft       # draft URL; test it on a real consumer page
+git add dist && git commit && git push origin master   # this deploys
+scripts/deploy-guide.sh --verify-only # poll the CDN for the committed version
 ```
-4. The script polls the CDN for the new `SOMA_GUIDE_VERSION` itself. Manual check:
+4. `--verify-only` polls the CDN for the `SOMA_GUIDE_VERSION` in your checkout's `dist/`, so run it from an up-to-date master. Manual check:
 ```bash
 curl -I https://soma-guide.netlify.app/soma-guide.js   # expect 200
 ```

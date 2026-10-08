@@ -22,10 +22,10 @@ last_reviewed: 2026-06-23
 - [docs/BILL-HANDOFF.md](docs/BILL-HANDOFF.md) — Legends review pipeline handoff (Bill/Dana/Quinn ConvAI agents).
 - `docs/soma-apps/` + `packages/soma-scaffolder/` — the Soma app-builder KB + engine (validate/scaffold/provision).
 
-**Deploying:** `scripts/deploy-guide.sh` is THE deploy path (syncs package → dist, deploys with the site id pinned, verifies the CDN serves the new `SOMA_GUIDE_VERSION`). **`git push` does not deploy** — soma-guide.netlify.app is not linked to this repo (verified 2026-07-03). Repo-linking for push-to-deploy is a deliberate future decision, not a bug; manual deploy is the current gate.
+**Deploying:** soma-guide.netlify.app is git-linked to `eldrgeek/soma-platform` master and publishes the committed `dist/` directory. Run `scripts/deploy-guide.sh` to sync packages → dist, use `scripts/deploy-guide.sh --draft` and test its URL against a real consumer page, then commit `dist/` and push to master (the push deploys it). Finish with `scripts/deploy-guide.sh --verify-only` to confirm the CDN serves the expected `SOMA_GUIDE_VERSION`.
 
 **Skills**
-- the "soma-guide-release" dance (edit package → sync dist → deploy → verify) is codified in `scripts/deploy-guide.sh`; commit + push afterward for history.
+- the "soma-guide-release" dance is: edit package → sync dist with `scripts/deploy-guide.sh` → draft-test with `--draft` → commit dist and push master → verify with `--verify-only`.
 
 **Depends on / used by:** Implements widgets/scaffolding specified in **SOMA** canon; consumed by `legends-membership-site`, `Levinese`, soma-campus, and other Netlify sites via CDN URL.
 
@@ -54,5 +54,5 @@ and the `@media (max-width: 600px)` block in `soma-guide.css`.
 
 **Gotchas**
 - Netlify publishes `dist/` (`publish = "dist"` in netlify.toml). Never delete/misplace netlify.toml or the repo root gets published → 404s on every consuming site.
-- Changing the guide changes **every consumer at once** (Levinese, Joscha, the 13 AGI-26 properties, legends-membership-site, soma-workspace, Sidekick-android). Draft-deploy first (`netlify deploy` with no `--prod` gives a draft URL), test against a real consumer page, then promote with `scripts/deploy-guide.sh`.
-- The widget engine lives in `packages/soma-guide/` but the served artifact is `dist/soma-guide.js` — editing source alone ships nothing, and neither does pushing. Only `scripts/deploy-guide.sh` (wrapping `netlify deploy --prod --dir dist`) updates the CDN.
+- Changing the guide changes **every consumer at once** (Levinese, Joscha, the 13 AGI-26 properties, legends-membership-site, soma-workspace, Sidekick-android). Sync dist, draft-deploy with `scripts/deploy-guide.sh --draft`, and test its URL against a real consumer page before committing dist and pushing master.
+- The widget engine lives in `packages/soma-guide/` but the served artifact is `dist/soma-guide.js` — editing source alone ships nothing. The git-linked Netlify site deploys committed `dist/` on every push to master; run `scripts/deploy-guide.sh --verify-only` afterward to check the CDN version.
