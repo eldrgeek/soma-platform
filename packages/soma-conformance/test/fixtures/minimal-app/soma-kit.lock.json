@@ -1,0 +1,24 @@
+{
+  "kit_version": "1.0.0",
+  "source_commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "template": {
+    "repository": "eldrgeek/soma-app-template",
+    "commit": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  "contract_sha256": "3061f27a2334aae91fa33a8bcfba9aa4887264d34c4661d4669eee38187d2064",
+  "guide": {
+    "version": "1.0.0",
+    "assets": [
+      {
+        "url": "https://soma-guide.netlify.app/v1.0.0/soma-guide.js",
+        "integrity": "sha384-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      }
+    ]
+  },
+  "packages": {
+    "@soma/actions": {
+      "version": "1.0.0",
+      "sha256": "061d6e6fd76d3116d3ddef3fbb3dc676bf94f118b90475590c02b2e42a68a95b"
+    }
+  }
+}
