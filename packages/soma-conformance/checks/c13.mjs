@@ -7,6 +7,7 @@ import {
 import {
   vendoredPackageHash,
   vendoredPackageNames,
+  vendoredStrayEntries,
 } from "../src/package-hash.mjs";
 import { checkResult } from "../src/result.mjs";
 
@@ -50,6 +51,11 @@ export async function checkC13(manifest, repositoryRoot) {
             `vendor/soma/${packageName.slice("@soma/".length)}: vendored package ${packageName} is not pinned in soma-kit.lock.json packages`,
           );
         }
+      }
+      for (const strayPath of vendoredStrayEntries(repositoryRoot)) {
+        failures.push(
+          `${strayPath}: only package directories may sit directly under vendor/soma, and this entry is not one`,
+        );
       }
     } catch (error) {
       failures.push(`vendor/soma: cannot enumerate vendored packages: ${error.message}`);

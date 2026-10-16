@@ -321,6 +321,19 @@ test("C13 rejects a vendored package absent from the lock", async (t) => {
   assertCliFails(repositoryRoot, "C13");
 });
 
+test("C13 rejects a loose file directly under vendor/soma", async (t) => {
+  const repositoryRoot = copyFixture(t);
+  writeFileSync(join(repositoryRoot, "vendor", "soma", "evil.mjs"), "export {};\n");
+
+  const report = await run(repositoryRoot);
+  assertCheckFails(
+    report,
+    "C13",
+    /vendor\/soma\/evil\.mjs: only package directories may sit directly under vendor\/soma/,
+  );
+  assertCliFails(repositoryRoot, "C13");
+});
+
 test("C13 rejects a removed lock entry for an existing package", async (t) => {
   const repositoryRoot = copyFixture(t);
   const lock = readLock(repositoryRoot);

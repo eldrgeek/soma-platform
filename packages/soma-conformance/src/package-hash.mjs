@@ -20,24 +20,38 @@ function absolutePath(repositoryRoot, sourcePath) {
   return join(repositoryRoot, ...sourcePath.split("/"));
 }
 
-export function vendoredPackageNames(repositoryRoot) {
+function vendorEntries(repositoryRoot) {
   const vendorRoot = validateSourcePath("vendor/soma");
-  let entries;
   try {
-    entries = readdirSync(absolutePath(repositoryRoot, vendorRoot), {
+    return readdirSync(absolutePath(repositoryRoot, vendorRoot), {
       withFileTypes: true,
     });
   } catch (error) {
     if (error.code === "ENOENT") return [];
     throw error;
   }
+}
 
-  return entries
-    .filter((entry) => entry.isDirectory() || entry.isSymbolicLink())
+function isPackageEntry(entry) {
+  return entry.isDirectory() || entry.isSymbolicLink();
+}
+
+export function vendoredPackageNames(repositoryRoot) {
+  return vendorEntries(repositoryRoot)
+    .filter(isPackageEntry)
     .map((entry) => {
-      validateSourcePath(`${vendorRoot}/${entry.name}`);
+      validateSourcePath(`vendor/soma/${entry.name}`);
       return `@soma/${entry.name}`;
     })
+    .sort();
+}
+
+// Anything directly under vendor/soma that is not a package directory is
+// vendored code no lock entry can pin, so C13 must name it.
+export function vendoredStrayEntries(repositoryRoot) {
+  return vendorEntries(repositoryRoot)
+    .filter((entry) => !isPackageEntry(entry))
+    .map((entry) => `vendor/soma/${entry.name}`)
     .sort();
 }
 
