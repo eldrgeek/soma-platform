@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import {
   mkdirSync,
   mkdtempSync,
@@ -157,7 +158,61 @@ test("v1 schema validates the canonical shape and enforces conditional fields", 
   assert.equal(validateManifest(publicMvp).valid, true);
 });
 
-test("JCS implements RFC 8785 number serialization and UTF-16 key order", () => {
+function ieee754(hex) {
+  return Buffer.from(hex, "hex").readDoubleBE();
+}
+
+test("JCS implements the RFC 8785 Appendix B number table", () => {
+  const samples = [
+    ["0000000000000000", "0"],
+    ["8000000000000000", "0"],
+    ["0000000000000001", "5e-324"],
+    ["8000000000000001", "-5e-324"],
+    ["7fefffffffffffff", "1.7976931348623157e+308"],
+    ["ffefffffffffffff", "-1.7976931348623157e+308"],
+    ["4340000000000000", "9007199254740992"],
+    ["c340000000000000", "-9007199254740992"],
+    ["4430000000000000", "295147905179352830000"],
+    ["7fffffffffffffff", null],
+    ["7ff0000000000000", null],
+    ["44b52d02c7e14af5", "9.999999999999997e+22"],
+    ["44b52d02c7e14af6", "1e+23"],
+    ["44b52d02c7e14af7", "1.0000000000000001e+23"],
+    ["444b1ae4d6e2ef4e", "999999999999999700000"],
+    ["444b1ae4d6e2ef4f", "999999999999999900000"],
+    ["444b1ae4d6e2ef50", "1e+21"],
+    ["3eb0c6f7a0b5ed8c", "9.999999999999997e-7"],
+    ["3eb0c6f7a0b5ed8d", "0.000001"],
+    ["41b3de4355555553", "333333333.3333332"],
+    ["41b3de4355555554", "333333333.33333325"],
+    ["41b3de4355555555", "333333333.3333333"],
+    ["41b3de4355555556", "333333333.3333334"],
+    ["41b3de4355555557", "333333333.33333343"],
+    ["becbf647612f3696", "-0.0000033333333333333333"],
+    ["43143ff3c1cb0959", "1424953923781206.2"],
+  ];
+
+  for (const [bits, expected] of samples) {
+    const number = ieee754(bits);
+    if (expected === null) {
+      assert.throws(() => canonicalize(number), /non-finite number/, bits);
+    } else {
+      assert.equal(canonicalize(number), expected, bits);
+    }
+  }
+});
+
+test("JCS implements the RFC 8785 section 3.2.2.2 string-escape example", () => {
+  const value = JSON.parse(
+    String.raw`"\u20ac$\u000F\u000aA'\u0042\u0022\u005c\\\"\/"`,
+  );
+  assert.equal(
+    canonicalize(value),
+    String.raw`"€$\u000f\nA'B\"\\\\\"/"`,
+  );
+});
+
+test("JCS implements RFC 8785 sample number serialization and UTF-16 key order", () => {
   assert.equal(
     canonicalize([333333333.33333329, 1e30, 4.50, 2e-3, 1e-27]),
     "[333333333.3333333,1e+30,4.5,0.002,1e-27]",
@@ -230,6 +285,21 @@ test("safe source paths reject traversal, URLs, controls, and empty segments", (
   assert.equal(validateSourcePath("knowledge/app.md"), "knowledge/app.md");
 });
 
+test("safe source paths reject every non-NUL control character", () => {
+  const controlCodePoints = [
+    ...Array.from({ length: 31 }, (_, index) => index + 1),
+    ...Array.from({ length: 33 }, (_, index) => index + 0x7f),
+  ];
+  for (const codePoint of controlCodePoints) {
+    const path = `bad${String.fromCodePoint(codePoint)}name`;
+    assert.throws(
+      () => validateSourcePath(path),
+      /control characters/,
+      `U+${codePoint.toString(16).padStart(4, "0")}`,
+    );
+  }
+});
+
 test("safe source reader rejects symlinks, escapes, non-files, and oversized files", () => {
   const parent = mkdtempSync(join(tmpdir(), "soma-contracts-"));
   const root = join(parent, "repo");
@@ -260,6 +330,49 @@ test("safe source reader rejects symlinks, escapes, non-files, and oversized fil
     assert.throws(
       () => readSourceFile(root, "files/large.md", { maxBytes: 4 }),
       /exceeds 4 bytes/,
+    );
+  } finally {
+    rmSync(parent, { recursive: true, force: true });
+  }
+});
+
+test("safe source reader rejects a symlinked parent directory", () => {
+  const parent = mkdtempSync(join(tmpdir(), "soma-contracts-"));
+  const root = join(parent, "repo");
+  mkdirSync(join(root, "files"), { recursive: true });
+  writeFileSync(join(root, "files", "ok.md"), "safe bytes");
+  symlinkSync("files", join(root, "linked-files"), "dir");
+
+  try {
+    assert.throws(
+      () => readSourceFile(root, "linked-files/ok.md", { maxBytes: 100 }),
+      /symlink/,
+    );
+  } finally {
+    rmSync(parent, { recursive: true, force: true });
+  }
+});
+
+test("safe source reader rejects a FIFO", (t) => {
+  if (process.platform === "win32") {
+    t.skip("Windows does not provide POSIX FIFOs");
+    return;
+  }
+
+  const parent = mkdtempSync(join(tmpdir(), "soma-contracts-"));
+  const root = join(parent, "repo");
+  const fifo = join(root, "source.fifo");
+  mkdirSync(root);
+
+  try {
+    const result = spawnSync("mkfifo", [fifo], {
+      encoding: "utf8",
+      timeout: 10_000,
+    });
+    assert.equal(result.status, 0, result.stderr || result.error?.message);
+    assert.throws(
+      () => readSourceFile(root, "source.fifo", { maxBytes: 100 }),
+      /not a regular file/,
     );
   } finally {
     rmSync(parent, { recursive: true, force: true });
