@@ -4,7 +4,10 @@ import {
   readLock,
   readSourceFile,
 } from "@soma/contracts";
-import { vendoredPackageHash } from "../src/package-hash.mjs";
+import {
+  vendoredPackageHash,
+  vendoredPackageNames,
+} from "../src/package-hash.mjs";
 import { checkResult } from "../src/result.mjs";
 
 const MAX_SOURCE_BYTES = 50 * 1024 * 1024;
@@ -36,6 +39,21 @@ export async function checkC13(manifest, repositoryRoot) {
     failures.push(
       `soma-kit.lock.json contract_sha256 ${lock.contract_sha256} does not match manifest contract_sha256 ${actualContractSha256}`,
     );
+  }
+
+  if (lock) {
+    try {
+      const pinnedPackages = new Set(Object.keys(lock.packages));
+      for (const packageName of vendoredPackageNames(repositoryRoot)) {
+        if (!pinnedPackages.has(packageName)) {
+          failures.push(
+            `vendor/soma/${packageName.slice("@soma/".length)}: vendored package ${packageName} is not pinned in soma-kit.lock.json packages`,
+          );
+        }
+      }
+    } catch (error) {
+      failures.push(`vendor/soma: cannot enumerate vendored packages: ${error.message}`);
+    }
   }
 
   for (const [packageName, pinned] of Object.entries(lock?.packages ?? {})) {

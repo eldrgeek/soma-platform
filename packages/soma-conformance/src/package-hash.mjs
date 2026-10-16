@@ -20,6 +20,27 @@ function absolutePath(repositoryRoot, sourcePath) {
   return join(repositoryRoot, ...sourcePath.split("/"));
 }
 
+export function vendoredPackageNames(repositoryRoot) {
+  const vendorRoot = validateSourcePath("vendor/soma");
+  let entries;
+  try {
+    entries = readdirSync(absolutePath(repositoryRoot, vendorRoot), {
+      withFileTypes: true,
+    });
+  } catch (error) {
+    if (error.code === "ENOENT") return [];
+    throw error;
+  }
+
+  return entries
+    .filter((entry) => entry.isDirectory() || entry.isSymbolicLink())
+    .map((entry) => {
+      validateSourcePath(`${vendorRoot}/${entry.name}`);
+      return `@soma/${entry.name}`;
+    })
+    .sort();
+}
+
 function collectFiles(repositoryRoot, sourcePath, files) {
   const entry = lstatSync(absolutePath(repositoryRoot, sourcePath));
   if (entry.isSymbolicLink()) {

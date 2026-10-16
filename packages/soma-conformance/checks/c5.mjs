@@ -3,7 +3,12 @@ import { checkResult } from "../src/result.mjs";
 export function checkC5(manifest) {
   const failures = [];
 
-  for (const [index, action] of (manifest?.actions ?? []).entries()) {
+  if (!Array.isArray(manifest?.actions)) {
+    failures.push("manifest.actions must be an array");
+    return checkResult("C5", failures);
+  }
+
+  for (const [index, action] of manifest.actions.entries()) {
     const path = `actions[${index}]`;
     const hasUiBinding = Array.isArray(action?.surfaces)
       && action.surfaces.includes("ui");
@@ -14,7 +19,7 @@ export function checkC5(manifest) {
         `${path}.surfaces needs a ui binding or ${path}.ui_exception with a reason`,
       );
     }
-    if (hasException) {
+    if (action?.kind === "effect" && hasException) {
       if (
         typeof action.ui_exception?.reason !== "string"
         || action.ui_exception.reason.length === 0

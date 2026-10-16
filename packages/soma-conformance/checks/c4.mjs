@@ -99,7 +99,12 @@ function checkSchema(repositoryRoot, action, actionPath, field, failures) {
 
 export function checkC4(manifest, repositoryRoot) {
   const failures = [];
-  for (const [index, action] of (manifest?.actions ?? []).entries()) {
+  if (!Array.isArray(manifest?.actions)) {
+    failures.push("manifest.actions must be an array");
+    return checkResult("C4", failures);
+  }
+
+  for (const [index, action] of manifest.actions.entries()) {
     const path = `actions[${index}]`;
     if (!action || typeof action !== "object" || Array.isArray(action)) {
       failures.push(`${path} must be an action object`);

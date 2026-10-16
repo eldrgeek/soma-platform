@@ -74,7 +74,7 @@
       "id": "coaching.save-reflection",
       "version": "1",
       "kind": "effect",
-      "risk": "reversible",
+      "risk": "consequential",
       "effect_target": "database",
       "required_scopes": ["reflection:write"],
       "required_role": "member",
@@ -83,6 +83,41 @@
       "output_schema": "schemas/reflection.output.json",
       "executor": { "kind": "rpc", "name": "save_reflection" },
       "effects": ["Creates a private reflection"]
+    },
+    {
+      "id": "coaching.notify-host",
+      "version": "1",
+      "kind": "effect",
+      "risk": "reversible",
+      "effect_target": "external",
+      "required_scopes": ["notification:write"],
+      "required_role": "member",
+      "surfaces": ["ui", "guide"],
+      "input_schema": "schemas/save-reflection.input.json",
+      "output_schema": "schemas/reflection.output.json",
+      "executor": {
+        "kind": "external",
+        "provider": "notification-provider",
+        "operation": "notify-host"
+      },
+      "effects": ["Sends a host notification"],
+      "timeout_seconds": 10,
+      "recovery": "provider-idempotency-key"
+    },
+    {
+      "id": "coaching.erase-reflection",
+      "version": "1",
+      "kind": "effect",
+      "risk": "irreversible",
+      "effect_target": "database",
+      "required_scopes": ["reflection:erase"],
+      "required_role": "member",
+      "surfaces": ["ui"],
+      "input_schema": "schemas/save-reflection.input.json",
+      "output_schema": "schemas/reflection.output.json",
+      "executor": { "kind": "rpc", "name": "erase_reflection" },
+      "effects": ["Permanently erases a private reflection"],
+      "cool_off_seconds": 30
     }
   ],
   "workflows": [

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   appendFileSync,
   cpSync,
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   rmSync,
@@ -36,12 +37,24 @@ function manifestPath(repositoryRoot) {
   return join(repositoryRoot, "soma-app.json");
 }
 
+function lockPath(repositoryRoot) {
+  return join(repositoryRoot, "soma-kit.lock.json");
+}
+
 function readManifest(repositoryRoot) {
   return JSON.parse(readFileSync(manifestPath(repositoryRoot), "utf8"));
 }
 
 function writeManifest(repositoryRoot, manifest) {
   writeFileSync(manifestPath(repositoryRoot), `${JSON.stringify(manifest, null, 2)}\n`);
+}
+
+function readLock(repositoryRoot) {
+  return JSON.parse(readFileSync(lockPath(repositoryRoot), "utf8"));
+}
+
+function writeLock(repositoryRoot, lock) {
+  writeFileSync(lockPath(repositoryRoot), `${JSON.stringify(lock, null, 2)}\n`);
 }
 
 async function run(repositoryRoot) {
@@ -88,7 +101,7 @@ test("minimal app passes the five static checks and discloses all omitted covera
   assert.equal(reportPassed(report), true);
   assert.equal(
     report.contract_sha256,
-    "3061f27a2334aae91fa33a8bcfba9aa4887264d34c4661d4669eee38187d2064",
+    "89ca1cda6b736698bb00c64279b50fdd164f64354ed880248a8a437503d97751",
   );
   assert.deepEqual(report.checks.map(({ id }) => id), CHECK_IDS);
   for (const result of report.checks) {
@@ -133,7 +146,6 @@ test("C4 fails when an action executor is removed", async (t) => {
 test("C5 refuses a UI exception on a consequential action", async (t) => {
   const repositoryRoot = copyFixture(t);
   const manifest = readManifest(repositoryRoot);
-  manifest.actions[1].risk = "consequential";
   manifest.actions[1].ui_exception = { reason: "Use the Guide instead" };
   writeManifest(repositoryRoot, manifest);
 
@@ -183,4 +195,180 @@ test("C3 fails when a concept version is removed", async (t) => {
   const report = await run(repositoryRoot);
   assertCheckFails(report, "C3", /concepts\[0\]\.version/);
   assertCliFails(repositoryRoot, "C3");
+});
+
+test("C1 reports an invalid manifest field", async (t) => {
+  const repositoryRoot = copyFixture(t);
+  const manifest = readManifest(repositoryRoot);
+  manifest.app.tier = "invalid-tier";
+  writeManifest(repositoryRoot, manifest);
+
+  const report = await run(repositoryRoot);
+  assertCheckFails(report, "C1", /manifest field \/app\/tier/);
+  assertCliFails(repositoryRoot, "C1");
+});
+
+test("C3 rejects an ID outside SOMA and app namespaces", async (t) => {
+  const repositoryRoot = copyFixture(t);
+  const manifest = readManifest(repositoryRoot);
+  manifest.questions[0].id = "another-app:coaching-goal";
+  writeManifest(repositoryRoot, manifest);
+
+  const report = await run(repositoryRoot);
+  assertCheckFails(report, "C3", /questions\[0\]\.id .*must use the soma: namespace or app namespace/);
+  assertCliFails(repositoryRoot, "C3");
+});
+
+test("C4 requires risk on an effect action", async (t) => {
+  const repositoryRoot = copyFixture(t);
+  const manifest = readManifest(repositoryRoot);
+  delete manifest.actions[1].risk;
+  writeManifest(repositoryRoot, manifest);
+
+  const report = await run(repositoryRoot);
+  assertCheckFails(report, "C4", /actions\[1\]\.risk is required/);
+  assertCliFails(repositoryRoot, "C4");
+});
+
+test("C4 requires an effect target on an effect action", async (t) => {
+  const repositoryRoot = copyFixture(t);
+  const manifest = readManifest(repositoryRoot);
+  delete manifest.actions[1].effect_target;
+  writeManifest(repositoryRoot, manifest);
+
+  const report = await run(repositoryRoot);
+  assertCheckFails(report, "C4", /actions\[1\]\.effect_target is required/);
+  assertCliFails(repositoryRoot, "C4");
+});
+
+test("C4 requires a timeout on an external effect", async (t) => {
+  const repositoryRoot = copyFixture(t);
+  const manifest = readManifest(repositoryRoot);
+  delete manifest.actions[2].timeout_seconds;
+  writeManifest(repositoryRoot, manifest);
+
+  const report = await run(repositoryRoot);
+  assertCheckFails(report, "C4", /actions\[2\]\.timeout_seconds .*external effect/);
+  assertCliFails(repositoryRoot, "C4");
+});
+
+test("C4 requires recovery on an external effect", async (t) => {
+  const repositoryRoot = copyFixture(t);
+  const manifest = readManifest(repositoryRoot);
+  delete manifest.actions[2].recovery;
+  writeManifest(repositoryRoot, manifest);
+
+  const report = await run(repositoryRoot);
+  assertCheckFails(report, "C4", /actions\[2\]\.recovery .*external effect/);
+  assertCliFails(repositoryRoot, "C4");
+});
+
+test("C4 requires a cool-off on an irreversible action", async (t) => {
+  const repositoryRoot = copyFixture(t);
+  const manifest = readManifest(repositoryRoot);
+  delete manifest.actions[3].cool_off_seconds;
+  writeManifest(repositoryRoot, manifest);
+
+  const report = await run(repositoryRoot);
+  assertCheckFails(report, "C4", /actions\[3\]\.cool_off_seconds .*irreversible action/);
+  assertCliFails(repositoryRoot, "C4");
+});
+
+test("C4 rejects a schema file that is not JSON", async (t) => {
+  const repositoryRoot = copyFixture(t);
+  const schemaPath = join(repositoryRoot, "schemas", "inspect-agenda.input.json");
+  writeFileSync(schemaPath, "{not-json}\n");
+
+  const report = await run(repositoryRoot);
+  assertCheckFails(report, "C4", /actions\[0\]\.input_schema "schemas\/inspect-agenda\.input\.json"/);
+  assertCliFails(repositoryRoot, "C4");
+});
+
+test("C13 rejects an absolute referenced source path", async (t) => {
+  const repositoryRoot = copyFixture(t);
+  const manifest = readManifest(repositoryRoot);
+  manifest.actions[0].input_schema = "/tmp/input.json";
+  writeManifest(repositoryRoot, manifest);
+
+  const report = await run(repositoryRoot);
+  assertCheckFails(report, "C13", /referenced source path: .*repository-relative: \/tmp\/input\.json/);
+  assertCliFails(repositoryRoot, "C13");
+});
+
+test("C13 rejects traversal in a referenced source path", async (t) => {
+  const repositoryRoot = copyFixture(t);
+  const manifest = readManifest(repositoryRoot);
+  manifest.actions[0].input_schema = "../input.json";
+  writeManifest(repositoryRoot, manifest);
+
+  const report = await run(repositoryRoot);
+  assertCheckFails(report, "C13", /referenced source path: .*must not contain '\.\.': \.\.\/input\.json/);
+  assertCliFails(repositoryRoot, "C13");
+});
+
+test("C13 rejects a vendored package absent from the lock", async (t) => {
+  const repositoryRoot = copyFixture(t);
+  const packageDirectory = join(repositoryRoot, "vendor", "soma", "other");
+  mkdirSync(packageDirectory);
+  writeFileSync(join(packageDirectory, "index.mjs"), "export {};\n");
+
+  const report = await run(repositoryRoot);
+  assertCheckFails(
+    report,
+    "C13",
+    /vendor\/soma\/other: vendored package @soma\/other is not pinned/,
+  );
+  assertCliFails(repositoryRoot, "C13");
+});
+
+test("C13 rejects a removed lock entry for an existing package", async (t) => {
+  const repositoryRoot = copyFixture(t);
+  const lock = readLock(repositoryRoot);
+  delete lock.packages["@soma/actions"];
+  writeLock(repositoryRoot, lock);
+
+  const report = await run(repositoryRoot);
+  assertCheckFails(
+    report,
+    "C13",
+    /vendor\/soma\/actions: vendored package @soma\/actions is not pinned/,
+  );
+  assertCliFails(repositoryRoot, "C13");
+});
+
+test("C13 rejects a lock entry whose package directory is missing", async (t) => {
+  const repositoryRoot = copyFixture(t);
+  rmSync(join(repositoryRoot, "vendor", "soma", "actions"), {
+    recursive: true,
+  });
+
+  const report = await run(repositoryRoot);
+  assertCheckFails(report, "C13", /packages\.@soma\/actions:.*vendor\/soma\/actions/);
+  assertCliFails(repositoryRoot, "C13");
+});
+
+test("C5 does not apply the effect exception rule to an observe action", async (t) => {
+  const repositoryRoot = copyFixture(t);
+  const manifest = readManifest(repositoryRoot);
+  manifest.actions[0].ui_exception = { reason: "Not an effect action" };
+  writeManifest(repositoryRoot, manifest);
+
+  const report = await run(repositoryRoot);
+  assert.equal(check(report, "C5").result, "pass");
+  assertCliFails(repositoryRoot, "C1");
+});
+
+test("malformed action collection fails without crashing the CLI", (t) => {
+  const repositoryRoot = copyFixture(t);
+  const manifest = readManifest(repositoryRoot);
+  manifest.actions = {};
+  writeManifest(repositoryRoot, manifest);
+
+  const result = runCli(repositoryRoot);
+  assert.equal(result.status, 1, result.stderr);
+  assert.equal(result.stderr, "");
+  assert.match(result.stdout, /^C1 fail:.*\/actions must be array/m);
+  assert.match(result.stdout, /^C4 fail: manifest\.actions must be an array/m);
+  assert.match(result.stdout, /^C5 fail: manifest\.actions must be an array/m);
+  assert.doesNotMatch(result.stdout, /check could not complete|entries is not a function/);
 });

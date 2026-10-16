@@ -17,17 +17,25 @@ function checkNamespace(item, path, appId, failures) {
   }
 }
 
+function items(manifest, field, failures) {
+  if (!Array.isArray(manifest?.[field])) {
+    failures.push(`manifest.${field} must be an array`);
+    return [];
+  }
+  return manifest[field];
+}
+
 export function checkC3(manifest) {
   const failures = [];
   const appId = manifest?.app?.id;
 
-  for (const [index, concept] of (manifest?.concepts ?? []).entries()) {
+  for (const [index, concept] of items(manifest, "concepts", failures).entries()) {
     const path = `concepts[${index}]`;
     checkNamespace(concept, path, appId, failures);
     if (!hasValue(concept?.version)) failures.push(`${path}.version is required`);
   }
 
-  for (const [index, question] of (manifest?.questions ?? []).entries()) {
+  for (const [index, question] of items(manifest, "questions", failures).entries()) {
     const path = `questions[${index}]`;
     checkNamespace(question, path, appId, failures);
     if (!hasValue(question?.schema_version)) {

@@ -25,7 +25,9 @@ pass.
 Vendored lock entries use `vendor/soma/<unscoped-package-name>/`. A package
 hash is SHA-256 over the canonical JSON map from each package-relative file
 path to that file's SHA-256. This makes any added, removed, renamed, symlinked,
-or byte-changed vendored file fail C13.
+or byte-changed vendored file fail C13. Every package directory directly under
+`vendor/soma/` must have a corresponding `@soma/<name>` lock entry; omitted
+entries and lock entries whose directories are missing both fail C13.
 
 ## Run
 

@@ -5,7 +5,7 @@
     "repository": "eldrgeek/soma-app-template",
     "commit": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
   },
-  "contract_sha256": "3061f27a2334aae91fa33a8bcfba9aa4887264d34c4661d4669eee38187d2064",
+  "contract_sha256": "89ca1cda6b736698bb00c64279b50fdd164f64354ed880248a8a437503d97751",
   "guide": {
     "version": "1.0.0",
     "assets": [
@@ -19,6 +19,10 @@
     "@soma/actions": {
       "version": "1.0.0",
       "sha256": "061d6e6fd76d3116d3ddef3fbb3dc676bf94f118b90475590c02b2e42a68a95b"
+    },
+    "@soma/handlers": {
+      "version": "1.0.0",
+      "sha256": "48bebaeacfeb001ebce405c2d37a3a2f6219701b30353413b20a5e90e2f2905d"
     }
   }
 }
