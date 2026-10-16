@@ -1,0 +1,23 @@
+{
+  "name": "@soma/contracts",
+  "version": "0.1.0",
+  "description": "SOMA app v1 manifest and lock schemas, validation, canonical hashing, and safe source-file resolution.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.mjs",
+    "./schema/soma-app-v1.schema.json": "./schema/soma-app-v1.schema.json",
+    "./schema/soma-kit-lock.schema.json": "./schema/soma-kit-lock.schema.json"
+  },
+  "files": [
+    "README.md",
+    "schema",
+    "src"
+  ],
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  },
+  "devDependencies": {
+    "ajv": "^8.17.1"
+  },
+  "license": "UNLICENSED"
+}
