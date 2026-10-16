@@ -1,0 +1,25 @@
+{
+  "name": "@soma/conformance",
+  "version": "0.1.0",
+  "description": "Local static conformance checks for SOMA app kit v1.",
+  "type": "module",
+  "bin": {
+    "soma-conform": "bin/soma-conform.mjs"
+  },
+  "exports": {
+    ".": "./src/index.mjs"
+  },
+  "files": [
+    "README.md",
+    "bin",
+    "checks",
+    "src"
+  ],
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "@soma/contracts": "file:../soma-contracts"
+  },
+  "license": "UNLICENSED"
+}
