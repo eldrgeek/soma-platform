@@ -1,8 +1,18 @@
-// Spec loading + zero-dep structural validation aligned to schema/soma-app.schema.json.
-// (The JSON Schema is the canonical contract for ajv-based tooling; this is a
-// dependency-free check good enough to gate scaffolding.)
+// Spec loading and schema dispatch. The v0 structural validator remains
+// unchanged; soma.app/1 documents use the canonical @soma/contracts schema.
 
 import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
+import Ajv2020 from "ajv/dist/2020.js";
+
+const require = createRequire(import.meta.url);
+const v1Schema = JSON.parse(
+  readFileSync(
+    require.resolve("@soma/contracts/schema/soma-app-v1.schema.json"),
+    "utf8",
+  ),
+);
+const validateV1 = new Ajv2020({ strict: true, allErrors: true }).compile(v1Schema);
 
 export function loadSpec(path) {
   const raw = readFileSync(path, "utf8");
@@ -21,6 +31,20 @@ const STATUSES = ["draft", "approved", "building", "preview", "live"];
 
 // Returns an array of human-readable error strings ([] = valid).
 export function validate(doc) {
+  if (doc?.schema_version === "soma.app/1") {
+    if (validateV1(doc)) return [];
+    return (validateV1.errors ?? []).map((error) => {
+      const location = error.instancePath || "/";
+      return `${location} ${error.message}`;
+    });
+  }
+  if (doc?.schema_version !== undefined) {
+    return [`unsupported schema_version: ${JSON.stringify(doc.schema_version)}`];
+  }
+  return validateV0(doc);
+}
+
+export function validateV0(doc) {
   const errs = [];
   const req = (cond, msg) => { if (!cond) errs.push(msg); };
 

@@ -1,11 +1,13 @@
 #!/usr/bin/env node
 // CLI: validate a Soma app spec, or scaffold an app from it.
 //   soma-scaffold validate <spec.json>
+//   soma-scaffold migrate-spec <v0.json>
 //   soma-scaffold scaffold <spec.json> [outDir]           # static-site affordance files
 //   soma-scaffold react-app <spec.json> [outDir]          # full app, cloned from soma-app-template
 //   soma-scaffold provision <spec.json> [appDir]
 
 import { loadSpec, validate } from "../src/spec.mjs";
+import { migrateSpecV0 } from "../src/migrate-spec.mjs";
 import { scaffold } from "../src/scaffold.mjs";
 import { scaffoldReactApp } from "../src/scaffoldReactApp.mjs";
 import { provision } from "../src/provision.mjs";
@@ -16,10 +18,11 @@ const [cmd, specPath, outDir] = args.filter((a) => a !== "--execute");
 
 function die(msg) { console.error(msg); process.exit(1); }
 
-if (!cmd || !["validate", "scaffold", "react-app", "provision"].includes(cmd) || !specPath) {
+if (!cmd || !["validate", "migrate-spec", "scaffold", "react-app", "provision"].includes(cmd) || !specPath) {
   die(
     "usage:\n" +
       "  soma-scaffold validate <spec.json>\n" +
+      "  soma-scaffold migrate-spec <v0.json>\n" +
       "  soma-scaffold scaffold <spec.json> [outDir]    # static-site affordance files (Legends-style)\n" +
       "  soma-scaffold react-app <spec.json> [outDir]   # full Vite/React/Supabase/Netlify app, cloned from soma-app-template\n" +
       "  soma-scaffold provision <spec.json> [appDir]   # emits provision.sh (dry-run); add --execute to run",
@@ -29,6 +32,26 @@ if (!cmd || !["validate", "scaffold", "react-app", "provision"].includes(cmd) ||
 let doc;
 try { doc = loadSpec(specPath); } catch (e) { die(e.message); }
 
+if (cmd === "migrate-spec") {
+  const v0Errors = validate(doc);
+  if (v0Errors.length) {
+    console.error("✗ v0 spec invalid:");
+    for (const error of v0Errors) console.error("  - " + error);
+    process.exit(1);
+  }
+  const { manifest, unmapped } = migrateSpecV0(doc);
+  const v1Errors = validate(manifest);
+  if (v1Errors.length) {
+    console.error("✗ converted v1 manifest invalid:");
+    for (const error of v1Errors) console.error("  - " + error);
+    process.exit(1);
+  }
+  console.error("Unmapped v0 fields:");
+  for (const field of unmapped) console.error("  - " + field);
+  process.stdout.write(JSON.stringify(manifest, null, 2) + "\n");
+  process.exit(0);
+}
+
 const errors = validate(doc);
 if (errors.length) {
   console.error("✗ spec invalid:");
@@ -36,6 +59,10 @@ if (errors.length) {
   process.exit(1);
 }
 console.log("✓ spec valid");
+
+if (doc.schema_version === "soma.app/1" && cmd !== "validate") {
+  die(`soma.app/1 ${cmd} generation is not implemented in this contract-only slice`);
+}
 
 if (cmd === "scaffold") {
   const res = scaffold(doc, { outDir });
