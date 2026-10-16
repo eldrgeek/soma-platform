@@ -39,7 +39,7 @@ if (cmd === "migrate-spec") {
     for (const error of v0Errors) console.error("  - " + error);
     process.exit(1);
   }
-  const { manifest, unmapped } = migrateSpecV0(doc);
+  const { manifest, unmapped, placeholders } = migrateSpecV0(doc);
   const v1Errors = validate(manifest);
   if (v1Errors.length) {
     console.error("✗ converted v1 manifest invalid:");
@@ -48,6 +48,8 @@ if (cmd === "migrate-spec") {
   }
   console.error("Unmapped v0 fields:");
   for (const field of unmapped) console.error("  - " + field);
+  console.error("Placeholder values (confirm before use):");
+  for (const p of placeholders) console.error(`  - ${p.path} = ${JSON.stringify(p.value)}: ${p.why}`);
   process.stdout.write(JSON.stringify(manifest, null, 2) + "\n");
   process.exit(0);
 }

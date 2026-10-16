@@ -37,6 +37,9 @@ test("migrate-spec converts all three v0 examples to valid v1 manifests", () => 
       /soma_app\.targets\.supabase\.identity_project/,
       example,
     );
+    assert.match(result.stderr, /Placeholder values/, example);
+    assert.match(result.stderr, /identity\.subject = "pairwise"/, example);
+    assert.match(result.stderr, /hosts\.ai\.persona = /, example);
   }
 });
 

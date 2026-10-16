@@ -199,5 +199,25 @@ export function migrateSpecV0(doc) {
     .filter((path) => !mapped.has(path))
     .sort();
 
-  return { manifest, unmapped };
+  // Values the converter had to supply because v0 has no field for them. Each
+  // is a guess a person must confirm before the manifest is trusted.
+  const placeholders = [
+    { path: "identity.subject", value: manifest.identity.subject, why: "v0 has no identity model; a legacy-global app (Legends, PlayMaker) must change this and declare legacy_auth_storage_keys" },
+    { path: "identity.admission", value: manifest.identity.admission, why: "v0 has no admission rule" },
+    { path: "app.tier", value: manifest.app.tier, why: "v0 has no tier" },
+    { path: "hosts.human.expected_response", value: manifest.hosts.human.expected_response, why: "v0 has no response time" },
+    { path: "hosts.human.escalation_url", value: manifest.hosts.human.escalation_url, why: "v0 has no escalation route" },
+    { path: "hosts.ai.persona", value: manifest.hosts.ai.persona, why: "path invented from the persona name; the file is not created" },
+  ];
+  if (!repository.mapped) {
+    placeholders.push({ path: "app.repository", value: manifest.app.repository, why: "v0 targets.repo missing or not owner/name" });
+  }
+  if (!appOrigins.mapped) {
+    placeholders.push({ path: "app.origins", value: manifest.app.origins, why: "v0 targets.netlify_site missing" });
+  }
+  if (!source.owner?.name) {
+    placeholders.push({ path: "legal.operator", value: manifest.legal.operator, why: "v0 has no owner.name; filled from the human host or a stand-in" });
+  }
+
+  return { manifest, unmapped, placeholders };
 }
