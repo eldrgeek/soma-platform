@@ -2,10 +2,17 @@
 // unchanged; soma.app/1 documents use the canonical @soma/contracts schema.
 
 import { readFileSync } from "node:fs";
-import {
-  formatValidationErrors,
-  validateManifest,
-} from "@soma/contracts";
+import { createRequire } from "node:module";
+
+const require = createRequire(import.meta.url);
+
+// @soma/contracts (and its Ajv) loads on the first soma.app/1 document only,
+// so the v0 path keeps working in a checkout that never ran npm install.
+let contracts;
+function v1Contracts() {
+  contracts ??= require("@soma/contracts");
+  return contracts;
+}
 
 export function loadSpec(path) {
   const raw = readFileSync(path, "utf8");
@@ -25,6 +32,7 @@ const STATUSES = ["draft", "approved", "building", "preview", "live"];
 // Returns an array of human-readable error strings ([] = valid).
 export function validate(doc) {
   if (doc?.schema_version === "soma.app/1") {
+    const { validateManifest, formatValidationErrors } = v1Contracts();
     const result = validateManifest(doc);
     return result.valid ? [] : formatValidationErrors(result.errors);
   }
