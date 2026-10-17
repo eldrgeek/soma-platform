@@ -17,9 +17,8 @@
     "standup-check": "node tools/standup-check.mjs",
     "test": "node --test test/*.test.mjs"
   },
-  "devDependencies": {
-    "@soma/contracts": "file:../soma-contracts",
-    "ajv": "^8.17.1"
-  },
-  "license": "UNLICENSED"
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@soma/contracts": "file:../soma-contracts"
+  }
 }
