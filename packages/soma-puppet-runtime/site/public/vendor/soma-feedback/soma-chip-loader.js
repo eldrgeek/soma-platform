@@ -49,15 +49,20 @@
   var fallbackCss = attr('data-fallback-css', '/vendor/soma-feedback/soma-feedback.css');
   var timeoutMs = parseInt(attr('data-timeout-ms', '3000'), 10) || 3000;
   var channel = attr('data-channel', 'stable');
-  try {
-    var asked = new URLSearchParams(window.location.search).get('soma-chip');
-    if (asked && /^[a-z0-9-]{1,32}$/.test(asked)) {
-      if (asked === 'stable') window.localStorage.removeItem('soma-chip:channel');
-      else window.localStorage.setItem('soma-chip:channel', asked);
-    }
-    var kept = window.localStorage.getItem('soma-chip:channel');
-    if (kept && /^[a-z0-9-]{1,32}$/.test(kept)) channel = kept;
-  } catch (_) { /* storage blocked: use the tag's channel */ }
+  // Puppet local dev pins the vendored chip because that copy carries the
+  // x-dev-user header hook. An explicit local channel must therefore win over
+  // any channel remembered from an earlier visit.
+  if (channel !== 'local') {
+    try {
+      var asked = new URLSearchParams(window.location.search).get('soma-chip');
+      if (asked && /^[a-z0-9-]{1,32}$/.test(asked)) {
+        if (asked === 'stable') window.localStorage.removeItem('soma-chip:channel');
+        else window.localStorage.setItem('soma-chip:channel', asked);
+      }
+      var kept = window.localStorage.getItem('soma-chip:channel');
+      if (kept && /^[a-z0-9-]{1,32}$/.test(kept)) channel = kept;
+    } catch (_) { /* storage blocked: use the tag's channel */ }
+  }
 
   var state = window.somaChipLoader = { channel: channel, source: null, version: null, error: null };
   var settled = false;

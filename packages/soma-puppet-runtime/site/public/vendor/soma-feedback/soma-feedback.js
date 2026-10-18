@@ -55,6 +55,10 @@
  *   window.somaFeedbackIdentity — function returning { name, email } or a
  *   Promise of it. Values populate blank fields when the panel opens, but
  *   never overwrite fields a user has actively edited this session.
+ *   window.somaFeedbackHeaders — function returning submission headers or a
+ *   Promise of them. This Puppet-runtime fallback extension lets local dev
+ *   identities send x-dev-user; the canonical chip only supports the
+ *   Authorization-specific hook below.
  */
 (function () {
   'use strict';
@@ -166,6 +170,35 @@
     } catch (err) {
       console.warn('[soma-feedback] somaFeedbackAuthHeader threw, ignoring:', err);
       cb(null);
+    }
+  }
+
+  function resolveSubmissionHeaders(cb) {
+    var hook = window.somaFeedbackHeaders;
+    function legacy() {
+      resolveAuthHeader(function (authHeader) {
+        var headers = { 'Content-Type': 'application/json' };
+        if (authHeader) headers.Authorization = authHeader;
+        cb(headers);
+      });
+    }
+    function finish(value) {
+      if (!value || typeof value !== 'object') { legacy(); return; }
+      var headers = { 'Content-Type': 'application/json' };
+      Object.keys(value).forEach(function (name) { headers[name] = value[name]; });
+      cb(headers);
+    }
+    if (typeof hook !== 'function') { legacy(); return; }
+    try {
+      var result = hook();
+      if (result && typeof result.then === 'function') {
+        result.then(finish, legacy);
+      } else {
+        finish(result);
+      }
+    } catch (err) {
+      console.warn('[soma-feedback] somaFeedbackHeaders threw, using auth hook:', err);
+      legacy();
     }
   }
 
@@ -872,9 +905,7 @@
     payload.text = lastSubmittedText;
     payload.kind = kind;
     payload.conversation = [];
-    resolveAuthHeader(function (authHeader) {
-      var headers = { 'Content-Type': 'application/json' };
-      if (authHeader) headers['Authorization'] = authHeader;
+    resolveSubmissionHeaders(function (headers) {
       fetch(endpoint, { method: 'POST', headers: headers, body: JSON.stringify(payload) })
         .then(function (resp) {
           if (!resp.ok) throw new Error('status ' + resp.status);
@@ -965,9 +996,7 @@
     setStatus('Processing…');
     updateControls();
 
-    resolveAuthHeader(function (authHeader) {
-      var headers = { 'Content-Type': 'application/json' };
-      if (authHeader) headers['Authorization'] = authHeader;
+    resolveSubmissionHeaders(function (headers) {
       fetch(endpoint, {
         method: 'POST',
         headers: headers,
@@ -1064,9 +1093,7 @@
     reviewStatusLine.className = 'soma-feedback-status';
     updateControls();
 
-    resolveAuthHeader(function (authHeader) {
-      var headers = { 'Content-Type': 'application/json' };
-      if (authHeader) headers['Authorization'] = authHeader;
+    resolveSubmissionHeaders(function (headers) {
       fetch(endpoint, {
         method: 'POST',
         headers: headers,

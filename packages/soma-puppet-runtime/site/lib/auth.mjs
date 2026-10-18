@@ -43,10 +43,12 @@ export function createIdentityVerifier({
     if (!user?.id) throw new HttpError(401, 'Supabase returned no user');
     return {
       id: user.id,
+      // Same order and empty-string handling as me() in site/public/app.js:
+      // the browser fills {me.name} from it and the server must agree.
       name:
-        user.user_metadata?.full_name ??
-        user.user_metadata?.name ??
-        user.email ??
+        user.user_metadata?.full_name ||
+        user.user_metadata?.name ||
+        user.email ||
         user.id,
       ...(user.email ? { email: user.email } : {}),
     };

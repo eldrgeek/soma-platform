@@ -61,6 +61,7 @@ function installFeedbackChip() {
     const { data } = await supabase.auth.getSession();
     return data.session?.access_token ? `Bearer ${data.session.access_token}` : null;
   };
+  window.somaFeedbackHeaders = () => authHeaders();
   window.somaFeedbackIdentity = () => ({ name: me().name, email: me().email });
   const loader = document.createElement('script');
   loader.src = '/vendor/soma-feedback/soma-chip-loader.js';
@@ -68,6 +69,7 @@ function installFeedbackChip() {
   loader.dataset.site = appId;
   loader.dataset.endpoint = `/api/app/${encodeURIComponent(appId)}/feedback`;
   loader.dataset.noGoogle = '';
+  if (devUser) loader.dataset.channel = 'local';
   document.body.append(loader);
 }
 
