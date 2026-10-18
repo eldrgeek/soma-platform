@@ -18,6 +18,8 @@ let current;
 let sketch;
 let liveData = {};
 let pollTimer;
+// Local `netlify dev` only: the API accepts x-dev-user there and refuses it everywhere else.
+let devUser = null;
 
 const setStatus = (message) => {
   status.textContent = message;
@@ -27,6 +29,7 @@ function authHeaders(extra = {}) {
   return {
     ...extra,
     ...(session?.access_token ? { authorization: `Bearer ${session.access_token}` } : {}),
+    ...(devUser ? { 'x-dev-user': `${devUser.id}:${devUser.name}` } : {}),
   };
 }
 
@@ -42,6 +45,7 @@ async function api(path, { method = 'GET', body } = {}) {
 }
 
 function me() {
+  if (devUser) return { id: devUser.id, name: devUser.name };
   const user = session?.user;
   return {
     id: user?.id,
@@ -53,6 +57,7 @@ function me() {
 function installFeedbackChip() {
   if (document.querySelector('[data-puppet-chip]')) return;
   window.somaFeedbackAuthHeader = async () => {
+    if (!supabase) return null;
     const { data } = await supabase.auth.getSession();
     return data.session?.access_token ? `Bearer ${data.session.access_token}` : null;
   };
@@ -194,8 +199,33 @@ function showIdentity() {
   const signOut = document.createElement('button');
   signOut.type = 'button';
   signOut.textContent = 'Sign out';
-  signOut.addEventListener('click', () => supabase.auth.signOut());
+  signOut.addEventListener('click', () => {
+    if (devUser) {
+      devUser = null;
+      boot(null, Boolean(supabase), lastConfig);
+    } else supabase.auth.signOut();
+  });
   identityRoot.append(signOut);
+}
+
+let lastConfig = {};
+
+function showDevIdentity() {
+  if (!lastConfig.devIdentity) return;
+  const box = document.createElement('div');
+  box.className = 'dev-identity';
+  box.innerHTML = '<p>Local development only:</p>';
+  for (const [id, name, label] of [['rosa', 'Rosa', 'Continue as Rosa (host)'], ['theo', 'Theo', 'Continue as Theo']]) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = label;
+    button.addEventListener('click', () => {
+      devUser = { id, name };
+      boot({ user: { id } }, Boolean(supabase), lastConfig);
+    });
+    box.append(button);
+  }
+  authRoot.append(box);
 }
 
 function showSignIn(configured) {
@@ -213,9 +243,10 @@ function showSignIn(configured) {
       <button type="button" data-google>Continue with Google</button>
     </form>
   `;
+  showDevIdentity();
   if (!configured) {
     setStatus('Set SUPABASE_URL and SUPABASE_ANON_KEY to enable sign-in.');
-    authRoot.querySelectorAll('button, input').forEach((control) => {
+    authRoot.querySelectorAll('form button, form input').forEach((control) => {
       control.disabled = true;
     });
     return;
@@ -238,7 +269,8 @@ function showSignIn(configured) {
   });
 }
 
-async function boot(nextSession, configured) {
+async function boot(nextSession, configured, config = lastConfig) {
+  lastConfig = config;
   session = nextSession;
   if (!session) {
     showSignIn(configured);
@@ -261,6 +293,7 @@ async function boot(nextSession, configured) {
 async function start() {
   const response = await fetch('/api/config');
   const rawConfig = await response.json();
+  lastConfig = rawConfig;
   const authConfig = createSomaAuthConfig({
     url: rawConfig.supabaseUrl,
     anonKey: rawConfig.supabaseAnonKey,

@@ -60,6 +60,7 @@ export function createApiHandler({
         return json({
           supabaseUrl: process.env.SUPABASE_URL ?? '',
           supabaseAnonKey: process.env.SUPABASE_ANON_KEY ?? '',
+          devIdentity: process.env.NETLIFY_DEV === 'true',
         });
       }
 
