@@ -1,8 +1,8 @@
 # `@soma/puppet-runtime`
 
-The dependency-free, non-browser core for applications described in Puppet
-Script. It parses and validates Puppet Script v0.1/v0.2, and provides a store
-contract plus an in-memory implementation for versioned descriptions and
+The runtime for applications described in Puppet Script. It parses and
+validates Puppet Script v0.1/v0.2, renders it directly in the browser, and
+provides memory and Netlify Blobs stores for versioned descriptions and
 declared application data.
 
 This package implements the ruling in
@@ -25,7 +25,8 @@ deploy.
 - `remove(appId, data, rowId, actor)`
 
 `MemoryStore` and `createMemoryStore()` implement that contract in process.
-Pass app configuration keyed by app id, for example:
+`BlobsStore` and `createBlobsStore()` implement the same rules over
+`@netlify/blobs`. Pass app configuration keyed by app id, for example:
 
 ```js
 const store = createMemoryStore({
@@ -36,16 +37,98 @@ const store = createMemoryStore({
 Proposals are parsed before storage and remain non-live until the configured
 host approves them. Only that host can approve or undo. Writes accept only
 fields declared by the current version's `data` block, and rows can be removed
-only by their author or the host.
+only by their author or the host. Undo removes the latest approval from the
+live history; the host can re-approve that undone version as redo.
+
+## Browser renderer
+
+`src/render.js` exports:
+
+- `render(sketch, { root, data, me, onAction })`
+- `interpolate(template, context)`
+- `mapFormToRow(template, form, me)`
+
+The renderer has no framework or build step. It draws screen tabs and the
+standard hero, text, button, field, list/table, badge, card, and toast elements.
+Add and remove hooks are sent to `onAction`, while field and identity tokens
+are resolved in the browser.
+
+## Run locally
+
+Install this package's one runtime dependency:
+
+```sh
+cd packages/soma-puppet-runtime
+npm install
+```
+
+Set `SUPABASE_URL` and `SUPABASE_ANON_KEY` in your shell or Netlify environment.
+The shared SOMA identity URL is
+`https://omfwcodoimjmbrhssvfl.supabase.co`; use its public anon key, never a
+service-role key.
+
+Because this package lives inside a monorepo, pass the package-local paths to
+the CLI explicitly:
+
+```sh
+timeout 600 netlify dev --skip-gitignore \
+  --dir site/public --functions site/functions --port 8899
+```
+
+Open <http://localhost:8899/?app=sunday-supper>. The page offers Supabase magic
+link and Google sign-in. It polls the current version every 10 seconds and
+re-renders a newly approved description without a page reload.
+
+To run the development-identity end-to-end proof in another terminal:
+
+```sh
+timeout 120 node scripts/e2e.mjs
+```
+
+`netlify dev` supplies `NETLIFY_DEV=true`, which is the only context where the
+API accepts the script's `x-dev-user: id:name` headers.
+
+## HTTP API
+
+All routes are under `/api/app/:appId`.
+
+| Method | Route | Result |
+|---|---|---|
+| `GET` | `/current` | Current description source, version id, and host id; seeds `examples/:appId.puppet` when no versions exist |
+| `GET` | `/versions` | Version history |
+| `POST` | `/propose` | Host proposes `{ source, reason }` without changing the live version |
+| `POST` | `/approve` | Host approves `{ versionId }` |
+| `POST` | `/undo` | Host restores the previous approved version |
+| `GET` | `/data/:name` | Rows in a declared collection |
+| `POST` | `/data/:name` | Add a declared row |
+| `DELETE` | `/data/:name/:rowId` | Remove a row as its author or the host |
+| `POST` | `/feedback` | Store `{ text, page }` plus the verified author in Blobs |
+
+`GET /api/config` returns only the public Supabase URL and anon key needed by
+the static sign-in client.
+
+Every write requires `Authorization: Bearer <Supabase access token>`. The
+Function verifies that token with `${SUPABASE_URL}/auth/v1/user` and
+`SUPABASE_ANON_KEY`; it never reads or uses a service-role key. Reads require
+the same identity unless `site/apps.json` sets `publicRead: true`. Proposal,
+approval, and undo additionally require the verified user id to match the
+app's configured `hostId`.
+
+The site proxies `/soma-chip/*` to the central SOMA chip and keeps a vendored
+fallback. Its endpoint is the selected app's `/feedback` route and it reuses
+the current Supabase bearer token.
 
 Run the tests with:
 
 ```sh
-npm test
+timeout 120 node --test
 ```
 
-## Slice 2
+## Out of scope for runtime v1
 
-The next slice adds the browser renderer; Netlify Functions backed by a Netlify
-Blobs adapter with a Supabase JWT check; the feedback chip; and a runnable
-Sunday Supper example.
+- Invitations
+- AI host chat
+- Payments
+- The Forge studio UI
+- SEO pre-rendering
+- Production deployment

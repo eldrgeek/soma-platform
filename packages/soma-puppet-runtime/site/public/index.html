@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>SOMA Puppet Runtime</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <header class="site-header">
+      <strong id="app-title">SOMA</strong>
+      <div id="identity"></div>
+    </header>
+    <div id="status" role="status">Loading…</div>
+    <section id="auth" class="auth-card" hidden></section>
+    <main id="app" class="runtime-root" data-feedback-skip></main>
+    <aside id="host-panel" class="host-panel" hidden data-feedback-skip></aside>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

@@ -73,6 +73,20 @@ test('undo restores the previous approved version', async () => {
   assert.equal((await store.getCurrent(APP_ID)).id, first);
 });
 
+test('an undone memory-store version can be re-approved', async () => {
+  const store = makeStore();
+  const first = await propose(store);
+  await store.approve(APP_ID, first, HOST_ID);
+  const second = await propose(store, SOURCE.replace('Dinner', 'Dinner v2'));
+  await store.approve(APP_ID, second, HOST_ID);
+  await store.undo(APP_ID, HOST_ID);
+
+  const redone = await store.approve(APP_ID, second, HOST_ID);
+
+  assert.equal(redone.id, second);
+  assert.equal((await store.getCurrent(APP_ID)).id, second);
+});
+
 test('non-host cannot approve or undo', async () => {
   const store = makeStore();
   const first = await propose(store);
