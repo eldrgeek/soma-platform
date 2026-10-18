@@ -1,0 +1,27 @@
+puppet "Sunday Supper" version "0.2"
+
+app "Sunday Supper" {
+  promise: "Neighbors say yes in one tap and know who is bringing what."
+  requires: signin
+}
+
+data seats {
+  fields: [name]
+}
+
+data dishes {
+  fields: [who, dish, cant_eat]
+}
+
+screen "Next supper" {
+  hero { title: "Sunday, Nov 2 · 6 pm", subtitle: "At Rosa's. Bring a dish if you can." }
+  text "{seats.count} coming"
+  button "Save me a seat" @primary -> adds to seats { name: "{me.name}" }
+}
+
+screen "Who's bringing what" {
+  list "Dishes" from dishes
+  field "Dish"
+  field "Can't eat"
+  button "Add my dish" @primary -> adds to dishes { who: "{me.name}", dish: "{form.Dish}", cant_eat: "{form.Can't eat}" }
+}

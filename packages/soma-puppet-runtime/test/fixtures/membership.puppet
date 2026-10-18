@@ -1,0 +1,39 @@
+puppet "Legends Membership — Request slice" version "0.1"
+theme: soma-sketch
+
+app "Legends" {
+  logo: "Legends"
+  items: ["Home", "Benefits", "My Requests", "Ask Bill"]
+}
+
+stub requests {
+  { id: "r1", title: "Court-side seat help", status: "In progress" }
+  { id: "r2", title: "Intro to alumni group", status: "Waiting" }
+}
+
+screen "Membership Home" {
+  navbar top { logo: "Legends", items: ["Home", "Benefits", "My Requests", "Ask Bill"] }
+  sidebar left { items: ["Overview", "Requests", "Benefits"] }
+  toolbar { actions: ["Help", "Notifications"] }
+  hero { title: "Welcome back, {member.first}", subtitle: "Your membership, in motion." }
+  button "New Request" @primary color: blue -> opens screen "Request Composer"
+  card "Ask Bill" @voice -> starts host "Bill"
+  list "My Requests" from requests -> opens screen "Request Detail"
+}
+
+screen "Request Composer" {
+  xbox top-right -> back
+  hero { title: "New request", subtitle: "Tell Bill what would help." }
+  field "What do you need?" @multiline @required
+  button "Send to Bill" @primary -> toast "Bill has your request" ; back
+}
+
+screen "Request Detail" {
+  text "Request detail (stub)"
+  badge "In progress"
+  button "Back" @ghost -> back
+}
+
+story "As a member, I want to raise a request" {
+  entry: screen "Membership Home"
+}
