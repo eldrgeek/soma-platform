@@ -1,0 +1,14 @@
+[build]
+  publish = "site/public"
+  functions = "site/functions"
+
+[[redirects]]
+  from = "/soma-chip/*"
+  to = "https://soma-chip.netlify.app/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/api"
+  status = 200

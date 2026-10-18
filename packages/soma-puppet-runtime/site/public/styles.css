@@ -1,0 +1,118 @@
+:root {
+  color: #172131;
+  background: #eef3f8;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; }
+button, input, textarea { font: inherit; }
+button { cursor: pointer; }
+
+.site-header {
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px clamp(16px, 4vw, 48px);
+  color: #f8fafc;
+  background: #101a28;
+}
+
+.site-header strong { font-size: 19px; }
+#identity { display: flex; align-items: center; gap: 10px; font-size: 14px; }
+#identity button { color: #f8fafc; border: 1px solid #52647a; background: transparent; border-radius: 7px; padding: 6px 9px; }
+#status { min-height: 26px; padding: 5px clamp(16px, 4vw, 48px); color: #52647a; font-size: 13px; }
+
+.runtime-root {
+  width: min(960px, calc(100% - 32px));
+  min-height: 520px;
+  margin: 12px auto 40px;
+}
+
+.puppet-runtime-shell {
+  min-height: 520px;
+  overflow: hidden;
+  border: 1px solid #d9e1eb;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 12px 38px #30445c18;
+}
+
+.puppet-runtime-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 10px 16px;
+  overflow-x: auto;
+  border-bottom: 1px solid #e3e9f0;
+}
+
+.puppet-runtime-tabs button {
+  padding: 8px 12px;
+  white-space: nowrap;
+  color: #5b6b80;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+}
+
+.puppet-runtime-tabs button.active { color: #1d4ed8; background: #e8f0ff; font-weight: 700; }
+.puppet-runtime-screen { padding: clamp(18px, 4vw, 34px); }
+.puppet-runtime-hero { padding: 24px; margin-bottom: 20px; border-radius: 10px; background: linear-gradient(120deg, #eaf2ff, #f9fbff); }
+.puppet-runtime-hero h1 { margin: 0 0 7px; font-size: clamp(24px, 4vw, 32px); }
+.puppet-runtime-hero p { margin: 0; color: #52647a; }
+.puppet-runtime-text, .puppet-runtime-label { margin: 12px 0; }
+
+.puppet-runtime-button {
+  min-height: 42px;
+  margin: 6px 6px 6px 0;
+  padding: 9px 14px;
+  color: #172131;
+  border: 1px solid #b9c5d3;
+  border-radius: 7px;
+  background: #fff;
+  font-weight: 650;
+}
+
+.puppet-runtime-primary { color: #fff; border-color: #2563d9; background: #2563d9; }
+.puppet-runtime-danger { color: #fff; border-color: #b42318; background: #b42318; }
+.puppet-runtime-field { display: block; margin: 14px 0; }
+.puppet-runtime-field span { display: block; margin-bottom: 6px; font-size: 13px; font-weight: 650; }
+.puppet-runtime-field input, .puppet-runtime-field textarea { width: 100%; padding: 10px; border: 1px solid #bdc9d7; border-radius: 7px; }
+.puppet-runtime-list, .puppet-runtime-table { margin: 20px 0; }
+.puppet-runtime-list h2, .puppet-runtime-table h2, .puppet-runtime-card h2 { margin: 0 0 9px; font-size: 17px; }
+.puppet-runtime-list-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 8px; border-top: 1px solid #e7edf3; }
+.puppet-runtime-table { width: 100%; overflow-x: auto; }
+.puppet-runtime-table table { width: 100%; border-collapse: collapse; }
+.puppet-runtime-table th, .puppet-runtime-table td { padding: 10px; text-align: left; border-bottom: 1px solid #e7edf3; }
+.puppet-runtime-card, .puppet-runtime-element { margin: 12px 0; padding: 16px; border: 1px solid #d8e1ea; border-radius: 9px; }
+.puppet-runtime-badge { display: inline-block; padding: 4px 8px; color: #204e9c; border-radius: 999px; background: #e8f0ff; font-size: 12px; }
+.puppet-runtime-row { display: flex; flex-wrap: wrap; gap: 10px; }
+.puppet-runtime-stack, .puppet-runtime-region { display: grid; gap: 10px; }
+.puppet-runtime-empty { color: #66768a; }
+.puppet-runtime-toast, .puppet-runtime-inline-toast { padding: 12px 16px; color: #fff; border-radius: 8px; background: #152b4b; }
+.puppet-runtime-toast { position: fixed; right: 22px; bottom: 22px; z-index: 20; box-shadow: 0 8px 25px #0004; }
+
+.auth-card, .host-panel {
+  width: min(680px, calc(100% - 32px));
+  margin: 20px auto;
+  padding: 20px;
+  border: 1px solid #bed7ff;
+  border-radius: 10px;
+  background: #f7faff;
+}
+
+.auth-card form { display: flex; gap: 8px; flex-wrap: wrap; }
+.auth-card input { flex: 1 1 220px; padding: 10px; border: 1px solid #bdc9d7; border-radius: 7px; }
+.auth-card button, .host-panel button { padding: 9px 12px; border: 1px solid #2563d9; border-radius: 7px; background: #2563d9; color: #fff; }
+.host-panel textarea { width: 100%; min-height: 180px; padding: 12px; border: 1px solid #bdc9d7; border-radius: 7px; font: 13px/1.5 ui-monospace, monospace; }
+.host-panel li { margin: 8px 0; }
+.host-panel li button { margin-left: 8px; padding: 5px 8px; }
+
+@media (max-width: 600px) {
+  .runtime-root { width: 100%; margin: 0; }
+  .puppet-runtime-shell { min-height: calc(100vh - 84px); border: 0; border-radius: 0; }
+  .puppet-runtime-screen { padding: 18px; }
+  .host-panel, .auth-card { width: calc(100% - 24px); }
+}
