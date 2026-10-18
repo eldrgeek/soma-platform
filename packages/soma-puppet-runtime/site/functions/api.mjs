@@ -30,19 +30,36 @@ function requireHost(config, identity) {
   }
 }
 
+// A field longer than this is refused before matching, so a hostile body
+// cannot make a template with several {form.*} tokens backtrack for long.
+const MAX_FIELD_LENGTH = 10000;
+
 function escapeRegex(value) {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+// Mirrors interpolate() in src/render.js, the code the browser uses to fill
+// a row: {me.name} is the verified name, {form.*} is typed text, a
+// {Name.count} is a number (or the token itself), and any other token is sent as literal text.
 function templatePattern(template, identity) {
-  const token = /\{(me|form)\.([^{}]+)\}/g;
+  const token = /\{([^}]+)\}/g;
   let pattern = '^';
   let offset = 0;
   for (const match of String(template).matchAll(token)) {
     pattern += escapeRegex(String(template).slice(offset, match.index));
-    pattern += match[1] === 'me'
-      ? escapeRegex(identity[match[2]] ?? '')
-      : '[\\s\\S]*?';
+    const name = match[1];
+    const count = name.match(/^([\w-]+)\.count$/);
+    if (name === 'me.name') {
+      pattern += escapeRegex(Object.hasOwn(identity, 'name') ? identity.name : '');
+    } else if (name.startsWith('form.')) {
+      pattern += '[\\s\\S]*?';
+    } else if (count) {
+      // The browser fills a count only when that data is loaded; otherwise
+      // it sends the token as written.
+      pattern += `(?:\\d+|${escapeRegex(match[0])})`;
+    } else {
+      pattern += escapeRegex(match[0]);
+    }
     offset = match.index + match[0].length;
   }
   pattern += `${escapeRegex(String(template).slice(offset))}$`;
@@ -62,6 +79,7 @@ function matchesAction(input, action, identity) {
   return fields.every(
     (field) =>
       typeof input[field] === 'string' &&
+      input[field].length <= MAX_FIELD_LENGTH &&
       templatePattern(templates[field], identity).test(input[field]),
   );
 }

@@ -5,6 +5,7 @@ import test from 'node:test';
 import { createIdentityVerifier, HttpError } from '../site/lib/auth.mjs';
 import { createApiHandler } from '../site/functions/api.mjs';
 import { createMemoryStore } from '../src/store.js';
+import { mapFormToRow } from '../src/render.js';
 
 const APP_ID = 'sunday-supper';
 const HOST_ID = 'rosa';
@@ -203,6 +204,34 @@ screen "Home" {
     body: { note: 'Rosa brings Cake' },
   }));
   assert.equal(spoofed.status, 400);
+});
+
+test('API accepts the row the browser builds, including tokens it leaves as written', async () => {
+  const source = `puppet "Browser rows" version "0.2"
+data notes {
+  fields: [who, ref, seat, note]
+}
+screen "Home" {
+  field "Note"
+  button "Add" -> adds to notes { who: "{me.name}", ref: "{me.id}", seat: "#{notes.count}", note: "{form.Note}" }
+}`;
+  const api = makeApi({ source });
+  const base = `/api/app/${APP_ID}`;
+  await api(request(`${base}/current`, { user: 'theo:Theo' }));
+  const template = { who: '{me.name}', ref: '{me.id}', seat: '#{notes.count}', note: '{form.Note}' };
+  const row = mapFormToRow(template, { Note: 'Pie' }, { id: 'theo', name: 'Theo' });
+  const accepted = await api(request(`${base}/data/notes`, { method: 'POST', user: 'theo:Theo', body: row }));
+  assert.equal(accepted.status, 201);
+
+  const counted = await api(request(`${base}/data/notes`, {
+    method: 'POST', user: 'theo:Theo', body: { ...row, seat: '#3' },
+  }));
+  assert.equal(counted.status, 201);
+
+  const tooLong = await api(request(`${base}/data/notes`, {
+    method: 'POST', user: 'theo:Theo', body: { ...row, note: 'x'.repeat(10001) },
+  }));
+  assert.equal(tooLong.status, 400);
 });
 
 test('API matches either of two actions that add to the same collection', async () => {
