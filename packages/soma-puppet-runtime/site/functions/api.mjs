@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 
 import { createBlobsStore } from '../../src/blobs-store.js';
 import { PuppetParseError } from '../../src/store.js';
-import { createIdentityVerifier, HttpError } from './auth.mjs';
+import { createIdentityVerifier, HttpError } from '../lib/auth.mjs';
 
 const json = (value, status = 200) =>
   Response.json(value, {

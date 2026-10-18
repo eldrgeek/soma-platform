@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-import { createIdentityVerifier, HttpError } from '../site/functions/auth.mjs';
+import { createIdentityVerifier, HttpError } from '../site/lib/auth.mjs';
 import { createApiHandler } from '../site/functions/api.mjs';
 import { createMemoryStore } from '../src/store.js';
 
