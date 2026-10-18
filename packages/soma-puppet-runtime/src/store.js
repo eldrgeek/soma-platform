@@ -87,7 +87,9 @@ export class MemoryStore extends StoreAdapter {
     if (!version) {
       throw new Error(`Unknown version: ${versionId}`);
     }
-    if (version.status !== 'proposed') {
+    const isUndone =
+      version.status === 'approved' && !app.approvalHistory.includes(version.id);
+    if (version.status !== 'proposed' && !isUndone) {
       throw new Error(`Version ${versionId} is not proposed`);
     }
 
