@@ -9,6 +9,7 @@ const guest = 'theo:Theo';
 const runId = Date.now().toString(36);
 const firstDish = `Beans ${runId}`;
 const secondDish = `Salad ${runId}`;
+const feedbackText = `Please save room for pie ${runId}`;
 const v2Source = await readFile(
   new URL('../examples/sunday-supper-v2.puppet', import.meta.url),
   'utf8',
@@ -58,14 +59,31 @@ await step('Sunday Supper starts on v1', async () => {
   initialVersionId = result.payload.versionId;
 });
 
-await step('Theo saves a seat', async () => {
+await step('server replaces a spoofed seat name with Theo', async () => {
   const { response, payload } = await call('data/seats', {
     method: 'POST',
     user: guest,
-    body: { name: 'Theo' },
+    body: { name: 'Rosa' },
   });
   assert.equal(response.status, 201, payload.error);
   assert.equal(payload.name, 'Theo');
+});
+
+await step('Theo files feedback and Rosa reads its stored author', async () => {
+  const filed = await call('feedback', {
+    method: 'POST',
+    user: guest,
+    body: { text: feedbackText, page: 'Next supper' },
+  });
+  assert.equal(filed.response.status, 201, filed.payload.error);
+
+  const stored = await call('feedback', { user: host });
+  assert.equal(stored.response.status, 200, stored.payload.error);
+  assert.ok(stored.payload.some((item) =>
+    item.text === feedbackText &&
+    item.author?.id === 'theo' &&
+    item.author?.name === 'Theo'
+  ));
 });
 
 await step('Theo adds a dish under v1', async () => {

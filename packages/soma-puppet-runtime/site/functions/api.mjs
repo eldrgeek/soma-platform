@@ -2,6 +2,7 @@ import { getStore } from '@netlify/blobs';
 import { readFile } from 'node:fs/promises';
 
 import { createBlobsStore } from '../../src/blobs-store.js';
+import { parse, walk } from '../../src/parser.js';
 import { PuppetParseError } from '../../src/store.js';
 import { createIdentityVerifier, HttpError } from '../lib/auth.mjs';
 
@@ -27,6 +28,43 @@ function requireHost(config, identity) {
   if (identity.id !== config.hostId) {
     throw new HttpError(403, 'Only the app host may perform this action');
   }
+}
+
+async function prepareDataRow(store, appId, name, input, identity) {
+  const current = await store.getCurrent(appId);
+  if (!current) throw new HttpError(400, `App ${appId} has no current version`);
+
+  const parsed = parse(current.source);
+  if (parsed.errors.length) throw new PuppetParseError(parsed.errors);
+  const declaration = parsed.sketch.data[name];
+  if (!declaration) throw new HttpError(400, `Unknown data: ${name}`);
+
+  const undeclared = Object.keys(input).filter(
+    (field) => !declaration.fields.includes(field),
+  );
+  if (undeclared.length) {
+    throw new HttpError(
+      400,
+      `Undeclared field(s) for ${name}: ${undeclared.join(', ')}`,
+    );
+  }
+
+  const row = { ...input };
+  for (const owner of [...parsed.sketch.screens, ...parsed.sketch.dialogs]) {
+    for (const element of walk(owner.children)) {
+      for (const action of element.hook ?? []) {
+        if (action.type !== 'add' || action.target !== name) continue;
+        for (const [field, template] of Object.entries(action.row ?? {})) {
+          if (!/\{me\.[\w-]+\}/.test(template)) continue;
+          row[field] = String(template).replace(
+            /\{me\.([\w-]+)\}/g,
+            (_token, property) => String(identity[property] ?? ''),
+          );
+        }
+      }
+    }
+  }
+  return row;
 }
 
 export function createApiHandler({
@@ -73,7 +111,9 @@ export function createApiHandler({
 
       const isWrite = request.method !== 'GET';
       let identity = null;
-      if (isWrite || !config.publicRead) identity = await verifyIdentity(request);
+      if (isWrite || !config.publicRead || route === 'feedback') {
+        identity = await verifyIdentity(request);
+      }
 
       if (request.method === 'GET' && route === 'current') {
         await seed(appId, config);
@@ -146,6 +186,20 @@ export function createApiHandler({
         }, 201);
       }
 
+      if (request.method === 'GET' && route === 'feedback') {
+        requireHost(config, identity);
+        const prefix = `apps/${encodeURIComponent(appId)}/`;
+        const { blobs } = await feedbackStore.list({ prefix });
+        const items = (
+          await Promise.all(
+            blobs.map(({ key }) => feedbackStore.get(key, { type: 'json' })),
+          )
+        )
+          .filter(Boolean)
+          .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+        return json(items);
+      }
+
       const dataMatch = route.match(/^data\/([^/]+)(?:\/([^/]+))?$/);
       if (dataMatch) {
         const name = decodeURIComponent(dataMatch[1]);
@@ -154,7 +208,14 @@ export function createApiHandler({
           return json(await store.list(appId, name));
         }
         if (request.method === 'POST' && !rowId) {
-          return json(await store.add(appId, name, await body(request), identity.id), 201);
+          const row = await prepareDataRow(
+            store,
+            appId,
+            name,
+            await body(request),
+            identity,
+          );
+          return json(await store.add(appId, name, row, identity.id), 201);
         }
         if (request.method === 'DELETE' && rowId) {
           return json(await store.remove(appId, name, rowId, identity.id));

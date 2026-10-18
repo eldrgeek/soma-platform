@@ -15,6 +15,10 @@ data dishes {
 screen "Home" {
   list "Dishes" from dishes
 }`;
+const SUNDAY_SUPPER_SOURCE = await readFile(
+  new URL('../examples/sunday-supper.puppet', import.meta.url),
+  'utf8',
+);
 
 function request(path, { method = 'GET', user, body } = {}) {
   return new Request(`http://localhost${path}`, {
@@ -27,17 +31,30 @@ function request(path, { method = 'GET', user, body } = {}) {
   });
 }
 
-function makeApi() {
+function makeApi({ source = SOURCE, store } = {}) {
   const apps = { [APP_ID]: { hostId: HOST_ID, publicRead: false } };
   const feedback = new Map();
   return createApiHandler({
     apps,
-    store: createMemoryStore(apps),
+    store: store ?? createMemoryStore(apps),
     verifyIdentity: createIdentityVerifier({ env: { NETLIFY_DEV: 'true' } }),
-    readSeed: async () => SOURCE,
+    readSeed: async () => source,
     feedbackStore: {
       async setJSON(key, value) {
         feedback.set(key, value);
+      },
+      async get(key, { type } = {}) {
+        const value = feedback.get(key);
+        if (value === undefined) return null;
+        return type === 'json' ? structuredClone(value) : JSON.stringify(value);
+      },
+      async list({ prefix } = {}) {
+        return {
+          blobs: [...feedback.keys()]
+            .filter((key) => !prefix || key.startsWith(prefix))
+            .map((key) => ({ key })),
+          directories: [],
+        };
       },
     },
   });
@@ -137,6 +154,91 @@ test('API seeds current, protects writes, and exposes versioned data', async () 
     await (await api(request(`${base}/data/dishes`, { user: 'rosa:Rosa' }))).json(),
     [{ id: 'r1', who: 'Theo', dish: 'Beans' }],
   );
+});
+
+test('API replaces spoofed me fields with the verified identity', async () => {
+  const api = makeApi({ source: SUNDAY_SUPPER_SOURCE });
+  const base = `/api/app/${APP_ID}`;
+  assert.equal((await api(request(`${base}/current`, { user: 'theo:Theo' }))).status, 200);
+
+  const added = await api(request(`${base}/data/seats`, {
+    method: 'POST',
+    user: 'theo:Theo',
+    body: { name: 'Rosa' },
+  }));
+
+  assert.equal(added.status, 201);
+  assert.equal((await added.json()).name, 'Theo');
+  assert.deepEqual(
+    await (await api(request(`${base}/data/seats`, { user: 'theo:Theo' }))).json(),
+    [{ id: 'r1', name: 'Theo' }],
+  );
+});
+
+test('API rejects fields not declared by the live description before storage', async () => {
+  const apps = { [APP_ID]: { hostId: HOST_ID, publicRead: false } };
+  const backing = createMemoryStore(apps);
+  let addCalled = false;
+  const store = new Proxy(backing, {
+    get(target, property) {
+      if (property === 'add') {
+        return async () => {
+          addCalled = true;
+          return { id: 'should-not-be-stored' };
+        };
+      }
+      const value = Reflect.get(target, property);
+      return typeof value === 'function' ? value.bind(target) : value;
+    },
+  });
+  const api = makeApi({ source: SUNDAY_SUPPER_SOURCE, store });
+  const base = `/api/app/${APP_ID}`;
+  await api(request(`${base}/current`, { user: 'theo:Theo' }));
+
+  const response = await api(request(`${base}/data/seats`, {
+    method: 'POST',
+    user: 'theo:Theo',
+    body: { name: 'Theo', admin: true },
+  }));
+
+  assert.equal(response.status, 400);
+  assert.equal(addCalled, false);
+});
+
+test('host reads feedback from storage with the verified author', async () => {
+  const api = makeApi();
+  const base = `/api/app/${APP_ID}`;
+  const filed = await api(request(`${base}/feedback`, {
+    method: 'POST',
+    user: 'theo:Theo',
+    body: { text: 'More pie, please', page: 'Next supper' },
+  }));
+  assert.equal(filed.status, 201);
+
+  assert.equal(
+    (await api(request(`${base}/feedback`, { user: 'theo:Theo' }))).status,
+    403,
+  );
+  const response = await api(request(`${base}/feedback`, { user: 'rosa:Rosa' }));
+  assert.equal(response.status, 200);
+  assert.deepEqual(
+    (await response.json()).map(({ text, author }) => ({ text, author })),
+    [{
+      text: 'More pie, please',
+      author: { id: 'theo', name: 'Theo' },
+    }],
+  );
+});
+
+test('local feedback chip uses the app identity-header hook', async () => {
+  const app = await readFile(new URL('../site/public/app.js', import.meta.url), 'utf8');
+  const chip = await readFile(
+    new URL('../site/public/vendor/soma-feedback/soma-feedback.js', import.meta.url),
+    'utf8',
+  );
+
+  assert.match(app, /window\.somaFeedbackHeaders\s*=/);
+  assert.match(chip, /window\.somaFeedbackHeaders/);
 });
 
 test('static browser parser and renderer mirror the package sources', async () => {

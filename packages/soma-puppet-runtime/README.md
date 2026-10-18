@@ -37,8 +37,10 @@ const store = createMemoryStore({
 Proposals are parsed before storage and remain non-live until the configured
 host approves them. Only that host can approve or undo. Writes accept only
 fields declared by the current version's `data` block, and rows can be removed
-only by their author or the host. Undo removes the latest approval from the
-live history; the host can re-approve that undone version as redo.
+only by their author or the host. Before storing a row, the API also replaces
+fields backed by `{me.*}` action templates with the verified identity; browser
+values cannot impersonate another person. Undo removes the latest approval
+from the live history; the host can re-approve that undone version as redo.
 
 ## Browser renderer
 
@@ -102,6 +104,7 @@ All routes are under `/api/app/:appId`.
 | `GET` | `/data/:name` | Rows in a declared collection |
 | `POST` | `/data/:name` | Add a declared row |
 | `DELETE` | `/data/:name/:rowId` | Remove a row as its author or the host |
+| `GET` | `/feedback` | Host-only list of stored feedback |
 | `POST` | `/feedback` | Store `{ text, page }` plus the verified author in Blobs |
 
 `GET /api/config` returns only the public Supabase URL and anon key needed by
