@@ -1,6 +1,7 @@
 {
   "sunday-supper": {
-    "hostId": "rosa",
+    "hostId": "e411d3d3-d2fb-4dae-8f26-6d7542f17346",
+    "devHostId": "rosa",
     "publicRead": false
   }
 }
