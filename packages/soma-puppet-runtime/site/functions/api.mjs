@@ -286,12 +286,26 @@ export function createApiHandler({
   };
 }
 
+// Under `netlify dev` the x-dev-user identities are made up, so the real
+// host's account id can never sign in there. An app may name a devHostId for
+// that case. It applies only when NETLIFY_DEV is exactly 'true', the same
+// rule that gates x-dev-user, so the live site always uses hostId.
+export function resolveApps(apps, env = process.env) {
+  if (env.NETLIFY_DEV !== 'true') return apps;
+  return Object.fromEntries(
+    Object.entries(apps).map(([appId, config]) => [
+      appId,
+      config.devHostId ? { ...config, hostId: config.devHostId } : config,
+    ]),
+  );
+}
+
 let defaultApi;
 
 async function makeDefaultApi() {
-  const apps = JSON.parse(
+  const apps = resolveApps(JSON.parse(
     await readFile(new URL('../apps.json', import.meta.url), 'utf8'),
-  );
+  ));
   return createApiHandler({
     apps,
     store: createBlobsStore(apps),

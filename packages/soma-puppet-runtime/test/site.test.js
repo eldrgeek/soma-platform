@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 import { createIdentityVerifier, HttpError } from '../site/lib/auth.mjs';
-import { createApiHandler } from '../site/functions/api.mjs';
+import { createApiHandler, resolveApps } from '../site/functions/api.mjs';
 import { createMemoryStore } from '../src/store.js';
 import { mapFormToRow } from '../src/render.js';
 
@@ -80,6 +80,19 @@ test('x-dev-user is accepted only when NETLIFY_DEV is exactly true', async () =>
     production(request('/', { user: 'theo:Theo' })),
     (error) => error instanceof HttpError && error.status === 401,
   );
+});
+
+test('devHostId replaces hostId only when NETLIFY_DEV is exactly true', async () => {
+  const apps = JSON.parse(
+    await readFile(new URL('../site/apps.json', import.meta.url), 'utf8'),
+  );
+  const liveHost = apps[APP_ID].hostId;
+  assert.notEqual(liveHost, HOST_ID, 'the live site must name a real account');
+  assert.equal(apps[APP_ID].devHostId, HOST_ID);
+
+  assert.equal(resolveApps(apps, { NETLIFY_DEV: 'true' })[APP_ID].hostId, HOST_ID);
+  assert.equal(resolveApps(apps, {})[APP_ID].hostId, liveHost);
+  assert.equal(resolveApps(apps, { NETLIFY_DEV: '1' })[APP_ID].hostId, liveHost);
 });
 
 test('bearer identity is verified with Supabase auth using the anon key', async () => {

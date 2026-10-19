@@ -91,6 +91,32 @@ timeout 120 node scripts/e2e.mjs
 `netlify dev` supplies `NETLIFY_DEV=true`, which is the only context where the
 API accepts the script's `x-dev-user: id:name` headers.
 
+`site/apps.json` names each app's host twice. `hostId` is the real SOMA account
+id that hosts the app on the live site. `devHostId` is the made-up identity
+that hosts it under `netlify dev`, because the dev identities are not real
+accounts. `devHostId` counts only when `NETLIFY_DEV` is exactly `true`, the
+same rule that gates `x-dev-user`.
+
+## Live site
+
+The runtime is live at <https://soma-forge.netlify.app/?app=sunday-supper>,
+hosted by Mike Wolf's SOMA account. The site deploys from `master` of this
+repository with base directory `packages/soma-puppet-runtime`, so a merge to
+`master` publishes it. `SUPABASE_URL` and `SUPABASE_ANON_KEY` (the shared
+project's publishable key) are set on the site. Its address is on the shared
+SOMA sign-in allow-list (`SOMA/tools/auth/README.md`).
+
+To check the live protections without signing in:
+
+```sh
+timeout 120 node scripts/live-check.mjs https://soma-forge.netlify.app
+```
+
+It proves that requests without a real Supabase token are refused, that
+`x-dev-user` is refused, and that SOMA sign-in redirects back to the site. The
+host steps (propose, approve, undo) need the host signed in, so they run in a
+browser on the live page.
+
 ## HTTP API
 
 All routes are under `/api/app/:appId`.
@@ -135,4 +161,3 @@ timeout 120 node --test
 - Payments
 - The Forge studio UI
 - SEO pre-rendering
-- Production deployment
