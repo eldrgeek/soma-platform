@@ -1,12 +1,26 @@
 [build]
   publish = "site/public"
   functions = "site/functions"
+  # SOMA Studio (packages/soma-studio) is served from this site at /studio/,
+  # so it shares the sign-in session with the app it shows.
+  command = "node ../soma-studio/scripts/install.mjs site/public/studio"
 
 [[redirects]]
   from = "/soma-chip/*"
   to = "https://soma-chip.netlify.app/:splat"
   status = 200
   force = true
+
+# Before /api/*: the studio has its own function.
+[[redirects]]
+  from = "/api/studio"
+  to = "/.netlify/functions/studio"
+  status = 200
+
+[[redirects]]
+  from = "/api/studio/*"
+  to = "/.netlify/functions/studio"
+  status = 200
 
 [[redirects]]
   from = "/api/*"

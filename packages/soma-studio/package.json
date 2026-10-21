@@ -1,0 +1,11 @@
+{
+  "name": "@soma/studio",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "SOMA Studio v1: one project's chat with the AI team, its agreements, its open questions and its live Puppet app.",
+  "scripts": {
+    "test": "node --test",
+    "mutation": "node scripts/mutation-check.mjs"
+  }
+}
