@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>soma-speech browser test (running)</title>
+<meta name="robots" content="noindex">
+<style>
+  :root { color-scheme: light dark; }
+  body { font: 16px/1.5 system-ui, -apple-system, sans-serif; max-width: 52rem; margin: 0 auto; padding: 1.5rem 16px 4rem; }
+  h1 { font-size: 1.4rem; margin: 0 0 .25rem; }
+  .sub { margin: 0 0 1rem; opacity: .75; }
+  #summary { font-size: 1.15rem; font-weight: 600; padding: .6rem .8rem; border-radius: 8px; border: 1px solid rgba(128,128,128,.5); }
+  #summary.pass { background: rgba(30,140,60,.15); }
+  #summary.fail { background: rgba(217,48,37,.18); }
+  table { border-collapse: collapse; width: 100%; margin-top: 1rem; }
+  td, th { text-align: left; padding: .35rem .5rem; border-bottom: 1px solid rgba(128,128,128,.3); vertical-align: top; font-size: .95rem; }
+  td.s { width: 4.5rem; font-weight: 700; }
+  td.s.PASS { color: #1a7f37; } td.s.FAIL { color: #cf222e; } td.s.INFO { color: #9a6700; }
+  .why { opacity: .8; font-size: .85rem; }
+  #sandbox { margin-top: 2rem; padding: 1rem; border: 1px dashed rgba(128,128,128,.5); border-radius: 8px; }
+  #sandbox textarea, #sandbox input { width: calc(100% - 60px); box-sizing: border-box; font: inherit; }
+  code { font-size: .9em; }
+</style>
+</head>
+<body>
+<h1>soma-speech: browser wiring test</h1>
+<p class="sub">Runs in your browser with a fake voice engine. It proves the button, the bubble, the cursor, Esc, focus and the script tag work in this browser. It cannot prove a microphone works: only a person speaking can.</p>
+<div id="summary">Running…</div>
+<table id="results"><tbody></tbody></table>
+<p class="sub" id="env"></p>
+<div id="sandbox" aria-label="Test fixtures"></div>
+
+<script src="../src/soma-speech.js"></script>
+<script src="../src/soma-speech-fake.js"></script>
+<script>
+(function () {
+  var results = [];
+  var sandbox = document.getElementById('sandbox');
+  var S = window.SomaSpeech;
+  var F = window.SomaSpeechFake;
+
+  function fixture(tag, value) {
+    var el = document.createElement(tag === 'input' ? 'input' : 'textarea');
+    if (tag === 'input') el.type = 'text';
+    el.value = value || '';
+    sandbox.appendChild(el);
+    return el;
+  }
+  function wait(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+  function eq(actual, expected, what) {
+    if (actual !== expected) throw new Error(what + ': expected ' + JSON.stringify(expected) + ', got ' + JSON.stringify(actual));
+  }
+  function ok(cond, what) { if (!cond) throw new Error(what); }
+  function bubbleOf(inst) { return inst.element.querySelector('.soma-speech-bubble'); }
+
+  // Each test builds a fresh box with a fake engine, runs, and cleans up.
+  function withBox(tag, value, fn) {
+    return function () {
+      var el = fixture(tag, value);
+      var fake = F.createFakeEngine();
+      var inst = S.attach(el, { engine: fake });
+      return Promise.resolve(fn(el, fake, inst)).then(function () { cleanup(); }, function (e) { cleanup(); throw e; });
+      function cleanup() { inst.destroy(); el.remove(); }
+    };
+  }
+
+  var tests = [];
+  function test(name, fn, soft) { tests.push({ name: name, fn: fn, soft: !!soft }); }
+
+  test('attach puts an idle, labelled mic button right after the box', withBox('textarea', '', function (el, fake, inst) {
+    eq(el.nextElementSibling, inst.element, 'button wrapper is the next sibling');
+    eq(inst.element.getAttribute('data-state'), 'idle', 'state');
+    eq(inst.button.getAttribute('aria-pressed'), 'false', 'aria-pressed');
+    ok(/Start voice typing/.test(inst.button.getAttribute('aria-label')), 'label says how to start');
+    ok(bubbleOf(inst).hidden, 'bubble is hidden while idle');
+  }));
+
+  test('pressing the mic does not take focus (and the cursor) from the box', withBox('textarea', 'abc', function (el, fake, inst) {
+    el.focus();
+    var ev = new MouseEvent('mousedown', { bubbles: true, cancelable: true });
+    inst.button.dispatchEvent(ev);
+    eq(ev.defaultPrevented, true, 'mousedown default prevented');
+    eq(document.activeElement, el, 'focus stays in the box');
+  }));
+
+  test('click starts listening; state, label and bubble change', withBox('textarea', '', function (el, fake, inst) {
+    inst.button.click();
+    eq(fake.starts, 1, 'engine started once');
+    eq(inst.element.getAttribute('data-state'), 'starting', 'state before audio');
+    fake.begin();
+    eq(inst.element.getAttribute('data-state'), 'listening', 'state');
+    eq(inst.button.getAttribute('aria-pressed'), 'true', 'aria-pressed');
+    ok(/Stop voice typing/.test(inst.button.getAttribute('aria-label')), 'label says how to stop');
+    ok(!bubbleOf(inst).hidden && /Listening/.test(bubbleOf(inst).textContent), 'bubble says it is listening');
+  }));
+
+  test('interim words show in the bubble and stay out of the box', withBox('textarea', 'Dear team,', function (el, fake, inst) {
+    inst.button.click(); fake.begin();
+    fake.interim('thanks for com');
+    eq(bubbleOf(inst).textContent, 'thanks for com', 'bubble text');
+    eq(el.value, 'Dear team,', 'box value untouched');
+  }));
+
+  test('final words land at the end, keep typed text, fire input with the new value, move the cursor', withBox('textarea', 'Dear team,', function (el, fake, inst) {
+    var seen = [];
+    el.addEventListener('input', function () { seen.push(el.value); });
+    el.focus();
+    inst.button.click(); fake.begin();
+    fake.final('thanks for coming');
+    eq(el.value, 'Dear team, thanks for coming', 'value');
+    ok(seen.length >= 1 && seen[seen.length - 1] === 'Dear team, thanks for coming', 'a page listener saw the new value on input');
+    eq(el.selectionStart, el.value.length, 'cursor after the new words');
+    eq(bubbleOf(inst).textContent.indexOf('thanks'), -1, 'interim cleared from the bubble');
+  }));
+
+  test('final words go in at the cursor in the middle of the text', withBox('textarea', 'first third', function (el, fake, inst) {
+    el.focus(); el.setSelectionRange(5, 5);
+    inst.button.click(); fake.begin();
+    fake.final('second');
+    eq(el.value, 'first second third', 'value');
+  }));
+
+  test('works in a one-line input as well', withBox('input', 'Hi', function (el, fake, inst) {
+    inst.button.click(); fake.begin();
+    fake.final('there');
+    eq(el.value, 'Hi there', 'value');
+  }));
+
+  test('dictating does not pull focus away from another field', withBox('textarea', '', function (el, fake, inst) {
+    var other = fixture('input', '');
+    other.focus();
+    inst.button.click(); fake.begin();
+    fake.final('quiet words');
+    eq(el.value, 'quiet words', 'words landed in the target');
+    eq(document.activeElement, other, 'focus stayed where the person was');
+    other.remove();
+  }));
+
+  test('Esc stops listening', withBox('textarea', '', function (el, fake, inst) {
+    inst.button.click(); fake.begin();
+    eq(inst.state, 'listening', 'listening first');
+    document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    eq(fake.stops, 1, 'engine asked to stop');
+    eq(inst.element.getAttribute('data-state'), 'idle', 'back to idle');
+  }));
+
+  test('a second click on the mic stops listening', withBox('textarea', '', function (el, fake, inst) {
+    inst.button.click(); fake.begin();
+    inst.button.click();
+    eq(fake.stops, 1, 'engine asked to stop');
+    eq(inst.element.getAttribute('data-state'), 'idle', 'back to idle');
+  }));
+
+  test('words still on screen when the person stops are kept', withBox('textarea', 'Note:', function (el, fake, inst) {
+    inst.button.click(); fake.begin();
+    fake.interim('almost done');
+    inst.button.click();
+    eq(el.value, 'Note: almost done', 'value');
+  }));
+
+  test('an engine that is not supported: the button says so, and clicking explains', function () {
+    var el = fixture('textarea', '');
+    var fake = F.createFakeEngine({ supported: false });
+    var inst = S.attach(el, { engine: fake });
+    try {
+      eq(inst.element.getAttribute('data-supported'), 'false', 'marked unsupported');
+      ok(/can't turn speech into text|secure/.test(inst.button.getAttribute('aria-label')), 'label explains');
+      inst.button.click();
+      eq(fake.starts, 0, 'engine never started');
+      eq(inst.element.getAttribute('data-state'), 'error', 'state');
+      ok(!bubbleOf(inst).hidden && /Chrome, Edge or Safari|secure/.test(bubbleOf(inst).textContent), 'bubble tells the person what to do');
+    } finally { inst.destroy(); el.remove(); }
+  });
+
+  test('the default engine in this browser: works, or explains why not', function () {
+    var el = fixture('textarea', '');
+    var inst = S.attach(el);
+    try {
+      var real = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+      eq(inst.engine.supported, real && window.isSecureContext !== false, 'engine.supported matches the browser');
+      if (inst.engine.supported) {
+        eq(inst.element.getAttribute('data-supported'), 'true', 'marked supported');
+      } else {
+        eq(inst.element.getAttribute('data-supported'), 'false', 'marked unsupported');
+        inst.button.click();
+        ok(!bubbleOf(inst).hidden && bubbleOf(inst).textContent.length > 30, 'a plain message is shown');
+      }
+    } finally { inst.destroy(); el.remove(); }
+  });
+
+  test('one script tag with data-target attaches (the one-line install)', function () {
+    var el = fixture('textarea', '');
+    el.id = 'auto-target';
+    return new Promise(function (resolve, reject) {
+      var s = document.createElement('script');
+      s.src = '../src/soma-speech.js';
+      s.setAttribute('data-target', '#auto-target');
+      s.onload = function () {
+        try {
+          var sib = el.nextElementSibling;
+          ok(sib && sib.classList.contains('soma-speech'), 'a mic button follows #auto-target');
+          el.__somaSpeech.destroy(); el.remove(); s.remove();
+          resolve();
+        } catch (e) { reject(e); }
+      };
+      s.onerror = function () { reject(new Error('script failed to load')); };
+      document.body.appendChild(s);
+    });
+  });
+
+  test('an element marked data-soma-speech attaches with no script options', function () {
+    var el = fixture('textarea', '');
+    el.setAttribute('data-soma-speech', '');
+    S.autoAttach(null);
+    try {
+      ok(el.nextElementSibling && el.nextElementSibling.classList.contains('soma-speech'), 'a mic button follows the marked box');
+    } finally { if (el.__somaSpeech) el.__somaSpeech.destroy(); el.remove(); }
+  });
+
+  test('attaching twice gives the same instance, destroy removes everything', function () {
+    var el = fixture('textarea', '');
+    var a = S.attach(el, { engine: F.createFakeEngine() });
+    var b = S.attach(el, { engine: F.createFakeEngine() });
+    eq(a, b, 'same instance');
+    a.destroy();
+    eq(sandbox.querySelectorAll('.soma-speech').length, 0, 'wrapper removed');
+    eq(el.hasAttribute('data-soma-speech-state'), false, 'state attribute removed');
+    el.remove();
+  });
+
+  test('the page can follow the state through the soma-speech-state event', withBox('textarea', '', function (el, fake, inst) {
+    var states = [];
+    el.addEventListener('soma-speech-state', function (e) { states.push(e.detail.state); });
+    inst.button.click(); fake.begin(); inst.button.click();
+    eq(states.join(','), 'starting,listening,stopping,idle', 'states seen');
+  }));
+
+  test('undo after dictation removes the dictated words (browser history kept)', withBox('textarea', 'Keep me.', function (el, fake, inst) {
+    el.focus();
+    inst.button.click(); fake.begin();
+    fake.final('and these words');
+    eq(el.value, 'Keep me. and these words', 'dictated');
+    var undone = document.execCommand('undo');
+    eq(el.value, 'Keep me.', 'after undo (execCommand returned ' + undone + ')');
+  }), true);
+
+  function row(name, status, detail) {
+    var tr = document.createElement('tr');
+    var s = document.createElement('td'); s.className = 's ' + status; s.textContent = status;
+    var n = document.createElement('td'); n.textContent = name;
+    if (detail) { var d = document.createElement('div'); d.className = 'why'; d.textContent = detail; n.appendChild(d); }
+    tr.appendChild(s); tr.appendChild(n);
+    document.querySelector('#results tbody').appendChild(tr);
+  }
+
+  document.getElementById('env').textContent =
+    'Browser: ' + navigator.userAgent + ' | secure context: ' + window.isSecureContext +
+    ' | SpeechRecognition: ' + (window.SpeechRecognition ? 'yes' : 'no') +
+    ' | webkitSpeechRecognition: ' + (window.webkitSpeechRecognition ? 'yes' : 'no');
+
+  (function run() {
+    var i = 0, pass = 0, fail = 0, info = 0;
+    function next() {
+      if (i >= tests.length) return finish();
+      var t = tests[i++];
+      var p;
+      try { p = Promise.resolve(t.fn()); } catch (e) { p = Promise.reject(e); }
+      p.then(function () { pass++; row(t.name, 'PASS'); }, function (e) {
+        if (t.soft) { info++; row(t.name, 'INFO', 'Browser-dependent, not a failure: ' + e.message); }
+        else { fail++; row(t.name, 'FAIL', e.message); }
+      }).then(function () { return wait(5); }).then(next);
+    }
+    function finish() {
+      var total = pass + fail;
+      var sum = document.getElementById('summary');
+      var msg = (fail ? 'FAIL ' : 'PASS ') + pass + '/' + total + (info ? ' (+' + info + ' browser-dependent note' + (info > 1 ? 's' : '') + ')' : '');
+      sum.textContent = msg;
+      sum.className = fail ? 'fail' : 'pass';
+      document.title = 'soma-speech browser test: ' + msg;
+      window.__somaSpeechTest = { pass: pass, fail: fail, info: info, total: total, done: true, ua: navigator.userAgent };
+    }
+    window.__somaSpeechTest = { done: false };
+    next();
+  })();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+{
+  "name": "@soma/speech",
+  "version": "1.0.0",
+  "description": "SOMA speech-to-text: a mic button that dictates into any text box. One script tag, no dependencies.",
+  "main": "src/soma-speech.js",
+  "files": ["src", "README.md", "DESIGN-v2.md"],
+  "scripts": {
+    "test": "node --test test/soma-speech.test.js",
+    "mutation-check": "node scripts/mutation-check.js",
+    "build-site": "node scripts/build-site.js"
+  },
+  "license": "UNLICENSED",
+  "private": true
+}

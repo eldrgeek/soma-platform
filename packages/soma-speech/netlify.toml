@@ -1,0 +1,28 @@
+# Demo site for @soma/speech. Netlify base directory: packages/soma-speech
+# (set on the site, not here). A merge to master builds and publishes it.
+[build]
+  command = "node scripts/build-site.js"
+  publish = "public"
+  # Always build. Without this a monorepo base directory can be skipped as
+  # "no content change" while the live deploy differs (2026-09-16, minds-aligned-soma).
+  ignore = "exit 1"
+
+# Other SOMA apps load the component from here with one script tag.
+[[headers]]
+  for = "/soma-speech.js"
+  [headers.values]
+    Access-Control-Allow-Origin = "*"
+    Cache-Control = "public, max-age=300"
+
+[[headers]]
+  for = "/soma-speech-fake.js"
+  [headers.values]
+    Access-Control-Allow-Origin = "*"
+    Cache-Control = "public, max-age=300"
+
+# The feedback chip's central host, same-origin (see soma-chip-loader.js).
+[[redirects]]
+  from = "/soma-chip/*"
+  to = "https://soma-chip.netlify.app/:splat"
+  status = 200
+  force = true
