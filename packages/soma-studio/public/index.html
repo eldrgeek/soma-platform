@@ -50,7 +50,7 @@
         <form id="composer-form" class="composer">
           <textarea id="composer" rows="2" placeholder="Write to the team. Enter sends; Shift+Enter starts a new line." aria-label="Message"></textarea>
           <div class="composer-actions">
-            <soma-mic for="composer"></soma-mic>
+            <span id="mic-slot" class="mic-slot"></span>
             <button type="submit" id="send">Send</button>
           </div>
         </form>
@@ -74,6 +74,8 @@
       </section>
     </main>
 
+    <!-- The mic button (packages/soma-speech), copied in by the build; a 404 here only means no mic. -->
+    <script src="/studio/vendor/soma-speech/soma-speech.js" defer></script>
     <script type="module" src="/studio/studio.js"></script>
   </body>
 </html>

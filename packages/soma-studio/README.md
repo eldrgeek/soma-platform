@@ -9,9 +9,10 @@ Live: <https://soma-forge.netlify.app/studio/> (sign in with SOMA Auth).
 
 ## What the page does
 
-- **Chat.** Every signed-in member of a studio sees the same chat. Text first; the composer holds a
-  `<soma-mic for="composer">` slot for the speech-to-text component (`packages/soma-speech`, workstream
-  B), which the build copies in when it exists.
+- **Chat.** Every signed-in member of a studio sees the same chat. Text first (Wispr Flow types into
+  the composer). The build copies the speech-to-text component (`packages/soma-speech`, workstream B) to
+  `/studio/vendor/soma-speech/`, and the page attaches its mic button beside Send
+  (`SomaSpeech.attach(composer, { mount: '#mic-slot' })`).
 - **The team answers in the chat.** A listener on Mike's Mac (`~/Projects/_estate/studio-team/`) gets a
   Supabase Realtime push about a second after a person posts, asks a read-only Claude copy on the
   subscription, and posts one reply. Mike's work requests are passed to the team with cc-dispatch. The

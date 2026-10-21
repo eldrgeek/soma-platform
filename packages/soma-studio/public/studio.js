@@ -546,9 +546,22 @@ ui.newSession.addEventListener('click', async () => {
 
 // ---------- speech-to-text hook (workstream B's soma-speech) ----------
 
-// The composer holds <soma-mic for="composer">. When the speech component is
-// installed it defines that element; until then the slot stays empty.
-import('/studio/vendor/soma-speech/soma-speech.js').catch(() => {});
+// index.html loads /studio/vendor/soma-speech/soma-speech.js, which the build
+// copies from packages/soma-speech. It puts a mic button in the slot beside
+// Send; final words go into the composer at the cursor. Without it there is
+// simply no mic (and Wispr Flow still types into the composer).
+let micAttached = false;
+function attachMic() {
+  if (micAttached || !window.SomaSpeech?.attach) return;
+  try {
+    window.SomaSpeech.attach(ui.composer, { mount: '#mic-slot' });
+    micAttached = true;
+  } catch (error) {
+    console.warn('mic button not attached', error);
+  }
+}
+attachMic();
+window.addEventListener('load', attachMic);
 
 // ---------- feedback chip ----------
 

@@ -75,13 +75,19 @@ test('the install script copies the page, and the speech component when it exist
   await run(process.execPath, [script, out], { cwd: work });
   const files = await readdir(out);
   for (const name of ['index.html', 'studio.js', 'studio.css', 'view.js']) assert.ok(files.includes(name), name);
-  assert.match(await readFile(join(out, 'index.html'), 'utf8'), /<soma-mic for="composer">/);
+  const html = await readFile(join(out, 'index.html'), 'utf8');
+  assert.match(html, /<span id="mic-slot"/);
+  assert.match(html, /<script src="\/studio\/vendor\/soma-speech\/soma-speech\.js"/);
 });
 
 test('every page file the HTML names is shipped', async () => {
   const here = fileURLToPath(new URL('.', import.meta.url));
   const html = await readFile(join(here, '../public/index.html'), 'utf8');
-  const named = [...html.matchAll(/(?:src|href)="\/studio\/([^"]+)"/g)].map((match) => match[1]);
+  // vendor/ is filled by the build from sibling packages, so it is not in public/.
+  const named = [...html.matchAll(/(?:src|href)="\/studio\/([^"]+)"/g)]
+    .map((match) => match[1])
+    .filter((name) => !name.startsWith('vendor/'));
+  assert.ok(named.includes('studio.js'));
   const files = await readdir(join(here, '../public'));
   for (const name of named) assert.ok(files.includes(name), `${name} is named by index.html but missing`);
   const js = await readFile(join(here, '../public/studio.js'), 'utf8');

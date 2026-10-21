@@ -181,7 +181,8 @@ button { cursor: pointer; }
 }
 .composer textarea:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
 .composer-actions { display: flex; gap: 6px; align-items: center; }
-soma-mic:empty { display: none; }
+.mic-slot { display: inline-flex; align-items: center; }
+.mic-slot:empty { display: none; }
 
 /* ---------- app pane ---------- */
 
