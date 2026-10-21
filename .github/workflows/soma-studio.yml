@@ -1,0 +1,43 @@
+# Runs the SOMA Studio and Puppet runtime tests on every pull request that
+# touches either package. Added 2026-10-21 (bead sp-o7t): studio-only pull
+# requests had no check at all, because the soma-forge Netlify site skips its
+# deploy preview when nothing under its base folder (the runtime) changed, and
+# pr-merge-green needs at least one real check before it will merge.
+name: soma-studio
+
+on:
+  pull_request:
+    paths:
+      - 'packages/soma-studio/**'
+      - 'packages/soma-puppet-runtime/**'
+      - '.github/workflows/soma-studio.yml'
+
+jobs:
+  studio:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/soma-studio
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Node tests
+        run: npm test
+      - name: Mutation check (breaks the source on purpose; every break must be caught)
+        run: npm run mutation
+
+  runtime:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/soma-puppet-runtime
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - name: Node tests
+        run: npm test

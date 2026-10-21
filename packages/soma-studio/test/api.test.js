@@ -372,8 +372,10 @@ test('dev identities count only under netlify dev', () => {
 
 test('the shipped studios are well formed and Mike hosts each one', () => {
   const studios = resolveStudios(studiosConfig, {});
-  assert.ok(studios['soma-studio']);
-  assert.equal(studios['soma-studio'].appId, 'sunday-supper');
+  // Mike, 2026-10-21: three studios, one per project.
+  assert.deepEqual(Object.keys(studios).sort(), ['coaching-age-of-ai', 'soma-studio', 'sunday-supper']);
+  assert.equal(studios['sunday-supper'].appId, 'sunday-supper');
+  assert.equal(studios['soma-studio'].appId, null);
   for (const studio of Object.values(studios)) {
     assert.ok(studio.title);
     assert.ok(studio.hosts.includes('mw.personalmail@gmail.com'));
