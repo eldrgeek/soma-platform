@@ -154,10 +154,18 @@ Run the tests with:
 timeout 120 node --test
 ```
 
+## SOMA Studio on this site
+
+Since 2026-10-21 this site also serves SOMA Studio v1 (`packages/soma-studio`) at `/studio/`, so the
+studio and the app it shows share one sign-in session and one allow-listed origin. The build command
+copies the studio page into `site/public/studio/` (gitignored), and `site/functions/studio.mjs` serves
+`/api/studio/*`. Inside the studio this runtime is the live app pane: after a host approves or undoes a
+version, `app.js` tells the studio (`postMessage`), and it redraws when the studio asks. Read
+`packages/soma-studio/README.md`.
+
 ## Out of scope for runtime v1
 
 - Invitations
 - AI host chat
 - Payments
-- The Forge studio UI
 - SEO pre-rendering

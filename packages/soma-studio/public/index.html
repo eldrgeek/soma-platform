@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>SOMA Studio</title>
+    <link rel="stylesheet" href="/studio/studio.css">
+  </head>
+  <body>
+    <header class="studio-header">
+      <div class="brand">
+        <a href="/studio/" class="brand-name">SOMA Studio</a>
+        <span id="studio-title" class="studio-title"></span>
+        <span id="session-badge" class="session-badge" hidden></span>
+        <button id="new-session" type="button" class="ghost" hidden title="Start a new sitting in this studio">New session</button>
+      </div>
+      <div class="header-right">
+        <button id="toggle-app" type="button" class="ghost" hidden aria-pressed="true">Hide app</button>
+        <div id="identity"></div>
+      </div>
+    </header>
+    <div id="status" role="status" class="status"></div>
+
+    <section id="auth" class="auth-card" hidden></section>
+    <section id="picker" class="picker" hidden></section>
+
+    <nav id="tabs" class="tabs" hidden aria-label="Studio panes">
+      <button type="button" data-tab="chat" aria-selected="true">Chat</button>
+      <button type="button" data-tab="agreements">Agreements <span data-count="agreements"></span></button>
+      <button type="button" data-tab="questions">Questions <span data-count="questions"></span></button>
+      <button type="button" data-tab="app">App</button>
+    </nav>
+
+    <main id="studio" class="studio" hidden data-tab="chat">
+      <aside class="pane agreements-pane" data-pane="agreements" aria-labelledby="agreements-heading">
+        <div class="pane-head">
+          <h2 id="agreements-heading">Agreements <span class="count" data-count="agreements"></span></h2>
+          <p class="hint">What has been decided. The team writes one line per decision, with a link to the message it came from.</p>
+        </div>
+        <ol id="agreements" class="items"></ol>
+        <details id="removed-agreements" class="removed" hidden>
+          <summary>Removed</summary>
+          <ol class="items"></ol>
+        </details>
+      </aside>
+
+      <section class="pane chat-pane" data-pane="chat" aria-label="Discussion">
+        <div id="messages" class="messages" aria-live="polite"></div>
+        <div id="team-status" class="team-status" role="status"></div>
+        <form id="composer-form" class="composer">
+          <textarea id="composer" rows="2" placeholder="Write to the team. Enter sends; Shift+Enter starts a new line." aria-label="Message"></textarea>
+          <div class="composer-actions">
+            <soma-mic for="composer"></soma-mic>
+            <button type="submit" id="send">Send</button>
+          </div>
+        </form>
+      </section>
+
+      <aside class="pane questions-pane" data-pane="questions" aria-labelledby="questions-heading">
+        <div class="pane-head">
+          <h2 id="questions-heading">Open questions <span class="count" data-count="questions"></span></h2>
+          <p class="hint">Click one to answer it, or write its number in the chat: “3: yes”. An answered question moves to the agreements.</p>
+        </div>
+        <ol id="questions" class="items"></ol>
+      </aside>
+
+      <section class="pane app-pane" data-pane="app" aria-labelledby="app-heading">
+        <div class="pane-head app-head">
+          <h2 id="app-heading">Live app</h2>
+          <a id="app-open" target="_blank" rel="noopener">Open in a new tab ↗</a>
+        </div>
+        <iframe id="app-frame" title="The studio's live app" hidden></iframe>
+        <p id="app-empty" class="hint app-empty" hidden>This studio has no app yet. When the build engine is wired in, the app the conversation describes appears here.</p>
+      </section>
+    </main>
+
+    <script type="module" src="/studio/studio.js"></script>
+  </body>
+</html>

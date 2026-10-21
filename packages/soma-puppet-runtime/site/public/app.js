@@ -25,6 +25,26 @@ const setStatus = (message) => {
   status.textContent = message;
 };
 
+// Inside SOMA Studio this page is the live app pane. When the host changes
+// the app here, the studio is told, so every other person's pane redraws at
+// once instead of at its next 10-second check.
+const inStudio = window.parent !== window;
+
+function notifyStudio() {
+  if (!inStudio) return;
+  window.parent.postMessage(
+    { type: 'soma-app:changed', appId, versionId: current?.versionId ?? null },
+    location.origin,
+  );
+}
+
+window.addEventListener('message', (event) => {
+  if (!inStudio || event.origin !== location.origin || event.source !== window.parent) return;
+  if (event.data?.type === 'soma-studio:refresh' && session) {
+    loadCurrent().catch((error) => setStatus(error.message));
+  }
+});
+
 function authHeaders(extra = {}) {
   return {
     ...extra,
@@ -131,6 +151,7 @@ async function loadVersions() {
         try {
           await api('approve', { method: 'POST', body: { versionId: version.id } });
           await loadCurrent(true);
+          notifyStudio();
         } catch (error) {
           setStatus(error.message);
         }
@@ -171,6 +192,7 @@ async function loadVersions() {
     try {
       await api('undo', { method: 'POST' });
       await loadCurrent(true);
+      notifyStudio();
     } catch (error) {
       setStatus(error.message);
     }
