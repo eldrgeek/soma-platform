@@ -24,6 +24,10 @@ const MUTANTS = [
   ['src/logic.js', "status: state.teamCursor >= state.lastHumanSeq ? 'idle' : 'waiting',\n    since: at,\n    upTo: state.teamCursor,\n    pickupMs", "status: 'idle',\n    since: at,\n    upTo: state.teamCursor,\n    pickupMs", 'the team reads idle while a message waits'],
   ['src/logic.js', 'if (same) return same;', '', 'duplicate open questions'],
   ['src/logic.js', 'agreement.history.push', 'void', 'a correction loses the old wording'],
+  ['src/logic.js', 'canDecide ? parseAnswers(body) : []', 'parseAnswers(body)', 'a non-decider answers questions by number'],
+  ['src/logic.js', 'const decided = (seq) => Number.isInteger(seq) && isDeciderMessage(seq);', 'const decided = () => true;', 'the team records an agreement nobody decided'],
+  ['src/api.js', 'const isDecider = isMember && keys.some((key) => studio.deciders.includes(key));', 'const isDecider = isMember;', 'every member is a decider'],
+  ['src/api.js', "return message?.author?.kind === 'human' && access(studio, message.author).isDecider;", 'return Boolean(message);', 'the team\'s own message counts as a decision'],
   ['src/api.js', 'const isMember = isHost || keys.some', 'const isMember = true || keys.some', 'anyone signed in gets in'],
   ['src/api.js', 'if (!role.isHost) throw', 'if (false) throw', 'members act as hosts'],
   ['src/api.js', 'return left.length === right.length && timingSafeEqual(left, right);', 'return true;', 'any team key is accepted'],
@@ -35,6 +39,7 @@ const MUTANTS = [
   ['src/store.js', "const STRONG = { consistency: 'strong' };", 'const STRONG = {};', 'reads are eventually consistent'],
   ['public/view.js', "'<': '&lt;',", "'<': '<',", 'markup from a message is rendered'],
   ['public/view.js', "if (waited > 20000) {", 'if (waited > 2e9) {', 'a stalled team is never reported'],
+  ['public/view.js', 'names.add(String(entry.name))', 'void 0', 'presence shows nobody'],
   ['scripts/install.mjs', "await cp(from, resolve(out, 'vendor/soma-speech'), { recursive: true });", '', 'the speech component is not installed'],
 ];
 

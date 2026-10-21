@@ -189,9 +189,10 @@ export function removeAgreement(state, { n, by, at }) {
 }
 
 // Allocates the next message number and applies what a message does to the
-// state. A person's "N: answer" lines answer open questions. The message
+// state. A decider's "N: answer" lines answer open questions, because only a
+// decider's own message makes an agreement (use case UC1-P4). The message
 // itself is stored separately (store.js), under the number returned here.
-export function admitMessage(state, { author, text, at, replyTo = null }) {
+export function admitMessage(state, { author, text, at, replyTo = null, canDecide = false }) {
   const body = clip(text, MAX_TEXT);
   if (!body) throw new Error('A message needs text');
   const session = ensureSession(state, at, author.name);
@@ -202,7 +203,7 @@ export function admitMessage(state, { author, text, at, replyTo = null }) {
     state.lastHumanSeq = seq;
     state.lastHumanAt = at;
     if (state.team.status === 'idle') state.team = { ...state.team, status: 'waiting' };
-    for (const { n, answer } of parseAnswers(body)) {
+    for (const { n, answer } of canDecide ? parseAnswers(body) : []) {
       if (answerQuestion(state, { n, answer, by: author.name, at, messageSeq: seq })) answered.push(n);
     }
   }
@@ -236,26 +237,28 @@ export function teamWorking(state, { upTo, at }) {
 // The team's answer: its message plus the agreements, questions, answers and
 // highlights it found. `upTo` moves the team's cursor, so those messages are
 // not answered twice.
-export function applyTeamReply(state, reply, { at, by = 'The team', messageSeq }) {
-  const result = { agreements: [], questions: [], answered: [], highlighted: [] };
+//
+// The team only records what a decider said (UC1-P4): an agreement or an
+// answer must link to a decider's own message (`isDeciderMessage`). An
+// agreement that does not becomes an open question ("Do we agree: ...?"), so
+// a decider settles it with "N: yes".
+export function applyTeamReply(state, reply, { at, by = 'The team', messageSeq, isDeciderMessage }) {
+  const result = { agreements: [], questions: [], answered: [], highlighted: [], toConfirm: [] };
+  const decided = (seq) => Number.isInteger(seq) && isDeciderMessage(seq);
   for (const item of reply.answered ?? []) {
-    const done = answerQuestion(state, {
-      n: Number(item.n),
-      answer: item.answer,
-      by,
-      at,
-      messageSeq: Number.isInteger(item.from) ? item.from : messageSeq,
-    });
+    if (!decided(item.from)) continue;
+    const done = answerQuestion(state, { n: Number(item.n), answer: item.answer, by, at, messageSeq: item.from });
     if (done) result.answered.push(done.question.n);
   }
   for (const item of reply.agreements ?? []) {
-    const made = addAgreement(state, {
-      text: item.text,
-      from: Number.isInteger(item.from) ? item.from : reply.replyTo ?? messageSeq,
-      by,
-      at,
-    });
-    if (made) result.agreements.push(made.n);
+    const from = Number.isInteger(item.from) ? item.from : reply.replyTo;
+    if (decided(from)) {
+      const made = addAgreement(state, { text: item.text, from, by, at });
+      if (made) result.agreements.push(made.n);
+    } else if (String(item.text ?? '').trim()) {
+      const asked = addQuestion(state, { text: `Do we agree: ${String(item.text).trim()}`, from: messageSeq, by, at });
+      if (asked) result.toConfirm.push(asked.n);
+    }
   }
   for (const item of reply.questions ?? []) {
     const made = addQuestion(state, {

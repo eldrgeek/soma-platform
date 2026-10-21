@@ -137,7 +137,11 @@ button { cursor: pointer; }
 .item.highlighted .num { color: var(--warn); background: #ffe7bf; }
 .why { margin: 4px 0 0; color: var(--warn); font-size: 12.5px; }
 .items .empty { padding: 10px 6px; color: var(--muted); }
-.answered-note { padding: 6px; }
+.closed-head { margin-top: 8px; padding: 6px 6px 0; color: var(--muted); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+.question.closed .text { color: var(--muted); text-decoration: line-through; }
+.question.closed .num { color: var(--muted); background: #eef1f5; }
+.question.closed .answer { color: var(--ink); }
+.present { font-size: 12.5px; color: #c9d6e6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 40ch; }
 .removed { margin: 0 8px 12px; color: var(--muted); font-size: 13px; }
 .removed-item .text { text-decoration: line-through; }
 

@@ -7,7 +7,7 @@ import { promisify } from 'node:util';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { escapeHtml, madeText, renderText, seconds, teamStatusText } from '../public/view.js';
+import { escapeHtml, madeText, presentNames, renderText, seconds, teamStatusText } from '../public/view.js';
 
 const run = promisify(execFile);
 
@@ -65,6 +65,13 @@ test('a team message says what it changed', () => {
     'Added agreement A3, A4. Asked question 5. Highlighted question 2.',
   );
   assert.equal(madeText(null), '');
+  assert.equal(madeText({ toConfirm: [7] }), 'Asked a decider to confirm, as question 7.');
+});
+
+test('presence names each person once, sorted', () => {
+  const state = { 'mw@x': [{ name: 'Mike Wolf' }, { name: 'Mike Wolf' }], 'e@x': [{ name: 'Eric' }], ghost: [{}] };
+  assert.deepEqual(presentNames(state), ['Eric', 'Mike Wolf']);
+  assert.deepEqual(presentNames(undefined), []);
 });
 
 test('the install script copies the page, and the speech component when it exists', async () => {

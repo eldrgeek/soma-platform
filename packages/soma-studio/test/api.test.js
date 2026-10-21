@@ -113,7 +113,10 @@ test('"3: yes" in the chat answers question 3 and moves it to the agreements', a
       questions: [{ text: 'Is the app pane on the right?' }, { text: 'Is sign-in SOMA Auth?' }, { text: 'Who is the first host?' }],
     },
   });
-  const answer = await call('POST', '/room/messages', { user: 'eric', body: { text: '3: Mike\nand thanks' } });
+  // Eric is a member but not a decider, so his "N:" line does not answer.
+  const aside = await call('POST', '/room/messages', { user: 'eric', body: { text: '3: Eric' } });
+  assert.deepEqual(aside.body.message.answers, []);
+  const answer = await call('POST', '/room/messages', { user: 'mike', body: { text: '3: Mike\nand thanks' } });
   assert.deepEqual(answer.body.message.answers, [3]);
   const { body } = await call('GET', '/room/feed', { user: 'mike' });
   const q3 = body.state.questions.find((question) => question.n === 3);
@@ -182,7 +185,7 @@ test('only a host corrects or removes an agreement, drops a question or starts a
   await call('POST', '/room/messages', { user: 'mike', body: { text: 'go' } });
   await call('POST', '/room/team', {
     team: true,
-    body: { op: 'reply', upTo: 1, text: 'ok', agreements: [{ text: 'First draft' }], questions: [{ text: 'Why?' }] },
+    body: { op: 'reply', replyTo: 1, upTo: 1, text: 'ok', agreements: [{ text: 'First draft' }], questions: [{ text: 'Why?' }] },
   });
   assert.equal((await call('PATCH', '/room/agreements/1', { user: 'eric', body: { text: 'Mine' } })).status, 403);
   assert.equal((await call('DELETE', '/room/agreements/1', { user: 'eric' })).status, 403);
@@ -199,6 +202,39 @@ test('only a host corrects or removes an agreement, drops a question or starts a
   assert.equal(session.body.session.n, 2);
   const next = await call('POST', '/room/messages', { user: 'eric', body: { text: 'new sitting' } });
   assert.equal(next.body.message.session, 2);
+});
+
+test('a team agreement stands only on a decider\'s own message', async () => {
+  const { call } = setup();
+  await call('POST', '/room/messages', { user: 'mike', body: { text: 'We ship Friday' } });
+  await call('POST', '/room/messages', { user: 'eric', body: { text: 'I would like blue' } });
+  const reply = await call('POST', '/room/team', {
+    team: true,
+    body: {
+      op: 'reply',
+      replyTo: 2,
+      upTo: 2,
+      text: 'Noted both.',
+      agreements: [
+        { text: 'We ship on Friday.', from: 1 },
+        { text: 'The page is blue.', from: 2 },
+        { text: 'A made-up decision.', from: 3 },
+      ],
+    },
+  });
+  assert.deepEqual(reply.body.result.agreements, [1]);
+  assert.equal(reply.body.result.toConfirm.length, 2);
+  const { body } = await call('GET', '/room/feed', { user: 'mike' });
+  assert.deepEqual(body.state.agreements.map((item) => [item.text, item.from]), [['We ship on Friday.', 1]]);
+  const confirm = body.state.questions.filter((item) => item.text.startsWith('Do we agree: '));
+  assert.deepEqual(confirm.map((item) => item.text), ['Do we agree: The page is blue.', 'Do we agree: A made-up decision.']);
+  // Mike settles one by number, and that makes the agreement, linked to his message.
+  const yes = await call('POST', '/room/messages', { user: 'mike', body: { text: `${confirm[0].n}: yes` } });
+  const after = await call('GET', '/room/feed', { user: 'mike' });
+  const made = after.body.state.agreements.find((item) => item.fromQuestion === confirm[0].n);
+  assert.equal(made.from, yes.body.message.seq);
+  assert.equal(after.body.me.isDecider, true);
+  assert.equal((await call('GET', '/room/feed', { user: 'eric' })).body.me.isDecider, false);
 });
 
 test('a member who changes the app bumps the app version for everyone', async () => {
@@ -325,6 +361,13 @@ test('dev identities count only under netlify dev', () => {
   assert.equal(access(dev.s, { id: 'rosa', name: 'Rosa' }).isHost, true);
   assert.equal(access(dev.s, { id: 'theo', name: 'Theo' }).isHost, false);
   assert.equal(access(dev.s, { id: 'theo', name: 'Theo' }).isMember, true);
+  assert.equal(access(dev.s, { id: 'rosa', name: 'Rosa' }).isDecider, true, 'hosts decide by default');
+  assert.equal(access(dev.s, { id: 'theo', name: 'Theo' }).isDecider, false);
+  const named = resolveStudios({ s: { title: 'S', hosts: ['a@b.c'], members: ['e@f.g'], deciders: ['E@f.g'] } }, {});
+  assert.equal(access(named.s, { id: 'x', email: 'e@f.g' }).isDecider, true);
+  assert.equal(access(named.s, { id: 'y', email: 'a@b.c' }).isDecider, false);
+  const outsider = resolveStudios({ s: { title: 'S', hosts: [], deciders: ['z@z.z'] } }, {});
+  assert.equal(access(outsider.s, { id: 'z', email: 'z@z.z' }).isDecider, false, 'a decider must also be a member');
 });
 
 test('the shipped studios are well formed and Mike hosts each one', () => {

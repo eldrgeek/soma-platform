@@ -46,19 +46,24 @@ test('messages are numbered in order and a person answers an open question by nu
   const question = addQuestion(state, { text: 'Should the studio show the app?', from: 1, by: 'The team', at: T0 });
   assert.equal(question.n, 1);
 
-  const answer = admitMessage(state, { author: MIKE, text: '1: yes, on the right', at: later(T0, 1000) });
-  assert.equal(answer.seq, 2);
+  // A member who is not a decider cannot answer by number.
+  const aside = admitMessage(state, { author: MIKE, text: '1: no', at: later(T0, 500) });
+  assert.deepEqual(aside.answers, []);
+  assert.equal(state.questions[0].status, 'open');
+
+  const answer = admitMessage(state, { author: MIKE, text: '1: yes, on the right', at: later(T0, 1000), canDecide: true });
+  assert.equal(answer.seq, 3);
   assert.deepEqual(answer.answers, [1]);
   assert.equal(state.questions[0].status, 'answered');
-  assert.equal(state.questions[0].answeredIn, 2);
+  assert.equal(state.questions[0].answeredIn, 3);
   assert.equal(state.agreements.length, 1);
   assert.equal(state.agreements[0].text, 'Should the studio show the app? — yes, on the right');
-  assert.equal(state.agreements[0].from, 2);
+  assert.equal(state.agreements[0].from, 3);
   assert.equal(state.agreements[0].fromQuestion, 1);
-  assert.equal(state.lastHumanSeq, 2);
+  assert.equal(state.lastHumanSeq, 3);
 
   // An answered question cannot be answered again, and a missing one is ignored.
-  const again = admitMessage(state, { author: MIKE, text: '1: no\n9: maybe', at: later(T0, 2000) });
+  const again = admitMessage(state, { author: MIKE, text: '1: no\n9: maybe', at: later(T0, 2000), canDecide: true });
   assert.deepEqual(again.answers, []);
   assert.equal(state.agreements.length, 1);
 });
@@ -116,7 +121,7 @@ test('the team reply adds agreements, questions, answers and highlights, and mov
       answered: [{ n: 1, answer: 'no', from: 2 }],
       highlight: [{ n: 2, reason: 'It decides the layout' }],
     },
-    { at: later(T0, 20000), messageSeq: message.seq },
+    { at: later(T0, 20000), messageSeq: message.seq, isDeciderMessage: (seq) => seq === 1 || seq === 2 },
   );
   assert.deepEqual(made.answered, [1]);
   assert.deepEqual(made.questions, [3]);
@@ -138,7 +143,7 @@ test('a message that arrives while the team thinks leaves the team waiting, not 
   teamWorking(state, { upTo: 1, at: later(T0, 1000) });
   admitMessage(state, { author: MIKE, text: 'second', at: later(T0, 2000) });
   const reply = admitMessage(state, { author: TEAM, text: 'about the first', at: later(T0, 9000) });
-  applyTeamReply(state, { upTo: 1 }, { at: later(T0, 9000), messageSeq: reply.seq });
+  applyTeamReply(state, { upTo: 1 }, { at: later(T0, 9000), messageSeq: reply.seq, isDeciderMessage: () => true });
   assert.equal(state.teamCursor, 1);
   assert.equal(state.team.status, 'waiting');
 });
@@ -147,7 +152,7 @@ test('an agreement link must point at a message that exists', () => {
   const state = emptyState();
   admitMessage(state, { author: MIKE, text: 'only message', at: T0 });
   const reply = admitMessage(state, { author: TEAM, text: 'ok', at: T0 });
-  applyTeamReply(state, { agreements: [{ text: 'A thing', from: 99 }] }, { at: T0, messageSeq: reply.seq });
+  applyTeamReply(state, { agreements: [{ text: 'A thing', from: 99 }] }, { at: T0, messageSeq: reply.seq, isDeciderMessage: () => true });
   assert.equal(state.agreements[0].from, null);
 });
 
@@ -155,7 +160,7 @@ test('a host correction keeps the old wording; a removal keeps the record', () =
   const state = emptyState();
   admitMessage(state, { author: MIKE, text: 'go', at: T0 });
   const reply = admitMessage(state, { author: TEAM, text: 'ok', at: T0 });
-  applyTeamReply(state, { agreements: [{ text: 'Studio v1 is hand built.' }] }, { at: T0, messageSeq: reply.seq });
+  applyTeamReply(state, { replyTo: 1, agreements: [{ text: 'Studio v1 is hand built.' }] }, { at: T0, messageSeq: reply.seq, isDeciderMessage: (seq) => seq === 1 });
   const edited = editAgreement(state, { n: 1, text: 'Studio v1 is hand built, then rewritten in Puppet.', by: 'Mike', at: later(T0, 5) });
   assert.equal(edited.text, 'Studio v1 is hand built, then rewritten in Puppet.');
   assert.deepEqual(edited.history.map((item) => item.text), ['Studio v1 is hand built.']);
@@ -187,4 +192,33 @@ test('every change bumps the version, so pages know to fetch the state again', (
   teamWorking(state, { upTo: 1, at: T0 });
   versions.push(state.version);
   for (let i = 1; i < versions.length; i += 1) assert.ok(versions[i] > versions[i - 1]);
+});
+
+test('the team records only what a decider said; anything else becomes a question to confirm', () => {
+  const state = emptyState();
+  admitMessage(state, { author: MIKE, text: 'Ship it Friday', at: T0 });
+  admitMessage(state, { author: { ...MIKE, name: 'Eric', email: 'eric@example.com' }, text: 'Blue would be nice', at: T0 });
+  addQuestion(state, { text: 'Which day?', by: 'The team', at: T0 });
+  const reply = admitMessage(state, { author: TEAM, text: 'Noted', at: T0, replyTo: 2 });
+  const made = applyTeamReply(
+    state,
+    {
+      replyTo: 2,
+      agreements: [
+        { text: 'Ship on Friday.', from: 1 },
+        { text: 'The page is blue.', from: 2 },
+        { text: 'Use the team wording.' },
+      ],
+      answered: [{ n: 1, answer: 'Thursday', from: 2 }],
+    },
+    { at: T0, messageSeq: reply.seq, isDeciderMessage: (seq) => seq === 1 },
+  );
+  assert.deepEqual(state.agreements.map((item) => item.text), ['Ship on Friday.']);
+  assert.deepEqual(made.agreements, [1]);
+  assert.deepEqual(made.answered, [], 'a non-decider message cannot answer a question');
+  assert.equal(state.questions.find((item) => item.n === 1).status, 'open');
+  assert.deepEqual(
+    made.toConfirm.map((n) => state.questions.find((item) => item.n === n).text),
+    ['Do we agree: The page is blue.', 'Do we agree: Use the team wording.'],
+  );
 });
