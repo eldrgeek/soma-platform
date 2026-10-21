@@ -1,12 +1,12 @@
 # soma-speech version 2: a server-side engine
 
-_Design note, not built. Written 2026-10-21 by Claude Sonnet 5.5 (CCc) for Mike Wolf. Bead sp-hih._
+_Design note. Written 2026-10-21 by Claude Sonnet 5.5 (CCc) for Mike Wolf, bead sp-hih. Built the same day at Mike's request (bead sp-zu0): see "What was built" at the end, which records where the build differs from this plan._
 
 ## Recommendation
 
 Use **ElevenLabs Scribe v2 Realtime** as the server-side engine.
 
-The mic button does not change. A new engine file, `soma-speech-scribe.js`, follows the engine interface that `soma-speech.js` already defines (see the header comment of that file). A page chooses it with one attribute, and falls back to the browser engine when it cannot be used.
+The mic button does not change. The engine follows the engine interface that `soma-speech.js` already defines (see the header comment of that file). A page offers it with one attribute, a person chooses it from a menu beside the mic, and the mic falls back to the browser engine when it cannot be used.
 
 ## Why this service
 
@@ -72,6 +72,28 @@ When the voice room (LiveKit on the VPS) arrives, speech comes from each person'
 - **Accuracy on SOMA words.** Not measured. Test with the keyterm list on three real recordings before claiming it beats the browser engine.
 - **Pricing can change.** The figures above were read on 2026-10-21.
 
-## What version 2 is not
+## What was measured (2026-10-21, synthetic voice)
 
-It is not built. Nothing in version 1 depends on it. The decision this note asks for is only: *do we keep ElevenLabs Scribe v2 Realtime as the chosen engine when the time comes?*
+Mike asked whether the mic could punctuate and tell a new sentence from a continuation. The browser engine cannot: it returns the words, cut at pauses. Scribe was tested with ElevenLabs text-to-speech audio sent through the real WebSocket (a clean voice, not Mike's, so accuracy on real speech is unmeasured). What each commit setting did with a pause in the middle of a sentence:
+
+| Said | Cut at each 1-second pause | Cut after 3 seconds of silence, or on stop |
+|---|---|---|
+| "I think we should" [1.6 s] "start with the chat page and then the sidebar" | "I think we should." then "Start with the chat page…" (a wrong full stop) | "I think we should start with the chat page and then the sidebar." |
+| "The chat page is done. Now" [1.6 s] "we should add the sidebar" | "…Now…" then "We should add the sidebar." | "The chat page is done. Now, we should add the sidebar." |
+| "The chat page is done" [1.6 s] "and then we should add the sidebar. Is that right? I think so" | not tested | "The chat page is done. And then we should add the sidebar. Is that right? I think so." |
+
+With no pause problem (four spoken sentences in a row) it returned "Okay, so here is what I want. The chat should let people talk, and the AIs should answer. Is that clear? Also, add a sidebar for the open questions." Sending the earlier text as `previous_text` context did not change the second half of a split sentence in the one trial run, so it is not used.
+
+So Scribe decides sentence ends from meaning, as long as it is not forced to cut at short pauses. The build cuts after 3 seconds of silence (or when the person stops), and `commit: 'manual'` cuts only on stop.
+
+## What was built, and where it differs from the plan
+
+- **One file, not two.** The engine is in `src/soma-speech.js`, not a separate `soma-speech-scribe.js`: apps vendor one file, and the extra 10 KB is small.
+- **A person's choice, not a page setting** (Mike, 2026-10-21: "a SOMA Designer (person) gets to choose"). A small menu beside the mic offers Standard and Punctuated; the choice is remembered in the browser. The page decides only whether Punctuated is offered.
+- **The microphone opens at the click,** in parallel with the token request, so the first words are not lost and Safari still counts the audio as started by the person.
+- **Automatic fallback with a spoken-out reason.** Not signed in, over the daily limit, offline or the service down: the mic starts Standard and says why.
+- **A mic left open stops itself** after 30 seconds without words, because the service bills per audio minute.
+- **The token handler is a library, not one shared function.** `server/speech-token.js` has the authorisation, per-person and shared daily limits, and the call to ElevenLabs. Each app wires it to its own sign-in (`supabaseAuthorize` for SOMA sign-in). The demo site wires it to a shared code, because the demo has no sign-in and an open endpoint would let anyone run up the bill.
+- **Keyterm prompting is not included.** It costs $0.08 more per hour and was not tested.
+- **Not done:** the Studio chat box does not offer Punctuated yet. That needs a token function on the soma-forge site and two lines in the Studio page (see the README).
+- **Not measured:** accuracy on Mike's voice, and the Creator plan's limit on simultaneous sessions.
