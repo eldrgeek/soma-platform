@@ -227,6 +227,33 @@ export function render(sketch, { root, data = {}, me = {}, onAction = () => {} }
       return;
     }
 
+    if (element.kind === 'composer') {
+      const form = append(parent, 'div', { className: 'puppet-runtime-composer' });
+      const input = append(form, 'textarea', {
+        attrs: {
+          'data-puppet-field': element.props?.field ?? 'Message',
+          'aria-label': element.props?.field ?? 'Message',
+          placeholder: element.label ?? '',
+          rows: '2',
+        },
+      });
+      const actions = append(form, 'div', { className: 'puppet-runtime-composer-actions' });
+      append(actions, 'span', { className: 'puppet-runtime-mic-slot' });
+      const send = append(actions, 'button', {
+        className: 'puppet-runtime-button puppet-runtime-primary',
+        text: 'Send',
+        attrs: { type: 'button' },
+      });
+      wireActions(send, element.hook);
+      input.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' && !event.shiftKey) {
+          event.preventDefault();
+          send.click();
+        }
+      });
+      return;
+    }
+
     if (element.kind === 'badge') {
       append(parent, 'span', { className: 'puppet-runtime-badge', text: text(element.label) });
       return;
@@ -251,7 +278,7 @@ export function render(sketch, { root, data = {}, me = {}, onAction = () => {} }
 
     if (['region', 'row', 'stack'].includes(element.kind)) {
       const group = append(parent, 'div', {
-        className: `puppet-runtime-${element.kind}`,
+        className: `puppet-runtime-${element.kind}${element.label ? ` puppet-runtime-region-${element.label}` : ''}`,
       });
       element.children?.forEach((child) => drawElement(group, child));
       return;
@@ -290,7 +317,10 @@ export function render(sketch, { root, data = {}, me = {}, onAction = () => {} }
         draw();
       });
     }
-    const content = append(shell, 'main', { className: 'puppet-runtime-screen' });
+    const layout = current.props?.layout;
+    const content = append(shell, 'main', {
+      className: `puppet-runtime-screen${layout ? ` puppet-runtime-layout-${layout}` : ''}`,
+    });
     current.children?.forEach((element) => drawElement(content, element));
   }
 

@@ -104,6 +104,20 @@ async function loadData() {
   );
 }
 
+// The mic button (packages/soma-speech) is copied in by the build at
+// /studio/vendor/soma-speech/; a 404 only means no mic. The renderer's
+// composer leaves a slot for it and the page is redrawn on every change.
+function attachMic() {
+  const input = appRoot.querySelector('.puppet-runtime-composer textarea');
+  const slot = appRoot.querySelector('.puppet-runtime-mic-slot');
+  if (!input || !slot || !window.SomaSpeech?.attach) return;
+  try {
+    window.SomaSpeech.attach(input, { mount: slot });
+  } catch (error) {
+    console.warn('mic button not attached', error);
+  }
+}
+
 function draw() {
   render(sketch, {
     root: appRoot,
@@ -125,6 +139,7 @@ function draw() {
       draw();
     },
   });
+  attachMic();
 }
 
 async function loadVersions() {
