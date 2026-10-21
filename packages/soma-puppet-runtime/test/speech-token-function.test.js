@@ -4,14 +4,14 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { createSpeechTokenFunction, studioEmails } from '../site/functions/speech-token.mjs';
+import { createSpeechTokenFunction } from '../site/functions/speech-token.mjs';
 
 const KEY = 'sk_test_FORGE_SECRET_VALUE';
 const ENV = { ELEVENLABS_API_KEY: KEY, SUPABASE_URL: 'https://proj.supabase.test', SUPABASE_ANON_KEY: 'anon-key' };
 
 const STUDIOS = {
-  'soma-studio': { hosts: ['mw@mike-wolf.com', 'Mw.PersonalMail@gmail.com'], members: [] },
-  'coaching-age-of-ai': { hosts: ['mw@mike-wolf.com'], members: ['eric@example.test'] },
+  'soma-studio': { hosts: ['mw@mike-wolf.com', 'Mw.PersonalMail@gmail.com'], members: [], devHosts: ['rosa'] },
+  'coaching-age-of-ai': { hosts: ['mw@mike-wolf.com'], members: ['eric@example.test', 'U-Ida'] },
 };
 
 // Supabase knows these access tokens; ElevenLabs hands out a token; both are recorded.
@@ -59,6 +59,7 @@ const USERS = {
   'eric-token': { id: 'u-eric', email: 'eric@example.test' },
   'stranger-token': { id: 'u-stranger', email: 'stranger@example.test' },
   'no-email-token': { id: 'u-none' },
+  'ida-token': { id: 'u-ida' },
 };
 
 function setup(over = {}) {
@@ -107,6 +108,25 @@ test('someone signed in who is in no studio is refused with 403 and costs nothin
 
 test('a sign-in with no email on it is refused', async () => {
   assert.equal((await setup().handler(post('no-email-token'))).status, 403);
+});
+
+// The studio API's rule: a person is matched by email or by id, lower case.
+test('a member named by sign-in id (not email) is let in, whatever the case', async () => {
+  assert.equal((await setup().handler(post('ida-token'))).status, 200);     // 'u-ida' vs 'U-Ida'
+});
+
+// And its dev rule: made-up dev identities count only under NETLIFY_DEV.
+const postDev = () => new Request('https://soma-forge.netlify.app/api/speech-token', {
+  method: 'POST',
+  headers: { 'x-dev-user': 'rosa:Rosa' },
+});
+
+test('a dev identity is let in under NETLIFY_DEV, and ignored on the live site', async () => {
+  const dev = setup({ env: { ...ENV, NETLIFY_DEV: 'true' } });
+  assert.equal((await dev.handler(postDev())).status, 200);
+  const live = setup();
+  assert.equal((await live.handler(postDev())).status, 401);                  // no bearer token: not signed in
+  assert.equal(elevenCalls(live.fetchImpl).length, 0);
 });
 
 test('no sign-in header is a 401', async () => {
@@ -158,8 +178,4 @@ test('only POST is accepted, and a browser preflight is answered', async () => {
   assert.equal((await s.handler(new Request('https://x.test/api/speech-token', { method: 'GET' }))).status, 405);
   const preflight = await s.handler(new Request('https://x.test/api/speech-token', { method: 'OPTIONS' }));
   assert.equal(preflight.status, 204);
-});
-
-test('studioEmails collects hosts and members of every studio, lower case, once', () => {
-  assert.deepEqual([...studioEmails(STUDIOS)].sort(), ['eric@example.test', 'mw.personalmail@gmail.com', 'mw@mike-wolf.com']);
 });
