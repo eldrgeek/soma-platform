@@ -76,6 +76,25 @@
     <p class="muted">Words you are still saying show above the mic, not in the box, so pressing Enter can never send half a sentence.</p>
   </div>
 
+  <h2>Two voices</h2>
+  <div class="card">
+    <p>Next to each mic above is a small arrow. It lets you choose how your voice becomes text:</p>
+    <ul>
+      <li><strong>Standard</strong>: your browser's own speech recognition. Free. No punctuation or capital letters.</li>
+      <li><strong>Punctuated</strong>: adds punctuation and capital letters, and decides where a sentence ends, even when you pause in the middle of one. Works in every browser, Firefox included. Your audio goes to ElevenLabs while you speak.</li>
+    </ul>
+    <p class="muted">Your choice is remembered in this browser. If Punctuated is not available, the mic uses Standard and tells you why.</p>
+    <p>This demo has no sign-in, so Punctuated needs a code. SOMA apps use your SOMA sign-in instead.</p>
+    <form id="code-form" autocomplete="off">
+      <label for="code-input">Demo code</label>
+      <div class="row">
+        <input id="code-input" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Paste the code here">
+        <button class="plain" type="submit" style="margin-left:6px">Save</button>
+      </div>
+      <p id="code-status" class="muted" role="status"></p>
+    </form>
+  </div>
+
   <h2>No microphone handy?</h2>
   <div class="card">
     <details>
@@ -102,13 +121,25 @@
     <tbody>
       <tr><td>Chrome, Edge</td><td>Works. The browser sends your audio to its maker's speech service while you speak.</td></tr>
       <tr><td>Safari (Mac, iPhone)</td><td>Works once Dictation is on: System Settings, Keyboard, Dictation.</td></tr>
-      <tr><td>Firefox</td><td>Not available. The mic button says so instead of failing quietly.</td></tr>
+      <tr><td>Firefox</td><td>Standard is not available, and the button says so. Punctuated works.</td></tr>
     </tbody>
   </table>
   <p class="muted">Test page for developers: <a href="test/">the browser wiring test</a> checks the button, the cursor, Esc and focus in your browser with a fake voice.</p>
 </main>
 
-<script src="soma-speech.js" data-target="#demo-text, #demo-line" defer></script>
+<script>
+  // Sign-in headers for the Punctuated voice's token call. This demo uses a code.
+  window.somaSpeechAuthHeader = function () {
+    try { var c = localStorage.getItem('soma-speech:code'); return c ? { 'x-soma-speech-code': c } : {}; } catch (e) { return {}; }
+  };
+  (function () {
+    var m = /code=([^&]+)/.exec(location.hash);
+    if (!m) return;
+    try { localStorage.setItem('soma-speech:code', decodeURIComponent(m[1])); } catch (e) {}
+    history.replaceState(null, '', location.pathname + location.search);   // the code does not stay in the address bar
+  })();
+</script>
+<script src="soma-speech.js" data-target="#demo-text, #demo-line" data-scribe-token-url="/api/speech-token" defer></script>
 <script src="soma-speech-fake.js" defer></script>
 <script>
 (function () {
@@ -126,6 +157,25 @@
     box.className = 'status no';
     box.innerHTML = '<strong>This browser:</strong> speech recognition is not available. The mic buttons below will say so. Try Chrome, Edge or Safari.';
   }
+
+  // The demo code box.
+  var codeForm = document.getElementById('code-form');
+  var codeInput = document.getElementById('code-input');
+  var codeStatus = document.getElementById('code-status');
+  function showCode() {
+    var has = false;
+    try { has = !!localStorage.getItem('soma-speech:code'); } catch (e) {}
+    codeStatus.textContent = has ? 'A code is saved in this browser. Choose Punctuated with the arrow beside a mic.' : 'No code saved in this browser.';
+  }
+  codeForm.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var v = codeInput.value.trim();
+    if (!v) return;
+    try { localStorage.setItem('soma-speech:code', v); } catch (err) {}
+    codeInput.value = '';
+    showCode();
+  });
+  showCode();
 
   // The chat box: Enter sends what is in the box, and nothing else.
   var chat = document.getElementById('chat');

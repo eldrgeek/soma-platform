@@ -1,13 +1,16 @@
 {
   "name": "@soma/speech",
-  "version": "1.0.0",
-  "description": "SOMA speech-to-text: a mic button that dictates into any text box. One script tag, no dependencies.",
+  "version": "2.0.0",
+  "description": "SOMA speech-to-text: a mic button that dictates into any text box. One script tag, no dependencies. Optional punctuated voice (ElevenLabs Scribe) the person can choose.",
   "main": "src/soma-speech.js",
-  "files": ["src", "README.md", "DESIGN-v2.md"],
+  "files": ["src", "server", "README.md", "DESIGN-v2.md"],
   "scripts": {
-    "test": "node --test test/soma-speech.test.js",
+    "test": "node --test test/soma-speech.test.js test/scribe.test.js test/speech-token.test.js",
     "mutation-check": "node scripts/mutation-check.js",
     "build-site": "node scripts/build-site.js"
+  },
+  "devDependencies": {
+    "@netlify/blobs": "^11.1.4"
   },
   "license": "UNLICENSED",
   "private": true

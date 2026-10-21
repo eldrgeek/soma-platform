@@ -17,48 +17,7 @@ const F = require(path.join(__dirname, '..', 'src', 'soma-speech-fake.js'));
 
 // ---------------------------------------------------------------- helpers
 
-// A text box with just enough of the <textarea> API. `value` is a plain
-// property, as it would be on any object that is not a real DOM element.
-class FakeBox {
-  constructor(value, caret) {
-    this.value = value || '';
-    this.selectionStart = caret === undefined ? this.value.length : caret;
-    this.selectionEnd = this.selectionStart;
-    this.disabled = false;
-    this.readOnly = false;
-    this.events = [];
-    this.listeners = {};
-  }
-  setSelectionRange(s, e) { this.selectionStart = s; this.selectionEnd = e; }
-  addEventListener(type, fn) { (this.listeners[type] = this.listeners[type] || []).push(fn); }
-  removeEventListener(type, fn) {
-    this.listeners[type] = (this.listeners[type] || []).filter((f) => f !== fn);
-  }
-  dispatchEvent(ev) {
-    this.events.push(ev.type);
-    (this.listeners[ev.type] || []).forEach((fn) => fn(ev));
-    return true;
-  }
-  // the person types at the cursor
-  type(text) {
-    const s = this.selectionStart;
-    const e = this.selectionEnd;
-    this.value = this.value.slice(0, s) + text + this.value.slice(e);
-    this.selectionStart = this.selectionEnd = s + text.length;
-    this.dispatchEvent({ type: 'input' });
-  }
-}
-
-function fakeTimers() {
-  let next = 1;
-  const pending = new Map();
-  return {
-    set(fn) { const id = next++; pending.set(id, fn); return id; },
-    clear(id) { pending.delete(id); },
-    fireAll() { const fns = [...pending.values()]; pending.clear(); fns.forEach((fn) => fn()); },
-    get count() { return pending.size; }
-  };
-}
+const { FakeBox, fakeTimers } = require('./helpers.js');
 
 function rig(initial, opts) {
   opts = opts || {};

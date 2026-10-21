@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>soma-speech Punctuated voice end to end (not run)</title>
+<meta name="robots" content="noindex">
+<style>
+  :root { color-scheme: light dark; }
+  body { font: 16px/1.5 system-ui, -apple-system, sans-serif; max-width: 48rem; margin: 0 auto; padding: 1.5rem 16px 4rem; }
+  h1 { font-size: 1.4rem; margin: 0 0 .25rem; }
+  .sub { margin: 0 0 1rem; opacity: .8; }
+  button.run { font: inherit; padding: .55rem 1rem; border-radius: 8px; border: 1px solid rgba(128,128,128,.6); background: transparent; color: inherit; cursor: pointer; }
+  #summary { margin: 1rem 0; font-size: 1.15rem; font-weight: 600; padding: .6rem .8rem; border-radius: 8px; border: 1px solid rgba(128,128,128,.5); }
+  #summary.pass { background: rgba(30,140,60,.15); } #summary.fail { background: rgba(217,48,37,.18); }
+  textarea { width: calc(100% - 90px); min-height: 6rem; font: inherit; box-sizing: border-box; }
+  table { border-collapse: collapse; width: 100%; margin-top: 1rem; }
+  td { padding: .35rem .5rem; border-bottom: 1px solid rgba(128,128,128,.3); vertical-align: top; font-size: .95rem; }
+  td.s { width: 4.5rem; font-weight: 700; } td.s.PASS { color: #1a7f37; } td.s.FAIL { color: #cf222e; }
+  code { font-size: .9em; }
+</style>
+</head>
+<body>
+<h1>Punctuated voice, end to end</h1>
+<p class="sub">Plays an 8-second synthetic voice through the real mic button, the real token endpoint and the real ElevenLabs Scribe service, then checks the text that lands in the box. The voice pauses for 1.8 seconds in the middle of a sentence, which is the case that needs the service to decide where sentences end. It proves the whole path works; it does not measure accuracy on a real voice. Needs the demo code: open this page once as <code>/test/scribe/#code=…</code>.</p>
+<p><button class="run" id="run" type="button">Run the check</button></p>
+<div id="summary">Not run yet.</div>
+<textarea id="box" aria-label="Where the dictated text lands"></textarea>
+<table id="results"><tbody></tbody></table>
+<p class="sub" id="log"></p>
+
+<script src="../src/soma-speech.js"></script>
+<script>
+(function () {
+  var box = document.getElementById('box');
+  var rows = document.querySelector('#results tbody');
+  var log = [];
+  function wait(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+  function row(name, ok, detail) {
+    var tr = document.createElement('tr');
+    var s = document.createElement('td'); s.className = 's ' + (ok ? 'PASS' : 'FAIL'); s.textContent = ok ? 'PASS' : 'FAIL';
+    var n = document.createElement('td'); n.textContent = name + (detail ? ' (' + detail + ')' : '');
+    tr.appendChild(s); tr.appendChild(n); rows.appendChild(tr);
+    return ok;
+  }
+
+  var m = /code=([^&]+)/.exec(location.hash);
+  if (m) {
+    try { localStorage.setItem('soma-speech:code', decodeURIComponent(m[1])); } catch (e) {}
+    history.replaceState(null, '', location.pathname + location.search);
+  }
+  function code() { try { return localStorage.getItem('soma-speech:code') || ''; } catch (e) { return ''; } }
+
+  async function run() {
+    rows.textContent = '';
+    box.value = '';
+    log = [];
+    var summary = document.getElementById('summary');
+    summary.className = ''; summary.textContent = 'Running (about 15 seconds)…';
+    document.title = 'soma-speech Punctuated end to end (running)';
+    window.__e2e = { done: false };
+    var inst;
+    try {
+      var ctx = new (window.AudioContext || window.webkitAudioContext)();
+      await ctx.resume();
+      var wav = await (await fetch('assets/sample-speech.wav')).arrayBuffer();
+      var buf = await ctx.decodeAudioData(wav);
+      var dest = ctx.createMediaStreamDestination();
+
+      var notices = [];
+      var states = [];
+      inst = SomaSpeech.attach(box, {
+        defaultEngine: 'scribe',
+        storageKey: 'soma-speech:e2e',
+        scribe: {
+          tokenUrl: '/api/speech-token',
+          getHeaders: function () { return { 'x-soma-speech-code': code() }; },
+          getStream: function () { return Promise.resolve(dest.stream); }
+        },
+        onChange: function (info) {
+          if (!states.length || states[states.length - 1] !== info.state) states.push(info.state);
+          if (info.notice) notices.push(info.notice);
+        }
+      });
+
+      inst.start();
+      var until = Date.now() + 15000;
+      while (inst.state !== 'listening' && Date.now() < until) await wait(50);
+      if (inst.state !== 'listening') {
+        var why = (inst.controller.info.message || inst.controller.info.notice || 'did not start');
+        row('Scribe started listening', false, why + ' | states: ' + states.join(','));
+        throw new Error('not listening');
+      }
+      row('Scribe started listening', true, 'token, socket and microphone all opened');
+
+      var src = ctx.createBufferSource();
+      src.buffer = buf;
+      src.connect(dest);
+      var ended = new Promise(function (r) { src.onended = r; });
+      src.start();
+      await ended;
+      await wait(1500);                       // let the last words reach the service
+      inst.stop();
+      until = Date.now() + 10000;
+      while (inst.state !== 'idle' && Date.now() < until) await wait(50);
+
+      var v = box.value;
+      log.push('text: ' + JSON.stringify(v));
+      row('no fall-back to Standard voice', !notices.some(function (n) { return /standard voice/i.test(n); }), notices[0] || 'no notice');
+      row('words landed in the box', v.length > 20, JSON.stringify(v));
+      row('the sentence was not cut at the pause', /should start/i.test(v) && !/should[.?!]/i.test(v));
+      row('capital letter at the start', /^[A-Z]/.test(v));
+      row('the question mark is there', /\?\s*$/.test(v));
+      row('listening ended cleanly', inst.state === 'idle', 'states: ' + states.join(','));
+    } catch (e) {
+      row('the run completed', false, e.message);
+    }
+    if (inst) inst.destroy();
+    var fails = rows.querySelectorAll('td.s.FAIL').length;
+    var total = rows.querySelectorAll('tr').length;
+    summary.className = fails ? 'fail' : 'pass';
+    summary.textContent = (fails ? 'FAIL ' : 'PASS ') + (total - fails) + '/' + total;
+    document.title = 'soma-speech Punctuated end to end: ' + summary.textContent;
+    document.getElementById('log').textContent = log.join(' | ');
+    window.__e2e = { done: true, pass: total - fails, total: total, text: box.value, log: log };
+  }
+  document.getElementById('run').addEventListener('click', run);
+})();
+</script>
+</body>
+</html>

@@ -42,15 +42,25 @@
  *       onend() {}                        // the session ended (stop, error, or silence)
  *     }
  *
- *   See DESIGN-v2.md for the server-side engine that is planned.
+ *   An engine may also call onnotice(text) to tell the person something while it
+ *   is listening (for example "using standard voice instead").
+ *
+ * Two voices (version 2)
+ *   When a page passes `scribe: { tokenUrl }` (or data-scribe-token-url on the
+ *   script tag), the person gets a small menu beside the mic to choose between
+ *   Standard (the browser's engine) and Punctuated (ElevenLabs Scribe v2
+ *   Realtime, which adds punctuation and capital letters and decides where
+ *   sentences end). The choice is remembered in this browser. If Punctuated
+ *   cannot start (not signed in, daily limit, offline), the mic falls back to
+ *   Standard and says so. See DESIGN-v2.md and server/speech-token.js.
  *
  * Written 2026-10-21 (Mike Wolf; Claude Sonnet 5.5, CCc) for SOMA Studio's chat
- * box, reusable by PlayMaker and any SOMA app. Bead sp-hih.
+ * box, reusable by PlayMaker and any SOMA app. Beads sp-hih (v1), sp-zu0 (v2).
  */
 (function (root) {
   'use strict';
 
-  var VERSION = '1.0.0';
+  var VERSION = '2.0.0';
   var MAX_EMPTY_CYCLES = 2;   // silent sessions in a row before listening gives up
   var STOP_GRACE_MS = 3000;   // how long stop() waits for the engine to say it ended
   var NOTICE_MS = 8000;       // how long an error or notice stays on screen
@@ -126,6 +136,11 @@
       case 'language-not-supported': return "This language isn't available for voice typing.";
       case 'read-only': return 'That box is read-only, so there is nowhere to put the words.';
       case 'no-speech': return 'Nothing was heard, so listening stopped. Click the mic to try again.';
+      case 'scribe-unavailable':
+        if (message === 'not-signed-in') return 'Punctuated voice needs you to be signed in.';
+        if (message === 'capped') return "Today's limit for punctuated voice has been used.";
+        if (message === 'network') return "Punctuated voice couldn't connect. Check your internet connection.";
+        return 'Punctuated voice is not available right now.';
       default: return 'Voice typing stopped (' + (message || code || 'unknown reason') + ').';
     }
   }
@@ -244,6 +259,413 @@
     return engine;
   }
 
+  // ---------------------------------------------------------------- the Scribe engine (punctuated voice)
+
+  var SCRIBE_URL = 'wss://api.elevenlabs.io/v1/speech-to-text/realtime';
+  var SCRIBE_RATE = 16000;
+  var CHUNK_SAMPLES = 1600;      // 100 ms of audio per message
+  var QUEUE_LIMIT = 100;         // audio held while the socket opens: 10 seconds
+  var COMMIT_WAIT_MS = 2500;     // how long stop() waits for the last committed text
+  // Messages from Scribe that are not failures.
+  var SCRIBE_QUIET = { warning: 1, commit_throttled: 1, insufficient_audio_activity: 1 };
+  var SCRIBE_FAILURE = /error|exceeded|rate_limited|resource_exhausted|queue_overflow|unaccepted|invalid_request|throttled/;
+
+  // Box-filter downsampler: Float32 samples at inRate in, Int16 samples at outRate out.
+  // Streaming: call push() with each buffer in turn; the position carries over.
+  function makeResampler(inRate, outRate) {
+    var ratio = Math.max(1, inRate / outRate);
+    var pos = 0;                 // input samples consumed so far
+    var edge = ratio;            // where the current output sample ends
+    var acc = 0;
+    var weight = 0;
+    function toInt16(v) {
+      v = Math.max(-1, Math.min(1, v));
+      return Math.round(v < 0 ? v * 32768 : v * 32767);
+    }
+    return {
+      push: function (input) {
+        var out = [];
+        for (var i = 0; i < input.length; i++) {
+          var s = input[i];
+          var from = pos;
+          var to = pos + 1;
+          pos = to;
+          while (to > edge + 1e-9) {            // this sample straddles the end of an output sample
+            var part = edge - from;
+            acc += s * part;
+            weight += part;
+            out.push(toInt16(acc / weight));
+            from = edge;
+            edge += ratio;
+            acc = 0;
+            weight = 0;
+          }
+          acc += s * (to - from);
+          weight += to - from;
+          if (Math.abs(to - edge) < 1e-9) {
+            out.push(toInt16(acc / weight));
+            edge += ratio;
+            acc = 0;
+            weight = 0;
+          }
+        }
+        return out;
+      }
+    };
+  }
+
+  function toBase64(int16) {
+    var bytes = new Uint8Array(int16.buffer, int16.byteOffset, int16.byteLength);
+    var text = '';
+    for (var i = 0; i < bytes.length; i += 0x2000) {
+      text += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x2000));
+    }
+    return btoa(text);
+  }
+
+  // Runs in an audio worklet: hands the main thread 2048 samples at a time.
+  var WORKLET_SOURCE =
+    'class C extends AudioWorkletProcessor{constructor(){super();this.b=new Float32Array(2048);this.n=0}' +
+    'process(i){var c=i[0]&&i[0][0];if(!c)return true;' +
+    'for(var k=0;k<c.length;k++){this.b[this.n++]=c[k];if(this.n===2048){this.port.postMessage(this.b.slice(0));this.n=0}}' +
+    'return true}}registerProcessor("soma-speech-capture",C)';
+
+  // Opens the microphone and hands 100 ms chunks of 16 kHz Int16 audio to onChunk.
+  // Called straight from the click so the browser still counts it as a user gesture
+  // (Safari keeps an audio context suspended otherwise).
+  function openMic(onChunk, o) {
+    var getStream = o && o.getStream ? o.getStream : function () {
+      return root.navigator.mediaDevices.getUserMedia({
+        audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+      });
+    };
+    var AudioCtx = root.AudioContext || root.webkitAudioContext;
+    var ctx = new AudioCtx();
+    var streamPromise;
+    try { streamPromise = Promise.resolve(getStream()); } catch (e) { streamPromise = Promise.reject(e); }
+    return streamPromise.then(function (stream) {
+      var resampler = makeResampler(ctx.sampleRate, SCRIBE_RATE);
+      var pending = [];
+      var stopped = false;
+      var undo = [];
+      function feed(floats) {
+        if (stopped) return;
+        var ints = resampler.push(floats);
+        for (var i = 0; i < ints.length; i++) pending.push(ints[i]);
+        while (pending.length >= CHUNK_SAMPLES) onChunk(Int16Array.from(pending.splice(0, CHUNK_SAMPLES)));
+      }
+      var source = ctx.createMediaStreamSource(stream);
+      var ready;
+      if (ctx.audioWorklet && root.Blob && root.URL && root.AudioWorkletNode) {
+        var url = root.URL.createObjectURL(new root.Blob([WORKLET_SOURCE], { type: 'application/javascript' }));
+        ready = ctx.audioWorklet.addModule(url).then(function () {
+          root.URL.revokeObjectURL(url);
+          var node = new root.AudioWorkletNode(ctx, 'soma-speech-capture');
+          node.port.onmessage = function (e) { feed(e.data); };
+          source.connect(node);
+          undo.push(function () { node.port.onmessage = null; source.disconnect(node); });
+        });
+      } else {
+        ready = Promise.reject(new Error('no audio worklet'));
+      }
+      return ready.catch(function () {
+        // ScriptProcessor is deprecated but works everywhere an audio worklet does not.
+        var node = ctx.createScriptProcessor(4096, 1, 1);
+        var mute = ctx.createGain();
+        mute.gain.value = 0;
+        node.onaudioprocess = function (e) { feed(new Float32Array(e.inputBuffer.getChannelData(0))); };
+        source.connect(node);
+        node.connect(mute);
+        mute.connect(ctx.destination);
+        undo.push(function () { node.onaudioprocess = null; source.disconnect(node); node.disconnect(); mute.disconnect(); });
+      }).then(function () {
+        if (ctx.state === 'suspended' && ctx.resume) ctx.resume();
+        return {
+          stop: function () {
+            if (stopped) return;
+            if (pending.length) onChunk(Int16Array.from(pending));   // the last words, under 100 ms
+            pending = [];
+            stopped = true;
+            undo.forEach(function (fn) { try { fn(); } catch (e) { /* ignore */ } });
+            stream.getTracks().forEach(function (t) { t.stop(); });
+            try { ctx.close(); } catch (e) { /* ignore */ }
+          }
+        };
+      });
+    }, function (err) {
+      try { ctx.close(); } catch (e) { /* ignore */ }
+      throw err;
+    });
+  }
+
+  function scribeProblem(reason, detail) {
+    return { code: 'scribe-unavailable', message: reason, detail: detail };
+  }
+
+  function micProblem(err) {
+    var name = err && err.name;
+    if (name === 'NotAllowedError' || name === 'SecurityError') return { code: 'not-allowed' };
+    return { code: 'audio-capture', message: err && err.message };
+  }
+
+  // ElevenLabs Scribe v2 Realtime over a WebSocket. The page never sees the API
+  // key: it asks opts.tokenUrl (server/speech-token.js) for a single-use token.
+  // Options: tokenUrl, getHeaders() (sign-in headers for the token call),
+  //   commit 'vad' (default) or 'manual', silenceSeconds (vad, default 3),
+  //   languageCode (default: Scribe detects it), idleSeconds (default 30),
+  //   getStream() (a MediaStream, for tests and demos), and test hooks:
+  //   WebSocket, fetch, openAudio, timers, wsUrl.
+  function createScribeEngine(opts) {
+    opts = opts || {};
+    var WS = opts.WebSocket || root.WebSocket;
+    var doFetch = opts.fetch || (root.fetch ? root.fetch.bind(root) : null);
+    var openAudio = opts.openAudio || openMic;
+    var nav = root.navigator;
+    var haveMic = !!(opts.openAudio ||
+      (nav && nav.mediaDevices && nav.mediaDevices.getUserMedia && (root.AudioContext || root.webkitAudioContext)));
+    var secure = !(root && root.isSecureContext === false);
+    var manual = opts.commit === 'manual';
+    var silence = opts.silenceSeconds || 3;
+    var idleMs = (opts.idleSeconds === undefined ? 30 : opts.idleSeconds) * 1000;
+    var timers = opts.timers || {
+      set: function (fn, ms) { return setTimeout(fn, ms); },
+      clear: function (t) { clearTimeout(t); }
+    };
+    var sess = null;
+
+    var engine = {
+      name: 'scribe',
+      supported: !!(opts.tokenUrl && WS && doFetch && haveMic && secure),
+      onstart: null, onresult: null, onerror: null, onend: null, onnotice: null,
+
+      start: function (o) {
+        if (sess) return;
+        var s = sess = {
+          ws: null, audio: null, queue: [], open: false, started: false,
+          stopping: false, awaitingCommit: false, dead: false, ended: false, idle: null, endTimer: null
+        };
+        var audioPromise;
+        try {
+          audioPromise = Promise.resolve(openAudio(function (chunk) { onChunk(s, chunk); }, opts));
+        } catch (e) { audioPromise = Promise.reject(e); }
+        audioPromise.then(function (a) {
+          if (s.dead || s.stopping) a.stop();
+          else s.audio = a;
+        }, function (err) { fail(s, micProblem(err)); });
+        getToken().then(function (token) {
+          if (!s.dead) connect(s, token);
+        }, function (err) { fail(s, err); });
+      },
+
+      stop: function () {
+        var s = sess;
+        if (!s || s.dead || s.stopping) return;
+        stopping(s);
+      },
+
+      abort: function () {
+        var s = sess;
+        if (!s) return;
+        s.dead = true;
+        if (engine.onerror) engine.onerror({ code: 'aborted' });
+        finish(s);
+      }
+    };
+
+    function getToken() {
+      var headers;
+      try { headers = opts.getHeaders ? opts.getHeaders() : (root.somaSpeechAuthHeader ? root.somaSpeechAuthHeader() : {}); } catch (e) { headers = {}; }
+      return Promise.resolve(headers).then(function (h) {
+        return doFetch(opts.tokenUrl, {
+          method: 'POST',
+          headers: Object.assign({ 'content-type': 'application/json' }, h || {})
+        });
+      }).then(function (res) {
+        if (res.status === 401 || res.status === 403) throw scribeProblem('not-signed-in');
+        if (res.status === 429) throw scribeProblem('capped');
+        if (!res.ok) throw scribeProblem('service', 'HTTP ' + res.status);
+        return res.json();
+      }).then(function (body) {
+        if (!body || !body.token) throw scribeProblem('service', 'no token');
+        return body.token;
+      }, function (err) {
+        throw err && err.code === 'scribe-unavailable' ? err : scribeProblem('network', err && err.message);
+      });
+    }
+
+    function connect(s, token) {
+      var url = (opts.wsUrl || SCRIBE_URL) +
+        '?model_id=scribe_v2_realtime&audio_format=pcm_16000' +
+        '&commit_strategy=' + (manual ? 'manual' : 'vad') +
+        (manual ? '' : '&vad_silence_threshold_secs=' + silence) +
+        (opts.languageCode ? '&language_code=' + encodeURIComponent(opts.languageCode) : '') +
+        '&token=' + encodeURIComponent(token);
+      var ws;
+      try { ws = new WS(url); } catch (e) { fail(s, scribeProblem('network', e && e.message)); return; }
+      s.ws = ws;
+      ws.onopen = function () {
+        if (s.dead) return;
+        s.open = true;
+        while (s.queue.length) send(s, s.queue.shift());
+      };
+      ws.onmessage = function (ev) { if (!s.dead) onMessage(s, ev); };
+      ws.onerror = function () { if (!s.dead && !s.started) fail(s, scribeProblem('network')); };
+      ws.onclose = function () {
+        if (s.dead) return;
+        if (!s.started && !s.stopping) fail(s, scribeProblem('network'));
+        else finish(s);                       // the server ended the session; the controller may restart it
+      };
+    }
+
+    function send(s, chunk, commit) {
+      var msg = { message_type: 'input_audio_chunk', audio_base_64: chunk ? toBase64(chunk) : '', sample_rate: SCRIBE_RATE };
+      if (commit) msg.commit = true;
+      try { s.ws.send(JSON.stringify(msg)); } catch (e) { /* the close handler reports it */ }
+    }
+
+    function onChunk(s, chunk) {
+      if (s.dead || s.stopping) return;
+      if (s.open) send(s, chunk);
+      else {
+        s.queue.push(chunk);                  // the socket is still opening; keep the first words
+        if (s.queue.length > QUEUE_LIMIT) s.queue.shift();
+      }
+    }
+
+    function onMessage(s, ev) {
+      var m;
+      try { m = JSON.parse(ev.data); } catch (e) { return; }
+      var type = m && m.message_type;
+      if (type === 'session_started') {
+        s.started = true;
+        armIdle(s);
+        if (engine.onstart) engine.onstart();
+      } else if (type === 'partial_transcript') {
+        if (m.text) armIdle(s);
+        if (engine.onresult) engine.onresult({ type: 'interim', text: m.text || '' });
+      } else if (type === 'committed_transcript') {
+        if (clean(m.text)) {
+          armIdle(s);
+          if (engine.onresult) {
+            engine.onresult({ type: 'final', text: m.text });
+            engine.onresult({ type: 'interim', text: '' });
+          }
+        }
+        if (s.awaitingCommit) finish(s);
+      } else if (type === 'session_time_limit_exceeded') {
+        finish(s);
+      } else if (SCRIBE_QUIET[type]) {
+        if (s.awaitingCommit) finish(s);      // nothing to commit: the wait is over
+      } else if (type && SCRIBE_FAILURE.test(type)) {
+        fail(s, scribeProblem('service', m.error || type));
+      }
+    }
+
+    // Ask Scribe for the text it is still holding, then end once it arrives.
+    function stopping(s) {
+      clearTimer(s, 'idle');
+      if (s.audio) { s.audio.stop(); s.audio = null; }   // sends the last words first
+      s.stopping = true;
+      if (s.ws && s.open) {
+        send(s, null, true);
+        s.awaitingCommit = true;
+        s.endTimer = timers.set(function () { finish(s); }, COMMIT_WAIT_MS);
+      } else finish(s);                       // never connected: nothing to wait for
+    }
+
+    function armIdle(s) {
+      clearTimer(s, 'idle');
+      if (idleMs > 0 && !s.stopping) s.idle = timers.set(function () { if (!s.dead && !s.stopping) stopping(s); }, idleMs);
+    }
+
+    function clearTimer(s, name) {
+      if (s[name] !== null) { timers.clear(s[name]); s[name] = null; }
+    }
+
+    function teardown(s) {
+      clearTimer(s, 'idle');
+      clearTimer(s, 'endTimer');
+      if (s.audio) { try { s.audio.stop(); } catch (e) { /* ignore */ } s.audio = null; }
+      if (s.ws) {
+        var ws = s.ws;
+        s.ws = null;
+        ws.onopen = ws.onmessage = ws.onerror = ws.onclose = null;
+        try { ws.close(); } catch (e) { /* ignore */ }
+      }
+    }
+
+    function finish(s) {
+      if (s.ended) return;
+      s.ended = true;
+      s.dead = true;
+      teardown(s);
+      if (sess === s) sess = null;
+      if (engine.onend) engine.onend();
+    }
+
+    function fail(s, problem) {
+      if (s.dead) return;
+      s.dead = true;
+      teardown(s);
+      if (engine.onerror) engine.onerror({ code: problem.code, message: problem.message, detail: problem.detail });
+      finish(s);
+    }
+
+    return engine;
+  }
+
+  // ---------------------------------------------------------------- the person's choice
+
+  // Presents the browser engine and the Scribe engine as one engine. The person's
+  // choice (getChoice) decides which one starts. If Scribe cannot start, the
+  // browser engine starts instead and the person is told why.
+  function createChoiceEngine(o) {
+    var browser = o.browser;
+    var scribe = o.scribe;
+    var current = null;
+    var started = false;
+
+    var choice = {
+      name: 'choice',
+      get supported() { return !!(browser.supported || scribe.supported); },
+      onstart: null, onresult: null, onerror: null, onend: null, onnotice: null,
+      start: function (opts) {
+        var wantsScribe = o.getChoice() === 'scribe';
+        if (wantsScribe && !scribe.supported && browser.supported) {
+          notice('Punctuated voice is not available here, so standard voice is being used.');
+        }
+        var useScribe = scribe.supported && (wantsScribe || !browser.supported);
+        begin(useScribe ? scribe : browser, opts);
+      },
+      stop: function () { if (current) current.stop(); },
+      abort: function () { if (current && current.abort) current.abort(); }
+    };
+
+    function notice(text) { if (choice.onnotice) choice.onnotice(text); }
+
+    function begin(engine, opts) {
+      current = engine;
+      started = false;
+      engine.onstart = function () { if (current === engine) { started = true; if (choice.onstart) choice.onstart(); } };
+      engine.onresult = function (r) { if (current === engine && choice.onresult) choice.onresult(r); };
+      engine.onend = function () { if (current === engine && choice.onend) choice.onend(); };
+      engine.onnotice = function (t) { if (current === engine) notice(t); };
+      engine.onerror = function (e) {
+        if (current !== engine) return;
+        if (engine === scribe && e && e.code === 'scribe-unavailable' && !started && browser.supported) {
+          notice(friendlyError('scribe-unavailable', e.message) + ' Using standard voice.');
+          engine.onstart = engine.onresult = engine.onerror = engine.onend = engine.onnotice = null;
+          begin(browser, opts);               // the failed session's own end is ignored
+          return;
+        }
+        if (choice.onerror) choice.onerror(e);
+      };
+      engine.start(opts);
+    }
+
+    return choice;
+  }
+
   // ---------------------------------------------------------------- the controller
 
   // Joins an engine to a target. No DOM in here, so it runs under Node for tests.
@@ -254,21 +676,26 @@
       set: function (fn, ms) { return setTimeout(fn, ms); },
       clear: function (t) { clearTimeout(t); }
     };
-    var info = { state: 'idle', interim: '', code: '', message: '' };
+    var info = { state: 'idle', interim: '', code: '', message: '', notice: '' };
     var want = false;          // the person wants listening to continue
     var gotResult = false;     // this engine session produced words
     var emptyCycles = 0;       // sessions in a row that produced none
     var stopTimer = null;
     var dead = false;
 
+    function snapshot() {
+      return { state: info.state, interim: info.interim, code: info.code, message: info.message, notice: info.notice };
+    }
     function emit() {
-      if (o.onChange) o.onChange({ state: info.state, interim: info.interim, code: info.code, message: info.message });
+      if (o.onChange) o.onChange(snapshot());
     }
     function set(state, interim, code, message) {
       info.state = state;
       info.interim = interim || '';
       info.code = code || '';
       info.message = message || '';
+      // A notice ("using standard voice") lives only while listening.
+      if (state !== 'starting' && state !== 'listening') info.notice = '';
       emit();
     }
     function fail(code, message) {
@@ -329,8 +756,14 @@
       if (dead) return;
       if (want && info.state === 'starting') set('listening');
     };
+    engine.onnotice = function (text) {
+      if (dead) return;
+      info.notice = clean(text);
+      emit();
+    };
     engine.onresult = function (ev) {
       if (dead || !ev) return;
+      if (clean(ev.text)) info.notice = '';
       if (info.state === 'starting' && want) set('listening');
       if (ev.type === 'final') {
         if (clean(ev.text)) gotResult = true;
@@ -355,7 +788,7 @@
 
     var ctl = {
       get state() { return info.state; },
-      get info() { return { state: info.state, interim: info.interim, code: info.code, message: info.message }; },
+      get info() { return snapshot(); },
       start: function () {
         if (dead) return;
         if (info.state === 'starting' || info.state === 'listening' || info.state === 'stopping') return;
@@ -364,6 +797,7 @@
         if (target.prepare) target.prepare();
         want = true;
         emptyCycles = 0;
+        info.notice = '';
         set('starting');
         launch();
       },
@@ -396,7 +830,7 @@
         want = false;
         clearStopTimer();
         try { if (engine.abort) engine.abort(); } catch (e) { /* ignore */ }
-        engine.onstart = engine.onresult = engine.onerror = engine.onend = null;
+        engine.onstart = engine.onresult = engine.onerror = engine.onend = engine.onnotice = null;
       }
     };
     return ctl;
@@ -431,6 +865,25 @@
     '.soma-speech-bubble em{font-style:italic}',
     '[data-soma-speech-state="listening"],[data-soma-speech-state="starting"]{box-shadow:0 0 0 2px rgba(217,48,37,.45)}',
     '@keyframes soma-speech-pulse{from{transform:scale(.9);opacity:.7}to{transform:scale(1.35);opacity:0}}',
+    '.soma-speech-opt{box-sizing:border-box;width:22px;height:40px;margin:0 0 0 2px;padding:0;display:inline-flex;',
+    'align-items:center;justify-content:center;border:0;border-radius:11px;background:transparent;color:inherit;',
+    'cursor:pointer;opacity:.7}',
+    '.soma-speech-opt:hover{background:rgba(128,128,128,.16);opacity:1}',
+    '.soma-speech-opt:focus-visible{outline:2px solid #1a73e8;outline-offset:2px}',
+    '.soma-speech-opt[disabled]{opacity:.3;cursor:default;background:transparent}',
+    '.soma-speech-opt svg{width:14px;height:14px;display:block}',
+    '.soma-speech-menu{position:absolute;right:0;bottom:calc(100% + 8px);z-index:1001;box-sizing:border-box;',
+    'width:min(20rem,80vw);padding:6px;border-radius:10px;background:Canvas;color:CanvasText;',
+    'border:1px solid rgba(128,128,128,.6);box-shadow:0 4px 16px rgba(0,0,0,.25)}',
+    '.soma-speech-menu[hidden]{display:none}',
+    '.soma-speech-item{position:relative;display:block;width:100%;margin:0;padding:8px 10px 8px 30px;border:0;',
+    'border-radius:8px;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer}',
+    '.soma-speech-item:hover{background:rgba(128,128,128,.16)}',
+    '.soma-speech-item:focus-visible{outline:2px solid #1a73e8;outline-offset:-2px}',
+    '.soma-speech-item[aria-checked="true"]::before{content:"\\2713";position:absolute;left:10px;top:8px;font-weight:700}',
+    '.soma-speech-item[aria-disabled="true"]{opacity:.5;cursor:default}',
+    '.soma-speech-item strong{display:block}',
+    '.soma-speech-item span{display:block;font-size:12.5px;opacity:.8}',
     '@media (prefers-reduced-motion:reduce){.soma-speech-btn::after{animation:none!important}}'
   ].join('');
 
@@ -469,9 +922,45 @@
     return typeof ref === 'string' ? doc.querySelector(ref) : ref;
   }
 
+  var CHOICES = [
+    ['browser', 'Standard', "Your browser's own speech recognition. Free. No punctuation or capital letters."],
+    ['scribe', 'Punctuated', 'Adds punctuation and capital letters, and works in every browser. Your audio goes to ElevenLabs while you speak.']
+  ];
+  var CHOICE_KEY = 'soma-speech:engine';
+
+  function readChoice(key) {
+    try {
+      var v = root.localStorage.getItem(key);
+      return v === 'browser' || v === 'scribe' ? v : null;
+    } catch (e) { return null; }
+  }
+  function saveChoice(key, value) {
+    try { root.localStorage.setItem(key, value); } catch (e) { /* private mode: the choice lasts until reload */ }
+  }
+
+  function chevronIcon(doc) {
+    var ns = 'http://www.w3.org/2000/svg';
+    var svg = doc.createElementNS(ns, 'svg');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('aria-hidden', 'true');
+    svg.setAttribute('focusable', 'false');
+    var path = doc.createElementNS(ns, 'path');
+    path.setAttribute('d', 'M6 9l6 6 6-6');
+    path.setAttribute('fill', 'none');
+    path.setAttribute('stroke', 'currentColor');
+    path.setAttribute('stroke-width', '2.4');
+    path.setAttribute('stroke-linecap', 'round');
+    path.setAttribute('stroke-linejoin', 'round');
+    svg.appendChild(path);
+    return svg;
+  }
+
   // Add a mic button to a <textarea> or text <input>. Returns the instance.
-  // options: lang, mount (element or selector), engine (factory or engine object),
-  //          onChange(info)
+  // options: lang, mount (element or selector), onChange(info),
+  //   engine (factory or engine object: one engine, no choice menu),
+  //   scribe ({ tokenUrl, getHeaders, ... }: adds the Punctuated voice and a menu
+  //     beside the mic where the person chooses), defaultEngine ('browser' | 'scribe'),
+  //     storageKey, browserEngine (an engine to use as "Standard", for tests).
   function attach(ref, options) {
     var doc = (root && root.document) || null;
     if (!doc) throw new Error('SomaSpeech.attach needs a browser page');
@@ -488,6 +977,20 @@
 
     var engine = opts.engine;
     if (typeof engine === 'function') engine = engine();
+    var scribeEngine = null;
+    var browserEngine = null;
+    var storageKey = opts.storageKey || CHOICE_KEY;
+    var currentChoice = 'browser';
+    if (!engine && opts.scribe && opts.scribe.tokenUrl) {
+      browserEngine = opts.browserEngine || createBrowserEngine();
+      scribeEngine = createScribeEngine(opts.scribe);
+      currentChoice = readChoice(storageKey) || opts.defaultEngine || 'browser';
+      engine = createChoiceEngine({
+        browser: browserEngine,
+        scribe: scribeEngine,
+        getChoice: function () { return currentChoice; }
+      });
+    }
     if (!engine) engine = createBrowserEngine();
 
     ensureStyle(doc);
@@ -508,6 +1011,47 @@
     wrap.appendChild(btn);
     wrap.appendChild(bubble);
 
+    // The person's choice of voice: a small menu beside the mic, only when the page offers Scribe.
+    var optBtn = null;
+    var menu = null;
+    var items = {};
+    var menuOpen = false;
+    var choiceNote = '';
+    var choiceTimer = null;
+    if (scribeEngine) {
+      optBtn = doc.createElement('button');
+      optBtn.type = 'button';
+      optBtn.className = 'soma-speech-opt';
+      optBtn.setAttribute('aria-haspopup', 'menu');
+      optBtn.setAttribute('aria-expanded', 'false');
+      optBtn.setAttribute('aria-label', 'Choose how your voice is turned into text');
+      optBtn.title = 'Choose how your voice is turned into text';
+      optBtn.appendChild(chevronIcon(doc));
+      menu = doc.createElement('div');
+      menu.className = 'soma-speech-menu';
+      menu.setAttribute('role', 'menu');
+      menu.hidden = true;
+      CHOICES.forEach(function (c) {
+        var item = doc.createElement('button');
+        item.type = 'button';
+        item.className = 'soma-speech-item';
+        item.setAttribute('role', 'menuitemradio');
+        item.setAttribute('data-engine', c[0]);
+        var name = doc.createElement('strong');
+        name.textContent = c[1];
+        var desc = doc.createElement('span');
+        desc.textContent = c[2];
+        item.appendChild(name);
+        item.appendChild(desc);
+        item.addEventListener('mousedown', function (e) { e.preventDefault(); });
+        item.addEventListener('click', function () { choose(c[0]); });
+        items[c[0]] = { el: item, desc: desc, base: c[2] };
+        menu.appendChild(item);
+      });
+      wrap.insertBefore(optBtn, bubble);
+      wrap.insertBefore(menu, bubble);
+    }
+
     var mount = resolveElement(opts.mount, doc);
     if (mount) mount.appendChild(wrap);
     else el.insertAdjacentElement('afterend', wrap);
@@ -515,6 +1059,27 @@
     var target = domTarget(el);
     var noticeTimer = null;
     var ctl = null;
+
+    function setMenu(open) {
+      menuOpen = open;
+      menu.hidden = !open;
+      optBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      render(ctl.info);
+    }
+
+    function choose(id) {
+      var picked = id === 'scribe' ? scribeEngine : browserEngine;
+      if (!picked || !picked.supported) return;     // the item already says it is not available
+      currentChoice = id;
+      saveChoice(storageKey, id);
+      choiceNote = 'Voice: ' + (id === 'scribe' ? 'Punctuated' : 'Standard');
+      if (choiceTimer) clearTimeout(choiceTimer);
+      choiceTimer = setTimeout(function () { choiceTimer = null; choiceNote = ''; render(ctl.info); }, 3000);
+      setMenu(false);
+      try {
+        el.dispatchEvent(new root.CustomEvent('soma-speech-engine', { bubbles: true, detail: { engine: id } }));
+      } catch (e) { /* old browsers without CustomEvent constructors */ }
+    }
 
     function render(info) {
       var listening = info.state === 'starting' || info.state === 'listening';
@@ -538,6 +1103,25 @@
         } else text = 'Listening. Speak now. Click the mic or press Esc to stop.';
       } else if (info.state === 'stopping') text = 'Finishing…';
       else if (info.message) text = info.message;
+      else if (choiceNote) text = choiceNote;
+      if (info.notice && listening && !info.interim) { text = info.notice; italic = false; }
+
+      if (optBtn) {
+        optBtn.disabled = listening || info.state === 'stopping';
+        if (optBtn.disabled && menuOpen) {
+          menuOpen = false;
+          menu.hidden = true;
+          optBtn.setAttribute('aria-expanded', 'false');
+        }
+        CHOICES.forEach(function (c) {
+          var it = items[c[0]];
+          var available = (c[0] === 'scribe' ? scribeEngine : browserEngine).supported;
+          it.el.setAttribute('aria-checked', currentChoice === c[0] ? 'true' : 'false');
+          it.el.setAttribute('aria-disabled', available ? 'false' : 'true');
+          it.desc.textContent = available ? it.base : 'Not available in this browser.';
+        });
+        wrap.setAttribute('data-engine', currentChoice);
+      }
 
       bubble.textContent = '';
       if (text) {
@@ -547,7 +1131,7 @@
           bubble.appendChild(em);
         } else bubble.textContent = text;
       }
-      bubble.hidden = !text;
+      bubble.hidden = !text || menuOpen;
 
       if (noticeTimer) { clearTimeout(noticeTimer); noticeTimer = null; }
       if (info.message && (info.state === 'error' || info.state === 'idle')) {
@@ -567,13 +1151,23 @@
     btn.addEventListener('click', function () { ctl.toggle(); });
 
     function onKey(e) {
-      if (e.key === 'Escape' && (ctl.state === 'listening' || ctl.state === 'starting')) ctl.stop();
+      if (e.key !== 'Escape') return;
+      if (menuOpen) { setMenu(false); return; }
+      if (ctl.state === 'listening' || ctl.state === 'starting') ctl.stop();
     }
     function onHidden() {
       if (doc.hidden && (ctl.state === 'listening' || ctl.state === 'starting')) ctl.stop();
     }
+    function onDocDown(e) {
+      if (menuOpen && !wrap.contains(e.target)) setMenu(false);
+    }
     doc.addEventListener('keydown', onKey, true);
     doc.addEventListener('visibilitychange', onHidden);
+    if (optBtn) {
+      optBtn.addEventListener('mousedown', function (e) { e.preventDefault(); });
+      optBtn.addEventListener('click', function () { if (!optBtn.disabled) setMenu(!menuOpen); });
+      doc.addEventListener('mousedown', onDocDown, true);
+    }
 
     var instance = {
       element: wrap,
@@ -581,15 +1175,19 @@
       controller: ctl,
       engine: engine,
       get state() { return ctl.state; },
+      get choice() { return currentChoice; },
       start: function () { ctl.start(); },
       stop: function () { ctl.stop(); },
       toggle: function () { ctl.toggle(); },
+      setChoice: function (id) { if (scribeEngine) choose(id); },
       destroy: function () {
         ctl.destroy();
         target.destroy();
         if (noticeTimer) clearTimeout(noticeTimer);
+        if (choiceTimer) clearTimeout(choiceTimer);
         doc.removeEventListener('keydown', onKey, true);
         doc.removeEventListener('visibilitychange', onHidden);
+        doc.removeEventListener('mousedown', onDocDown, true);
         if (wrap.parentNode) wrap.parentNode.removeChild(wrap);
         el.removeAttribute('data-soma-speech-state');
         delete el.__somaSpeech;
@@ -607,10 +1205,13 @@
   }
 
   function attachSafely(el, source) {
+    var tokenUrl = source.getAttribute('data-scribe-token-url');
     try {
       attach(el, {
         lang: source.getAttribute('data-lang') || undefined,
-        mount: source.getAttribute('data-mount') || undefined
+        mount: source.getAttribute('data-mount') || undefined,
+        scribe: tokenUrl ? { tokenUrl: tokenUrl } : undefined,
+        defaultEngine: source.getAttribute('data-default-engine') || undefined
       });
     } catch (e) { warn(e.message); }
   }
@@ -641,6 +1242,10 @@
     computeInsert: computeInsert,
     createController: createController,
     createBrowserEngine: createBrowserEngine,
+    createScribeEngine: createScribeEngine,
+    createChoiceEngine: createChoiceEngine,
+    makeResampler: makeResampler,
+    toBase64: toBase64,
     domTarget: domTarget,
     friendlyError: friendlyError,
     engines: { browser: createBrowserEngine }

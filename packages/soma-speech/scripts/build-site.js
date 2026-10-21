@@ -34,7 +34,16 @@ if (rewritten === testPage) throw new Error('browser-test.html: no ../src/ paths
 fs.mkdirSync(path.join(out, 'test'), { recursive: true });
 fs.writeFileSync(path.join(out, 'test', 'index.html'), rewritten);
 
-for (const f of ['index.html', 'soma-speech.js', 'soma-speech-fake.js', 'test/index.html', 'vendor/soma-feedback/soma-chip-loader.js']) {
+// The end-to-end page is one folder deeper (/test/scribe/), and carries its audio sample.
+const e2ePage = fs.readFileSync(path.join(pkg, 'test', 'scribe-e2e.html'), 'utf8');
+const e2eRewritten = e2ePage.split('../src/').join('../../');
+if (e2eRewritten === e2ePage) throw new Error('scribe-e2e.html: no ../src/ paths found to rewrite');
+fs.mkdirSync(path.join(out, 'test', 'scribe', 'assets'), { recursive: true });
+fs.writeFileSync(path.join(out, 'test', 'scribe', 'index.html'), e2eRewritten);
+copy('test/assets/sample-speech.wav', 'test/scribe/assets/sample-speech.wav');
+
+for (const f of ['index.html', 'soma-speech.js', 'soma-speech-fake.js', 'test/index.html', 'test/scribe/index.html',
+  'test/scribe/assets/sample-speech.wav', 'vendor/soma-feedback/soma-chip-loader.js']) {
   if (!fs.existsSync(path.join(out, f))) throw new Error('build missing ' + f);
 }
 console.log('built ' + path.relative(process.cwd(), out) + ' (' + fs.readdirSync(out).join(', ') + ')');

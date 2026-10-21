@@ -7,6 +7,12 @@
   # "no content change" while the live deploy differs (2026-09-16, minds-aligned-soma).
   ignore = "exit 1"
 
+# The token endpoint for the Punctuated voice: POST /api/speech-token.
+# Env: ELEVENLABS_API_KEY, SPEECH_DEMO_CODE.
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
 # Other SOMA apps load the component from here with one script tag.
 [[headers]]
   for = "/soma-speech.js"

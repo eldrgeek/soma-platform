@@ -1,0 +1,29 @@
+# Runs the soma-speech tests on every pull request that touches the package.
+# Added 2026-10-21 (bead sp-zu0): until now nothing ran them automatically, and
+# pr-merge-green needs at least one real check before it will merge.
+name: soma-speech
+
+on:
+  pull_request:
+    paths:
+      - 'packages/soma-speech/**'
+      - '.github/workflows/soma-speech.yml'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/soma-speech
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - name: Node tests
+        run: npm test
+      - name: Mutation check (breaks the source on purpose; every break must be caught)
+        run: npm run mutation-check
+      - name: The demo site builds
+        run: npm run build-site
