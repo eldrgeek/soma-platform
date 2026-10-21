@@ -1,0 +1,38 @@
+puppet "SOMA Studio" version "0.2"
+
+app "SOMA Studio" {
+  promise: "Talk with the team, keep what is agreed, answer what is open, and build the next version of this studio from inside it."
+  requires: signin
+}
+
+data messages {
+  fields: [who, text]
+}
+
+stub agreements {
+  { n: "1", agreement: "The current app keeps the name Sunday Supper and stays as it is." }
+  { n: "2", agreement: "A new Puppet app called SOMA Studio looks the same as the SOMA Studio page." }
+  { n: "3", agreement: "The goal: build a new version of SOMA Studio from inside SOMA Studio." }
+}
+
+stub questions {
+  { n: "1", question: "Should the agreements and questions here share data with the real studio?" }
+  { n: "2", question: "Which team member answers the chat in this app?" }
+  { n: "3", question: "Should the host approve a new version from inside the chat?" }
+}
+
+screen "Studio" {
+  layout: studio
+  row {
+    region agreements {
+      list "Agreements" from agreements
+    }
+    region chat {
+      list "Chat" from messages empty: "Nothing said yet. Write to the team below."
+      composer "Write to the team." field: "Message" -> adds to messages { who: "{me.name}", text: "{form.Message}" }
+    }
+    region questions {
+      list "Open questions" from questions
+    }
+  }
+}

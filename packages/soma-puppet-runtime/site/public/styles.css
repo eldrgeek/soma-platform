@@ -116,3 +116,26 @@ button { cursor: pointer; }
   .puppet-runtime-screen { padding: 18px; }
   .host-panel, .auth-card { width: calc(100% - 24px); }
 }
+
+/* Screen layout "studio": agreements | chat | open questions, as on the SOMA Studio page. */
+.puppet-runtime-layout-studio { padding: 0; }
+.puppet-runtime-layout-studio > .puppet-runtime-row {
+  display: grid;
+  grid-template-columns: minmax(200px, 1fr) minmax(300px, 2fr) minmax(200px, 1fr);
+  gap: 0;
+  min-height: 460px;
+}
+.puppet-runtime-layout-studio .puppet-runtime-region { align-content: start; padding: 14px 16px; gap: 6px; }
+.puppet-runtime-layout-studio .puppet-runtime-region-agreements { border-right: 1px solid #dbe3ec; background: #fafcff; }
+.puppet-runtime-layout-studio .puppet-runtime-region-questions { border-left: 1px solid #dbe3ec; background: #fafcff; }
+.puppet-runtime-layout-studio .puppet-runtime-list { margin: 0; }
+.puppet-runtime-layout-studio .puppet-runtime-region-chat .puppet-runtime-list { min-height: 300px; max-height: 52vh; overflow-y: auto; }
+.puppet-runtime-composer { display: grid; gap: 8px; margin-top: 10px; }
+.puppet-runtime-composer textarea { width: 100%; padding: 10px; border: 1px solid #bdc9d7; border-radius: 8px; resize: vertical; }
+.puppet-runtime-composer-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.puppet-runtime-composer-actions .puppet-runtime-button { margin: 0; }
+@media (max-width: 800px) {
+  .puppet-runtime-layout-studio > .puppet-runtime-row { grid-template-columns: 1fr; }
+  .puppet-runtime-layout-studio .puppet-runtime-region-agreements,
+  .puppet-runtime-layout-studio .puppet-runtime-region-questions { border: 0; border-top: 1px solid #dbe3ec; }
+}

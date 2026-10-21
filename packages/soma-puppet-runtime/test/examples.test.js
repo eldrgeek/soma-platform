@@ -44,3 +44,27 @@ test('approving v2 and undoing restores Sunday Supper v1', async () => {
   assert.equal(restored.id, v1);
   assert.equal(restored.source, v1Source);
 });
+
+test('SOMA Studio parses and declares its three columns, composer and chat data', async () => {
+  const { sketch, errors } = parse(await example('soma-studio.puppet'));
+  assert.deepEqual(errors, []);
+  assert.equal(sketch.meta.title, 'SOMA Studio');
+  assert.deepEqual(sketch.data.messages.fields, ['who', 'text']);
+  const screen = sketch.screens[0];
+  assert.equal(screen.props.layout, 'studio');
+  const regions = screen.children[0].children.map((region) => region.label);
+  assert.deepEqual(regions, ['agreements', 'chat', 'questions']);
+  const composer = screen.children[0].children[1].children.find(({ kind }) => kind === 'composer');
+  assert.equal(composer.hook[0].type, 'add');
+  assert.equal(composer.hook[0].target, 'messages');
+});
+
+test('SOMA Studio is a separate app: Sunday Supper is untouched and both are configured', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const apps = JSON.parse(
+    await readFile(new URL('../site/apps.json', import.meta.url), 'utf8'),
+  );
+  assert.ok(apps['soma-studio'] && apps['sunday-supper']);
+  assert.equal(apps['soma-studio'].hostId, apps['sunday-supper'].hostId);
+  assert.match(await example('sunday-supper.puppet'), /app "Sunday Supper"/);
+});

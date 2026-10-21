@@ -3,5 +3,10 @@
     "hostId": "1d744e1b-ea82-46de-aa2e-2fb9eb0a403a",
     "devHostId": "rosa",
     "publicRead": false
+  },
+  "soma-studio": {
+    "hostId": "1d744e1b-ea82-46de-aa2e-2fb9eb0a403a",
+    "devHostId": "rosa",
+    "publicRead": false
   }
 }

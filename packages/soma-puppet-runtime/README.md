@@ -169,3 +169,15 @@ version, `app.js` tells the studio (`postMessage`), and it redraws when the stud
 - AI host chat
 - Payments
 - SEO pre-rendering
+
+## Example apps
+
+- `examples/sunday-supper.puppet` (and `-v2`): the supper app. Unchanged.
+- `examples/soma-studio.puppet`: SOMA Studio as a Puppet app, `?app=soma-studio`.
+  It looks like the `/studio/` page: header, Agreements column, Chat with a
+  prompt box and mic slot, Open questions column. Chat is live (`data
+  messages`); agreements and questions are sample stubs in this first version.
+  It uses two small renderer additions that stay inside the closed grammar: the
+  `composer` element (a textarea with `field:` naming its form field, a mic slot
+  filled by `soma-speech` when the page has it, and Send running the element's
+  hook) and the open screen prop `layout: studio` (three columns).
