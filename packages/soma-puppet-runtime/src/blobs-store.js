@@ -14,6 +14,16 @@ function emptyApp() {
   };
 }
 
+// Deployed Netlify Blobs reads are eventually consistent by default: a read
+// right after a write can return the old value for up to a minute. Every read
+// here is strong, so a write is visible to the next request.
+const STRONG = { consistency: 'strong' };
+
+// Two function instances can update the same app at once. A write only lands
+// if the blob is unchanged since it was read, and otherwise the update is
+// re-run on fresh data, at most this many times.
+const MAX_WRITE_ATTEMPTS = 5;
+
 export class BlobsStore extends StoreAdapter {
   #appConfigs;
   #blobs;
@@ -22,7 +32,7 @@ export class BlobsStore extends StoreAdapter {
   constructor(appConfigs = {}, { blobStore } = {}) {
     super();
     this.#appConfigs = appConfigs.apps ?? appConfigs;
-    this.#blobs = blobStore ?? getStore('soma-puppet-runtime');
+    this.#blobs = blobStore ?? getStore({ name: 'soma-puppet-runtime', ...STRONG });
   }
 
   async getCurrent(appId) {
@@ -134,16 +144,26 @@ export class BlobsStore extends StoreAdapter {
   }
 
   async #load(appId) {
-    return (await this.#blobs.get(this.#key(appId), { type: 'json' })) ?? emptyApp();
+    return (await this.#blobs.get(this.#key(appId), { type: 'json', ...STRONG })) ?? emptyApp();
   }
 
   async #update(appId, change) {
     const previous = this.#updates.get(appId) ?? Promise.resolve();
     const update = previous.catch(() => {}).then(async () => {
-      const app = await this.#load(appId);
-      const result = await change(app);
-      await this.#blobs.setJSON(this.#key(appId), app);
-      return result;
+      const key = this.#key(appId);
+      for (let attempt = 1; attempt <= MAX_WRITE_ATTEMPTS; attempt += 1) {
+        const stored = await this.#blobs.getWithMetadata(key, { type: 'json', ...STRONG });
+        const app = stored?.data ?? emptyApp();
+        const result = await change(app);
+        // The netlify dev sandbox returns no etag on reads, so an existing
+        // entry without one is written unconditionally. Deployed Blobs
+        // always return one.
+        let conditions = { onlyIfNew: true };
+        if (stored) conditions = stored.etag ? { onlyIfMatch: stored.etag } : {};
+        const { modified } = await this.#blobs.setJSON(key, app, conditions);
+        if (modified) return result;
+      }
+      throw new Error(`App ${appId} changed during ${MAX_WRITE_ATTEMPTS} attempts to update it; try again`);
     });
     this.#updates.set(appId, update);
     try {

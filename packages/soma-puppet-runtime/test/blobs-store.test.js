@@ -14,17 +14,42 @@ screen "Home" {
   list "Guests" from guests
 }`;
 
+// Behaves like deployed Netlify Blobs: a read without consistency 'strong'
+// returns the value as it was before the latest write (eventual consistency),
+// and a conditional write is refused when the entry's etag has moved on.
 class FakeBlobStore {
   values = new Map();
+  stale = new Map();
+  #etag = 0;
 
-  async get(key, { type } = {}) {
-    const value = this.values.get(key);
-    if (value === undefined) return null;
-    return type === 'json' ? structuredClone(value) : JSON.stringify(value);
+  #read(key, consistency) {
+    const entry = consistency === 'strong' ? this.values.get(key) : this.stale.get(key);
+    return entry ?? null;
   }
 
-  async setJSON(key, value) {
-    this.values.set(key, structuredClone(value));
+  async get(key, { type, consistency } = {}) {
+    const entry = this.#read(key, consistency);
+    if (!entry) return null;
+    return type === 'json' ? structuredClone(entry.value) : JSON.stringify(entry.value);
+  }
+
+  async getWithMetadata(key, { type, consistency } = {}) {
+    const entry = this.#read(key, consistency);
+    if (!entry) return null;
+    const data = type === 'json' ? structuredClone(entry.value) : JSON.stringify(entry.value);
+    return { data, etag: entry.etag, metadata: {} };
+  }
+
+  async setJSON(key, value, { onlyIfMatch, onlyIfNew } = {}) {
+    // Yield first, so two concurrent updates both read before either writes.
+    await new Promise((resolve) => setImmediate(resolve));
+    const current = this.values.get(key);
+    if (onlyIfNew && current) return { modified: false };
+    if (onlyIfMatch && current?.etag !== onlyIfMatch) return { modified: false };
+    this.stale.set(key, current);
+    const etag = `e${++this.#etag}`;
+    this.values.set(key, { value: structuredClone(value), etag });
+    return { modified: true, etag };
   }
 }
 
@@ -86,4 +111,34 @@ test('blobs store can re-approve an undone version', async () => {
 
   assert.equal(redone.id, second);
   assert.equal((await store.getCurrent(APP_ID)).id, second);
+});
+
+test('blobs store reads its own writes when Blobs reads are eventually consistent', async () => {
+  // The live failure of 2026-10-20: seeding proposed v1, then approve read
+  // the blob from before that write and the app was left with no current version.
+  const store = makeStore();
+  const versionId = await propose(store);
+  await store.approve(APP_ID, versionId, HOST_ID);
+  await store.add(APP_ID, 'guests', { name: 'Rosa' }, 'rosa');
+
+  assert.equal((await store.getCurrent(APP_ID))?.id, versionId);
+  assert.deepEqual(await store.list(APP_ID, 'guests'), [{ id: 'r1', name: 'Rosa' }]);
+});
+
+test('blobs store keeps both writes when two instances update at once', async () => {
+  const blobs = new FakeBlobStore();
+  const setup = makeStore(blobs);
+  const versionId = await propose(setup);
+  await setup.approve(APP_ID, versionId, HOST_ID);
+
+  // Two function instances, each with its own in-process queue.
+  const first = makeStore(blobs);
+  const second = makeStore(blobs);
+  await Promise.all([
+    first.add(APP_ID, 'guests', { name: 'Rosa' }, 'rosa'),
+    second.add(APP_ID, 'guests', { name: 'Theo' }, 'theo'),
+  ]);
+
+  const names = (await makeStore(blobs).list(APP_ID, 'guests')).map(({ name }) => name);
+  assert.deepEqual(names.sort(), ['Rosa', 'Theo']);
 });

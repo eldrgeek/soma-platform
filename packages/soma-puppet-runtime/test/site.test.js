@@ -172,6 +172,35 @@ test('API seeds current, protects writes, and exposes versioned data', async () 
   );
 });
 
+test('API approves a seed that was proposed but never approved', async () => {
+  // The live state after 2026-10-20's first visit: the seed was stored as
+  // proposed and the approval was lost, so there was no current version.
+  const apps = { [APP_ID]: { hostId: HOST_ID, publicRead: false } };
+  const store = createMemoryStore(apps);
+  const seedId = await store.propose(APP_ID, {
+    source: SOURCE,
+    author: HOST_ID,
+    reason: 'Initial seed',
+  });
+  const api = makeApi({ store });
+
+  const current = await api(request(`/api/app/${APP_ID}/current`, { user: 'theo:Theo' }));
+  assert.equal(current.status, 200);
+  assert.equal((await current.json()).versionId, seedId);
+  assert.equal((await store.listVersions(APP_ID)).length, 1);
+});
+
+test('API does not approve an ordinary proposal while seeding', async () => {
+  const apps = { [APP_ID]: { hostId: HOST_ID, publicRead: false } };
+  const store = createMemoryStore(apps);
+  await store.propose(APP_ID, { source: SOURCE, author: HOST_ID, reason: 'Draft' });
+  const api = makeApi({ store });
+
+  const current = await api(request(`/api/app/${APP_ID}/current`, { user: 'theo:Theo' }));
+  assert.equal(current.status, 404);
+  assert.equal(await store.getCurrent(APP_ID), null);
+});
+
 test('API rejects a spoofed me field instead of storing it as the verified identity', async () => {
   const api = makeApi({ source: SUNDAY_SUPPER_SOURCE });
   const base = `/api/app/${APP_ID}`;

@@ -125,20 +125,30 @@ export function createApiHandler({
   readSeed,
   feedbackStore,
 }) {
+  // Seeding is two writes, propose then approve. If a request stops between
+  // them, the next request finds the seed still proposed and approves it,
+  // instead of leaving the app with no current version.
   async function seed(appId, config) {
+    if (await store.getCurrent(appId)) return;
     const versions = await store.listVersions(appId);
-    if (versions.length) return;
-    let source;
-    try {
-      source = await readSeed(appId);
-    } catch {
-      throw new HttpError(404, `No seed description for ${appId}`);
+    const pending = versions.find(
+      (version) => version.reason === 'Initial seed' && version.status === 'proposed',
+    );
+    if (versions.length && !pending) return;
+    let versionId = pending?.id;
+    if (!versionId) {
+      let source;
+      try {
+        source = await readSeed(appId);
+      } catch {
+        throw new HttpError(404, `No seed description for ${appId}`);
+      }
+      versionId = await store.propose(appId, {
+        source,
+        author: config.hostId,
+        reason: 'Initial seed',
+      });
     }
-    const versionId = await store.propose(appId, {
-      source,
-      author: config.hostId,
-      reason: 'Initial seed',
-    });
     await store.approve(appId, versionId, config.hostId);
   }
 
@@ -312,7 +322,7 @@ async function makeDefaultApi() {
     verifyIdentity: createIdentityVerifier(),
     readSeed: (appId) =>
       readFile(new URL(`../../examples/${appId}.puppet`, import.meta.url), 'utf8'),
-    feedbackStore: getStore('soma-puppet-feedback'),
+    feedbackStore: getStore({ name: 'soma-puppet-feedback', consistency: 'strong' }),
   });
 }
 
