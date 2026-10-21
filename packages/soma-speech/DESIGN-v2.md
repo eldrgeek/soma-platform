@@ -95,5 +95,5 @@ So Scribe decides sentence ends from meaning, as long as it is not forced to cut
 - **A mic left open stops itself** after 30 seconds without words, because the service bills per audio minute.
 - **The token handler is a library, not one shared function.** `server/speech-token.js` has the authorisation, per-person and shared daily limits, and the call to ElevenLabs. Each app wires it to its own sign-in (`supabaseAuthorize` for SOMA sign-in). The demo site wires it to a shared code, because the demo has no sign-in and an open endpoint would let anyone run up the bill.
 - **Keyterm prompting is not included.** It costs $0.08 more per hour and was not tested.
-- **Not done:** the Studio chat box does not offer Punctuated yet. That needs a token function on the soma-forge site and two lines in the Studio page (see the README).
+- **The Studio uses it** (added the same day, bead sp-dbq): the soma-forge site has a `/api/speech-token` function (SOMA sign-in, studio hosts and members only, 120 tokens a day each and 300 in all), and the Studio chat mic is attached with `voice: 'punctuated'`. Anyone it cannot serve gets the browser voice and a reason.
 - **Not measured:** accuracy on Mike's voice, and the Creator plan's limit on simultaneous sessions.

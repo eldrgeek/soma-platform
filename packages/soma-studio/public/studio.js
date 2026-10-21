@@ -4,7 +4,7 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/+esm';
 
 import { createSomaAuthConfig } from '/vendor/soma-signin/somaAuthConfig.js';
-import { dateLabel, madeText, presentNames, renderText, seconds, teamStatusText, timeLabel } from '/studio/view.js';
+import { dateLabel, madeText, micOptions, presentNames, renderText, seconds, teamStatusText, timeLabel } from '/studio/view.js';
 
 const $ = (selector) => document.querySelector(selector);
 const params = new URLSearchParams(location.search);
@@ -577,12 +577,13 @@ ui.newSession.addEventListener('click', async () => {
 // index.html loads /studio/vendor/soma-speech/soma-speech.js, which the build
 // copies from packages/soma-speech. It puts a mic button in the slot beside
 // Send; final words go into the composer at the cursor. Without it there is
-// simply no mic (and Wispr Flow still types into the composer).
+// simply no mic (and Wispr Flow still types into the composer). The voice is
+// Punctuated (see micOptions in view.js), asked for with the page's own sign-in.
 let micAttached = false;
 function attachMic() {
   if (micAttached || !window.SomaSpeech?.attach) return;
   try {
-    window.SomaSpeech.attach(ui.composer, { mount: '#mic-slot' });
+    window.SomaSpeech.attach(ui.composer, micOptions(() => headers()));
     micAttached = true;
   } catch (error) {
     console.warn('mic button not attached', error);

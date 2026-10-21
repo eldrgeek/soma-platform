@@ -7,7 +7,7 @@ import { promisify } from 'node:util';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { escapeHtml, madeText, presentNames, renderText, seconds, teamStatusText } from '../public/view.js';
+import { escapeHtml, madeText, micOptions, presentNames, renderText, seconds, teamStatusText } from '../public/view.js';
 
 const run = promisify(execFile);
 
@@ -133,4 +133,23 @@ test('install copies soma-speech from a sibling package into vendor/', async () 
   const out = join(work, 'out/studio');
   await run(process.execPath, [join(packages, 'soma-studio/scripts/install.mjs'), out], { cwd: work });
   assert.equal(await readFile(join(out, 'vendor/soma-speech/soma-speech.js'), 'utf8'), 'export {};');
+});
+
+test('the studio asks for the Punctuated voice, with the page\'s own sign-in', () => {
+  const signIn = () => ({ authorization: 'Bearer abc' });
+  const options = micOptions(signIn);
+  assert.equal(options.mount, '#mic-slot');
+  assert.equal(options.voice, 'punctuated');
+  assert.equal(options.scribe.tokenUrl, '/api/speech-token');
+  assert.deepEqual(options.scribe.getHeaders(), { authorization: 'Bearer abc' });
+});
+
+// studio.js cannot run under Node (it needs the browser and Supabase), so this
+// pins the one line that gives the mic its options: without it the mic would
+// quietly go back to the browser voice and every other test would still pass.
+test('the studio page attaches its mic with those options', async () => {
+  const here = fileURLToPath(new URL('.', import.meta.url));
+  const js = await readFile(join(here, '../public/studio.js'), 'utf8');
+  assert.match(js, /import \{[^}]*\bmicOptions\b[^}]*\} from '\/studio\/view\.js'/);
+  assert.match(js, /SomaSpeech\.attach\(ui\.composer, micOptions\(\(\) => headers\(\)\)\)/);
 });

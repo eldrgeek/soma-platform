@@ -93,7 +93,7 @@ const handle = createSpeechTokenHandler({
 
 It refuses anyone `authorize` does not accept (401, or 403 from `allow(user)`), counts each token against a daily limit per person and one for everyone (429 beyond them), and only then spends a call on ElevenLabs. It never returns the key. `supabaseAuthorize` checks a SOMA sign-in (the Supabase access token in the `Authorization` header). `demoCodeAuthorize` accepts a shared code instead, for a page with no sign-in.
 
-To add it to an app that already has a SOMA sign-in, such as the Studio's site: put the key in the site's environment (`ELEVENLABS_API_KEY`), add a function like `netlify/functions/speech-token.mjs` here (with `supabaseAuthorize`), and give `attach` the `scribe` option with `getHeaders` returning the person's access token. The Studio does not do this yet.
+To add it to an app that already has a SOMA sign-in: put the key in the site's environment (`ELEVENLABS_API_KEY`), add a function like `netlify/functions/speech-token.mjs` here (with `supabaseAuthorize`), and give `attach` `voice: 'punctuated'` and the `scribe` option with `getHeaders` returning the person's access token. **The Studio does this** (bead sp-dbq): `packages/soma-puppet-runtime/site/functions/speech-token.mjs` on the soma-forge site lets in anyone signed in with SOMA sign-in whose email is a host or member of a studio, 120 tokens a day each and 300 in all, and the Studio page attaches its mic with `micOptions()` from `packages/soma-studio/public/view.js`.
 
 ## Options
 
