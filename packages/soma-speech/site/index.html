@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SOMA Speech</title>
+<meta name="description" content="A microphone button that turns speech into text in any text box. Try it: click the mic and talk.">
+<meta name="robots" content="noindex">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23b3261e' d='M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z'/%3E%3C/svg%3E">
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #fbfaf8; --ink: #1d1d1b; --muted: #5d5a54; --line: #d9d5cc; --card: #ffffff;
+    --accent: #b3261e; --link: #0b57d0; --code: #f1eee8;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #151514; --ink: #ecebe7; --muted: #a9a59c; --line: #3a3935; --card: #1e1e1c; --accent: #f2726a; --link: #8ab4f8; --code: #262624; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 17px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 44rem; margin: 0 auto; padding: 2.5rem 16px 5rem; }
+  h1 { font-size: 2rem; line-height: 1.2; margin: 0 0 .5rem; }
+  h2 { font-size: 1.2rem; margin: 2.5rem 0 .5rem; }
+  p { margin: .5rem 0 1rem; }
+  .lede { font-size: 1.15rem; color: var(--muted); }
+  a { color: var(--link); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 1rem; margin: 1rem 0; }
+  label { display: block; font-weight: 600; margin: 0 0 .4rem; }
+  .row { display: flex; align-items: flex-end; gap: 0; }
+  .row > textarea, .row > input { flex: 1; min-width: 0; }
+  textarea, input[type=text] {
+    font: inherit; color: inherit; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: .6rem .7rem;
+  }
+  textarea { min-height: 9rem; resize: vertical; width: 100%; }
+  button.plain { font: inherit; color: inherit; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: .55rem .9rem; cursor: pointer; }
+  button.plain:hover { border-color: var(--muted); }
+  button.plain:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
+  ul.log { list-style: none; margin: .75rem 0 0; padding: 0; }
+  ul.log li { padding: .35rem .6rem; margin: .25rem 0; background: var(--code); border-radius: 8px; }
+  .status { font-size: .95rem; padding: .6rem .8rem; border-radius: 8px; border: 1px solid var(--line); background: var(--card); }
+  .status strong { display: inline-block; min-width: 9ch; }
+  .status.ok { border-left: 4px solid #1a7f37; }
+  .status.no { border-left: 4px solid var(--accent); }
+  pre { background: var(--code); border-radius: 8px; padding: .8rem 1rem; overflow-x: auto; font-size: .9rem; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .92em; }
+  table { border-collapse: collapse; width: 100%; font-size: .95rem; }
+  th, td { text-align: left; padding: .4rem .5rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+  details summary { cursor: pointer; font-weight: 600; }
+  .muted { color: var(--muted); font-size: .92rem; }
+  .actions { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .6rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>SOMA Speech</h1>
+  <p class="lede">A microphone button for any text box. Click it, talk, and your words go in where the cursor is. Click again, or press Esc, to stop.</p>
+
+  <div id="support" class="status" role="status">Checking this browser…</div>
+
+  <h2>Try it</h2>
+  <div class="card">
+    <label for="demo-text">Notes (a plain text area)</label>
+    <div class="row">
+      <textarea id="demo-text">Meeting notes: </textarea>
+    </div>
+    <p class="muted">The mic sits next to the box. Type something, put the cursor in the middle of it, then dictate. Your typing stays, and the new words go in at the cursor.</p>
+  </div>
+
+  <div class="card">
+    <label for="demo-line">Chat box (a one-line input)</label>
+    <form id="chat" class="row" autocomplete="off">
+      <input id="demo-line" type="text" placeholder="Say something, then press Enter to send">
+      <button class="plain" type="submit" style="margin-left:6px">Send</button>
+    </form>
+    <ul id="chat-log" class="log" aria-live="polite"></ul>
+    <p class="muted">Words you are still saying show above the mic, not in the box, so pressing Enter can never send half a sentence.</p>
+  </div>
+
+  <h2>No microphone handy?</h2>
+  <div class="card">
+    <details>
+      <summary>Run a simulated voice through the same button</summary>
+      <p>This box uses the same mic button and the same code, but a scripted voice instead of your microphone. It shows what dictation looks like, and it works in any browser.</p>
+      <label for="sim-text">Simulated dictation</label>
+      <div class="row"><textarea id="sim-text" style="min-height:5rem">Reminder: </textarea></div>
+      <div class="actions">
+        <button class="plain" id="sim-run" type="button">Simulate speaking a sentence</button>
+        <button class="plain" id="sim-two" type="button">Simulate two sentences, then stop</button>
+      </div>
+    </details>
+  </div>
+
+  <h2>Add it to your own app</h2>
+  <p>One line, anywhere on the page. The mic appears next to the box that matches <code>data-target</code>.</p>
+  <pre><code>&lt;script src="https://soma-speech.netlify.app/soma-speech.js"
+        data-target="#chat-input" defer&gt;&lt;/script&gt;</code></pre>
+  <p>For a box your app draws later, call <code>SomaSpeech.attach('#chat-input')</code> once it exists. The package, its tests and the plan for a server-side engine are in <a href="https://github.com/eldrgeek/soma-platform/tree/master/packages/soma-speech">soma-platform/packages/soma-speech</a>.</p>
+
+  <h2>Which browsers</h2>
+  <table>
+    <thead><tr><th>Browser</th><th>Voice typing</th></tr></thead>
+    <tbody>
+      <tr><td>Chrome, Edge</td><td>Works. The browser sends your audio to its maker's speech service while you speak.</td></tr>
+      <tr><td>Safari (Mac, iPhone)</td><td>Works once Dictation is on: System Settings, Keyboard, Dictation.</td></tr>
+      <tr><td>Firefox</td><td>Not available. The mic button says so instead of failing quietly.</td></tr>
+    </tbody>
+  </table>
+  <p class="muted">Test page for developers: <a href="test/">the browser wiring test</a> checks the button, the cursor, Esc and focus in your browser with a fake voice.</p>
+</main>
+
+<script src="soma-speech.js" data-target="#demo-text, #demo-line" defer></script>
+<script src="soma-speech-fake.js" defer></script>
+<script>
+(function () {
+  // What this browser offers, in plain words.
+  var has = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+  var secure = window.isSecureContext !== false;
+  var box = document.getElementById('support');
+  if (has && secure) {
+    box.className = 'status ok';
+    box.innerHTML = '<strong>This browser:</strong> speech recognition is available. Click the mic and allow the microphone when asked.';
+  } else if (!secure) {
+    box.className = 'status no';
+    box.innerHTML = '<strong>This browser:</strong> voice typing needs a secure (https) page.';
+  } else {
+    box.className = 'status no';
+    box.innerHTML = '<strong>This browser:</strong> speech recognition is not available. The mic buttons below will say so. Try Chrome, Edge or Safari.';
+  }
+
+  // The chat box: Enter sends what is in the box, and nothing else.
+  var chat = document.getElementById('chat');
+  var line = document.getElementById('demo-line');
+  var log = document.getElementById('chat-log');
+  chat.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var text = line.value.trim();
+    if (!text) return;
+    var li = document.createElement('li');
+    li.textContent = text;
+    log.appendChild(li);
+    line.value = '';
+  });
+
+  // The simulated voice: the real button and code, a scripted engine.
+  window.addEventListener('DOMContentLoaded', function () {
+    function setup() {
+      if (!window.SomaSpeech || !window.SomaSpeechFake) return setTimeout(setup, 50);
+      var fake = window.SomaSpeechFake.createFakeEngine();
+      var sim = window.SomaSpeech.attach('#sim-text', { engine: fake });
+      function say(sentences) {
+        if (sim.state === 'listening') return;
+        sim.start();
+        fake.begin();
+        var p = Promise.resolve();
+        sentences.forEach(function (s) { p = p.then(function () { return fake.speak(s, { wordMs: 220 }); }).then(function () { return new Promise(function (r) { setTimeout(r, 400); }); }); });
+        p.then(function () { sim.stop(); });
+      }
+      document.getElementById('sim-run').addEventListener('click', function () { say(['please send the draft to Eric by Friday']); });
+      document.getElementById('sim-two').addEventListener('click', function () { say(['the first speaker is Mike', 'the second is Eric']); });
+    }
+    setup();
+  });
+})();
+</script>
+
+<!-- Feedback chip: loaded by soma-chip-loader.js from the central host through the
+     /soma-chip/ proxy in netlify.toml, with the vendored copy as the fallback. -->
+<script src="/vendor/soma-feedback/soma-chip-loader.js" data-site="soma-speech" data-no-google defer></script>
+</body>
+</html>

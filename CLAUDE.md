@@ -10,6 +10,8 @@ last_reviewed: 2026-06-23
 
 **Where work happens:** `packages/<pkg>/` (source) → copy build output to `dist/` (Netlify publishes `dist/`, not the repo root). Packages: `soma-guide` (tour overlay, the flagship), `auth`, `soma-onboard`, `soma-tickets`, `soma-meter`, `soma-owner`, `soma-scaffolder`, `auto-mapper`, `guide-extension`.
 
+**`soma-speech` (`@soma/speech`)** — mic button that dictates into any text box; one dependency-free file (`src/soma-speech.js`) added with one script tag. Its own Netlify site (https://soma-speech.netlify.app, base dir `packages/soma-speech`, git-linked, builds `public/` with `node scripts/build-site.js`) serves the file and a no-sign-in demo; it does not use the root `dist/`. Tests: `cd packages/soma-speech && npm test && npm run mutation-check`. README: `packages/soma-speech/README.md`.
+
 **`soma-onboard` does not follow the dist/CDN pattern** — it is a consumed npm package, not a served artifact, so nothing about `dist/` or `deploy-guide.sh` applies to it. Apps import it and keep their own federated tables (SOMA-APP-STANDARD §15b). Tests: `cd packages/soma-onboard && npm install && npm test` (33 tests; the QR suite compares byte-for-byte against the `qrcode` package and is the reason that devDependency exists).
 
 **`soma-tickets` (`@soma/tickets`)** — same consumed-package pattern as soma-onboard: front-door single-use invite tokens via shared Supabase RPCs (`ticket_create`, `ticket_lookup`, `ticket_use`) on app-scoped `public.tickets`; inject `supabase` + `app`, no env reads. Reference schema in `packages/soma-tickets/sql/schema.sql` (already applied in the shared project for `playmaker`). Tests: `cd packages/soma-tickets && npm test`.
