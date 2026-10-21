@@ -314,7 +314,7 @@ function agreementNode(agreement) {
   ];
   const actions = host && agreement.status === 'active'
     ? el('span', { class: 'actions' }, [
-      el('button', { type: 'button', class: 'link', text: 'Correct', onclick: () => editAgreement(item, agreement) }),
+      el('button', { type: 'button', class: 'link', text: 'Edit', title: 'Change the wording of this agreement', onclick: () => editAgreement(item, agreement) }),
       el('button', { type: 'button', class: 'link danger', text: 'Remove', onclick: () => removeAgreement(agreement) }),
     ])
     : null;
@@ -329,7 +329,7 @@ function agreementNode(agreement) {
 }
 
 function editAgreement(item, agreement) {
-  const box = el('textarea', { class: 'edit', rows: 3, 'aria-label': `Correct agreement A${agreement.n}` });
+  const box = el('textarea', { class: 'edit', rows: 3, 'aria-label': `Edit agreement A${agreement.n}` });
   box.value = agreement.text;
   const save = el('button', { type: 'button', text: 'Save' });
   const cancel = el('button', { type: 'button', class: 'ghost-dark', text: 'Cancel', onclick: () => drawAgreements() });
