@@ -6,7 +6,7 @@ _Design note. Written 2026-10-21 by Claude Sonnet 5.5 (CCc) for Mike Wolf, bead 
 
 Use **ElevenLabs Scribe v2 Realtime** as the server-side engine.
 
-The mic button does not change. The engine follows the engine interface that `soma-speech.js` already defines (see the header comment of that file). A page offers it with one attribute, a person chooses it from a menu beside the mic, and the mic falls back to the browser engine when it cannot be used.
+The mic button does not change. The engine follows the engine interface that `soma-speech.js` already defines (see the header comment of that file). The app builder turns it on with one attribute (`data-voice="punctuated"`), and the mic falls back to the browser engine for any person it cannot serve.
 
 ## Why this service
 
@@ -89,7 +89,7 @@ So Scribe decides sentence ends from meaning, as long as it is not forced to cut
 ## What was built, and where it differs from the plan
 
 - **One file, not two.** The engine is in `src/soma-speech.js`, not a separate `soma-speech-scribe.js`: apps vendor one file, and the extra 10 KB is small.
-- **A person's choice, not a page setting** (Mike, 2026-10-21: "a SOMA Designer (person) gets to choose"). A small menu beside the mic offers Standard and Punctuated; the choice is remembered in the browser. The page decides only whether Punctuated is offered.
+- **The app builder's setting, not a menu for the people using the app.** Mike asked for Scribe as "an option on the SOMA speech component" that "a SOMA Designer (person) gets to choose", and clarified: "This is an option for the person building the app, not the user." The first build misread this and put a Standard / Punctuated menu beside the mic for whoever was dictating; that was removed the same day. The choice is now `voice: 'punctuated'` (or `data-voice="punctuated"`) in the app, with Standard the default, and the people using the app see only a mic. In Studio terms it is a setting the Designer puts on the mic component in the app's description.
 - **The microphone opens at the click,** in parallel with the token request, so the first words are not lost and Safari still counts the audio as started by the person.
 - **Automatic fallback with a spoken-out reason.** Not signed in, over the daily limit, offline or the service down: the mic starts Standard and says why.
 - **A mic left open stops itself** after 30 seconds without words, because the service bills per audio minute.

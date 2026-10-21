@@ -47,6 +47,9 @@
   th, td { text-align: left; padding: .4rem .5rem; border-bottom: 1px solid var(--line); vertical-align: top; }
   details summary { cursor: pointer; font-weight: 600; }
   .muted { color: var(--muted); font-size: .92rem; }
+  fieldset.voices { border: 1px solid var(--line); border-radius: 8px; margin: .5rem 0 1rem; padding: .5rem .8rem; }
+  label.radio { display: flex; gap: .6rem; align-items: flex-start; margin: .5rem 0; font-weight: 400; cursor: pointer; }
+  label.radio input { margin-top: .35rem; }
   .actions { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .6rem; }
 </style>
 </head>
@@ -76,15 +79,20 @@
     <p class="muted">Words you are still saying show above the mic, not in the box, so pressing Enter can never send half a sentence.</p>
   </div>
 
-  <h2>Two voices</h2>
+  <h2>If you are building the app: choose the voice</h2>
   <div class="card">
-    <p>Next to each mic above is a small arrow. It lets you choose how your voice becomes text:</p>
-    <ul>
-      <li><strong>Standard</strong>: your browser's own speech recognition. Free. No punctuation or capital letters.</li>
-      <li><strong>Punctuated</strong>: adds punctuation and capital letters, and decides where a sentence ends, even when you pause in the middle of one. Works in every browser, Firefox included. Your audio goes to ElevenLabs while you speak.</li>
-    </ul>
-    <p class="muted">Your choice is remembered in this browser. If Punctuated is not available, the mic uses Standard and tells you why.</p>
-    <p>This demo has no sign-in, so Punctuated needs a code. SOMA apps use your SOMA sign-in instead.</p>
+    <p>The people who use your app see only a mic. <strong>You</strong> choose which voice sits behind it, with one setting. Try both here. The two boxes above switch with your choice.</p>
+    <fieldset class="voices">
+      <legend class="muted">Voice for this app</legend>
+      <label class="radio"><input type="radio" name="voice" value="standard" checked>
+        <span><strong>Standard</strong>: the browser's own speech recognition. Free. No punctuation or capital letters. Not available in Firefox.</span></label>
+      <label class="radio"><input type="radio" name="voice" value="punctuated">
+        <span><strong>Punctuated</strong>: adds punctuation and capital letters, and decides where a sentence ends, even when you pause in the middle of one. Works in every browser. The audio goes to ElevenLabs while you speak, and it needs a token endpoint on your server.</span></label>
+    </fieldset>
+    <p>The line for your app:</p>
+    <pre><code id="voice-snippet"></code></pre>
+    <p class="muted">If Punctuated cannot start for someone (not signed in, daily limit reached, offline), their mic uses Standard and tells them why.</p>
+    <p>This demo has no sign-in, so Punctuated here needs a code.</p>
     <form id="code-form" autocomplete="off">
       <label for="code-input">Demo code</label>
       <div class="row">
@@ -113,7 +121,7 @@
   <p>One line, anywhere on the page. The mic appears next to the box that matches <code>data-target</code>.</p>
   <pre><code>&lt;script src="https://soma-speech.netlify.app/soma-speech.js"
         data-target="#chat-input" defer&gt;&lt;/script&gt;</code></pre>
-  <p>For a box your app draws later, call <code>SomaSpeech.attach('#chat-input')</code> once it exists. The package, its tests and the plan for a server-side engine are in <a href="https://github.com/eldrgeek/soma-platform/tree/master/packages/soma-speech">soma-platform/packages/soma-speech</a>.</p>
+  <p>For the punctuated voice add <code>data-voice="punctuated"</code> and <code>data-scribe-token-url</code>, as shown above. For a box your app draws later, call <code>SomaSpeech.attach('#chat-input')</code> once it exists. The package, its tests and the design notes are in <a href="https://github.com/eldrgeek/soma-platform/tree/master/packages/soma-speech">soma-platform/packages/soma-speech</a>.</p>
 
   <h2>Which browsers</h2>
   <table>
@@ -139,7 +147,7 @@
     history.replaceState(null, '', location.pathname + location.search);   // the code does not stay in the address bar
   })();
 </script>
-<script src="soma-speech.js" data-target="#demo-text, #demo-line" data-scribe-token-url="/api/speech-token" defer></script>
+<script src="soma-speech.js" data-target="#demo-text, #demo-line" defer></script>
 <script src="soma-speech-fake.js" defer></script>
 <script>
 (function () {
@@ -176,6 +184,40 @@
     showCode();
   });
   showCode();
+
+  // The builder's setting. The two boxes are attached with the chosen voice; the
+  // person using them sees only a mic. In an app this is one attribute.
+  var VOICE_KEY = 'soma-speech:demo-voice';
+  var snippet = document.getElementById('voice-snippet');
+  function savedVoice() { try { return localStorage.getItem(VOICE_KEY) === 'punctuated' ? 'punctuated' : 'standard'; } catch (e) { return 'standard'; } }
+  function showSnippet(v) {
+    var end = '</' + 'script' + '>';
+    snippet.textContent = v === 'punctuated'
+      ? '<script src="https://soma-speech.netlify.app/soma-speech.js"\n        data-target="#chat-input" data-voice="punctuated"\n        data-scribe-token-url="/api/speech-token" defer>' + end
+      : '<script src="https://soma-speech.netlify.app/soma-speech.js"\n        data-target="#chat-input" defer>' + end;
+  }
+  function applyVoice(v) {
+    showSnippet(v);
+    ['demo-text', 'demo-line'].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el.__somaSpeech) el.__somaSpeech.destroy();
+      window.SomaSpeech.attach(el, { voice: v, scribe: { tokenUrl: '/api/speech-token' } });
+    });
+  }
+  document.querySelectorAll('input[name="voice"]').forEach(function (r) {
+    r.checked = r.value === savedVoice();
+    r.addEventListener('change', function () {
+      try { localStorage.setItem(VOICE_KEY, r.value); } catch (e) {}
+      applyVoice(r.value);
+    });
+  });
+  showSnippet(savedVoice());
+  window.addEventListener('DOMContentLoaded', function () {
+    (function wait() {
+      if (!window.SomaSpeech) return setTimeout(wait, 50);
+      if (savedVoice() === 'punctuated') applyVoice('punctuated');
+    })();
+  });
 
   // The chat box: Enter sends what is in the box, and nothing else.
   var chat = document.getElementById('chat');

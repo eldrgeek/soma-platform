@@ -245,7 +245,7 @@
     eq(el.value, 'Keep me.', 'after undo (execCommand returned ' + undone + ')');
   }), true);
 
-  // ---- the person's choice of voice (Standard or Punctuated), with fakes for the service
+  // ---- the app builder's choice of voice (standard or punctuated), with fakes for the service
 
   function FakeWS(url) { this.url = url; this.sent = []; this.closed = false; FakeWS.all.push(this); }
   FakeWS.all = [];
@@ -260,78 +260,36 @@
   }
   var fakeAudio = function () { return Promise.resolve({ stop: function () {} }); };
 
-  // An attach with Punctuated offered, everything behind it faked. `key` keeps
-  // each test's remembered choice apart from the others.
-  function withChoice(key, status, fn) {
+  // An attach where the builder chose Punctuated, everything behind it faked.
+  function withPunctuated(status, fn) {
     return function () {
       var el = fixture('textarea', '');
       var browserFake = F.createFakeEngine();
       FakeWS.all = [];
       var inst = S.attach(el, {
+        voice: 'punctuated',
         browserEngine: browserFake,
-        storageKey: 'soma-speech:test-' + key,
         scribe: { tokenUrl: '/t', WebSocket: FakeWS, fetch: fakeFetch(status), openAudio: fakeAudio }
       });
-      function cleanup() { inst.destroy(); el.remove(); try { localStorage.removeItem('soma-speech:test-' + key); } catch (e) {} }
+      function cleanup() { inst.destroy(); el.remove(); }
       return Promise.resolve(fn(el, browserFake, inst)).then(cleanup, function (e) { cleanup(); throw e; });
     };
   }
-  function opt(inst) { return inst.element.querySelector('.soma-speech-opt'); }
-  function menuOf(inst) { return inst.element.querySelector('.soma-speech-menu'); }
-  function item(inst, id) { return inst.element.querySelector('.soma-speech-item[data-engine="' + id + '"]'); }
 
-  test('no voice menu appears unless the page offers Punctuated voice', withBox('textarea', '', function (el, fake, inst) {
+  test('the voice is standard unless the builder says otherwise', withBox('textarea', '', function (el, fake, inst) {
+    eq(inst.voice, 'standard', 'voice');
+    eq(inst.element.getAttribute('data-voice'), 'standard', 'data-voice');
+  }));
+
+  test('the person sees only a mic: no voice menu is ever shown, even for Punctuated', withPunctuated(200, function (el, b, inst) {
+    eq(inst.voice, 'punctuated', 'voice');
+    eq(inst.element.getAttribute('data-voice'), 'punctuated', 'data-voice');
     eq(inst.element.querySelector('.soma-speech-opt'), null, 'no menu button');
     eq(inst.element.querySelector('.soma-speech-menu'), null, 'no menu');
+    eq(inst.element.querySelectorAll('button').length, 1, 'one button: the mic');
   }));
 
-  test('when Punctuated voice is offered, a closed menu button sits beside the mic', withChoice('a', 200, function (el, b, inst) {
-    ok(opt(inst), 'menu button exists');
-    eq(opt(inst).getAttribute('aria-expanded'), 'false', 'closed');
-    ok(menuOf(inst).hidden, 'menu hidden');
-    eq(inst.choice, 'browser', 'Standard is the default');
-  }));
-
-  test('the menu opens with two radio choices, the current one checked, and Esc closes it', withChoice('b', 200, function (el, b, inst) {
-    opt(inst).click();
-    eq(opt(inst).getAttribute('aria-expanded'), 'true', 'open');
-    ok(!menuOf(inst).hidden, 'menu visible');
-    eq(item(inst, 'browser').getAttribute('aria-checked'), 'true', 'Standard checked');
-    eq(item(inst, 'scribe').getAttribute('aria-checked'), 'false', 'Punctuated not checked');
-    eq(item(inst, 'scribe').getAttribute('role'), 'menuitemradio', 'role');
-    document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-    ok(menuOf(inst).hidden, 'Esc closed the menu');
-  }));
-
-  test('a click outside the menu closes it', withChoice('c', 200, function (el, b, inst) {
-    opt(inst).click();
-    document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
-    ok(menuOf(inst).hidden, 'closed');
-  }));
-
-  test('choosing Punctuated is remembered in this browser, and a new attach starts with it', function () {
-    var key = 'soma-speech:test-d';
-    var el = fixture('textarea', '');
-    var make = function () {
-      return S.attach(el, { browserEngine: F.createFakeEngine(), storageKey: key, scribe: { tokenUrl: '/t', WebSocket: FakeWS, fetch: fakeFetch(200), openAudio: fakeAudio } });
-    };
-    var inst = make();
-    try {
-      opt(inst).click();
-      item(inst, 'scribe').click();
-      eq(inst.choice, 'scribe', 'choice');
-      eq(inst.element.getAttribute('data-engine'), 'scribe', 'data-engine');
-      eq(localStorage.getItem(key), 'scribe', 'stored');
-      ok(menuOf(inst).hidden, 'menu closed after choosing');
-      ok(/Punctuated/.test(bubbleOf(inst).textContent), 'the bubble confirms the choice');
-      inst.destroy();
-      inst = make();
-      eq(inst.choice, 'scribe', 'remembered on the next attach');
-    } finally { inst.destroy(); el.remove(); localStorage.removeItem(key); }
-  });
-
-  test('with Punctuated chosen, the mic uses it: punctuated text lands in the box', withChoice('e', 200, function (el, browserFake, inst) {
-    inst.setChoice('scribe');
+  test('when the builder chose Punctuated, the mic uses it: punctuated text lands in the box', withPunctuated(200, function (el, browserFake, inst) {
     inst.button.click();
     return wait(30).then(function () {
       var ws = FakeWS.all[0];
@@ -351,8 +309,7 @@
     });
   }));
 
-  test('if the service refuses a token, the mic falls back to Standard and says so', withChoice('f', 401, function (el, browserFake, inst) {
-    inst.setChoice('scribe');
+  test('if the service refuses a token, the mic uses standard voice and says so', withPunctuated(401, function (el, browserFake, inst) {
     inst.button.click();
     return wait(30).then(function () {
       eq(browserFake.starts, 1, 'the browser engine took over');
@@ -364,13 +321,30 @@
     });
   }));
 
-  test('the menu cannot be changed while listening', withChoice('g', 200, function (el, browserFake, inst) {
-    inst.button.click();
-    browserFake.begin();
-    eq(opt(inst).disabled, true, 'menu button disabled while listening');
-    inst.button.click();
-    eq(opt(inst).disabled, false, 'enabled again after stopping');
-  }));
+  test("voice 'punctuated' without a token address warns the builder and uses standard", function () {
+    var el = fixture('textarea', '');
+    var warned = [];
+    var realWarn = console.warn;
+    console.warn = function (m) { warned.push(String(m)); };
+    var inst;
+    try {
+      inst = S.attach(el, { voice: 'punctuated', browserEngine: F.createFakeEngine() });
+      eq(inst.voice, 'standard', 'fell back to standard');
+      ok(warned.length === 1 && /tokenUrl/.test(warned[0]), 'one warning naming tokenUrl: ' + warned.join('|'));
+    } finally { console.warn = realWarn; if (inst) inst.destroy(); el.remove(); }
+  });
+
+  test('data-voice and data-scribe-token-url on a marked box set the voice', function () {
+    var el = fixture('textarea', '');
+    el.setAttribute('data-soma-speech', '');
+    el.setAttribute('data-voice', 'punctuated');
+    el.setAttribute('data-scribe-token-url', '/t');
+    S.autoAttach(null);
+    try {
+      ok(el.__somaSpeech, 'attached');
+      eq(el.__somaSpeech.voice, 'punctuated', 'voice from the attribute');
+    } finally { if (el.__somaSpeech) el.__somaSpeech.destroy(); el.remove(); }
+  });
 
   function row(name, status, detail) {
     var tr = document.createElement('tr');

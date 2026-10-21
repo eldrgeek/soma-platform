@@ -45,14 +45,14 @@
  *   An engine may also call onnotice(text) to tell the person something while it
  *   is listening (for example "using standard voice instead").
  *
- * Two voices (version 2)
- *   When a page passes `scribe: { tokenUrl }` (or data-scribe-token-url on the
- *   script tag), the person gets a small menu beside the mic to choose between
- *   Standard (the browser's engine) and Punctuated (ElevenLabs Scribe v2
- *   Realtime, which adds punctuation and capital letters and decides where
- *   sentences end). The choice is remembered in this browser. If Punctuated
- *   cannot start (not signed in, daily limit, offline), the mic falls back to
- *   Standard and says so. See DESIGN-v2.md and server/speech-token.js.
+ * Two voices (version 2) — the app builder chooses, the person just sees a mic
+ *   voice: 'standard' (default) uses the browser's engine. voice: 'punctuated'
+ *   (data-voice="punctuated") uses ElevenLabs Scribe v2 Realtime, which adds
+ *   punctuation and capital letters and decides where sentences end. It needs
+ *   scribe: { tokenUrl } (data-scribe-token-url), the address of a token
+ *   endpoint on your server. If Punctuated cannot start for someone (not signed
+ *   in, daily limit, offline), their mic uses Standard and says so. See
+ *   DESIGN-v2.md and server/speech-token.js.
  *
  * Written 2026-10-21 (Mike Wolf; Claude Sonnet 5.5, CCc) for SOMA Studio's chat
  * box, reusable by PlayMaker and any SOMA app. Beads sp-hih (v1), sp-zu0 (v2).
@@ -865,25 +865,6 @@
     '.soma-speech-bubble em{font-style:italic}',
     '[data-soma-speech-state="listening"],[data-soma-speech-state="starting"]{box-shadow:0 0 0 2px rgba(217,48,37,.45)}',
     '@keyframes soma-speech-pulse{from{transform:scale(.9);opacity:.7}to{transform:scale(1.35);opacity:0}}',
-    '.soma-speech-opt{box-sizing:border-box;width:22px;height:40px;margin:0 0 0 2px;padding:0;display:inline-flex;',
-    'align-items:center;justify-content:center;border:0;border-radius:11px;background:transparent;color:inherit;',
-    'cursor:pointer;opacity:.7}',
-    '.soma-speech-opt:hover{background:rgba(128,128,128,.16);opacity:1}',
-    '.soma-speech-opt:focus-visible{outline:2px solid #1a73e8;outline-offset:2px}',
-    '.soma-speech-opt[disabled]{opacity:.3;cursor:default;background:transparent}',
-    '.soma-speech-opt svg{width:14px;height:14px;display:block}',
-    '.soma-speech-menu{position:absolute;right:0;bottom:calc(100% + 8px);z-index:1001;box-sizing:border-box;',
-    'width:min(20rem,80vw);padding:6px;border-radius:10px;background:Canvas;color:CanvasText;',
-    'border:1px solid rgba(128,128,128,.6);box-shadow:0 4px 16px rgba(0,0,0,.25)}',
-    '.soma-speech-menu[hidden]{display:none}',
-    '.soma-speech-item{position:relative;display:block;width:100%;margin:0;padding:8px 10px 8px 30px;border:0;',
-    'border-radius:8px;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer}',
-    '.soma-speech-item:hover{background:rgba(128,128,128,.16)}',
-    '.soma-speech-item:focus-visible{outline:2px solid #1a73e8;outline-offset:-2px}',
-    '.soma-speech-item[aria-checked="true"]::before{content:"\\2713";position:absolute;left:10px;top:8px;font-weight:700}',
-    '.soma-speech-item[aria-disabled="true"]{opacity:.5;cursor:default}',
-    '.soma-speech-item strong{display:block}',
-    '.soma-speech-item span{display:block;font-size:12.5px;opacity:.8}',
     '@media (prefers-reduced-motion:reduce){.soma-speech-btn::after{animation:none!important}}'
   ].join('');
 
@@ -922,45 +903,12 @@
     return typeof ref === 'string' ? doc.querySelector(ref) : ref;
   }
 
-  var CHOICES = [
-    ['browser', 'Standard', "Your browser's own speech recognition. Free. No punctuation or capital letters."],
-    ['scribe', 'Punctuated', 'Adds punctuation and capital letters, and works in every browser. Your audio goes to ElevenLabs while you speak.']
-  ];
-  var CHOICE_KEY = 'soma-speech:engine';
-
-  function readChoice(key) {
-    try {
-      var v = root.localStorage.getItem(key);
-      return v === 'browser' || v === 'scribe' ? v : null;
-    } catch (e) { return null; }
-  }
-  function saveChoice(key, value) {
-    try { root.localStorage.setItem(key, value); } catch (e) { /* private mode: the choice lasts until reload */ }
-  }
-
-  function chevronIcon(doc) {
-    var ns = 'http://www.w3.org/2000/svg';
-    var svg = doc.createElementNS(ns, 'svg');
-    svg.setAttribute('viewBox', '0 0 24 24');
-    svg.setAttribute('aria-hidden', 'true');
-    svg.setAttribute('focusable', 'false');
-    var path = doc.createElementNS(ns, 'path');
-    path.setAttribute('d', 'M6 9l6 6 6-6');
-    path.setAttribute('fill', 'none');
-    path.setAttribute('stroke', 'currentColor');
-    path.setAttribute('stroke-width', '2.4');
-    path.setAttribute('stroke-linecap', 'round');
-    path.setAttribute('stroke-linejoin', 'round');
-    svg.appendChild(path);
-    return svg;
-  }
-
   // Add a mic button to a <textarea> or text <input>. Returns the instance.
   // options: lang, mount (element or selector), onChange(info),
-  //   engine (factory or engine object: one engine, no choice menu),
-  //   scribe ({ tokenUrl, getHeaders, ... }: adds the Punctuated voice and a menu
-  //     beside the mic where the person chooses), defaultEngine ('browser' | 'scribe'),
-  //     storageKey, browserEngine (an engine to use as "Standard", for tests).
+  //   voice ('standard' | 'punctuated': the app builder's choice of voice; default 'standard'),
+  //   scribe ({ tokenUrl, getHeaders, ... }: what 'punctuated' needs),
+  //   engine (factory or engine object: your own engine, instead of either voice),
+  //   browserEngine (an engine to use as "standard", for tests).
   function attach(ref, options) {
     var doc = (root && root.document) || null;
     if (!doc) throw new Error('SomaSpeech.attach needs a browser page');
@@ -977,21 +925,22 @@
 
     var engine = opts.engine;
     if (typeof engine === 'function') engine = engine();
-    var scribeEngine = null;
-    var browserEngine = null;
-    var storageKey = opts.storageKey || CHOICE_KEY;
-    var currentChoice = 'browser';
-    if (!engine && opts.scribe && opts.scribe.tokenUrl) {
-      browserEngine = opts.browserEngine || createBrowserEngine();
-      scribeEngine = createScribeEngine(opts.scribe);
-      currentChoice = readChoice(storageKey) || opts.defaultEngine || 'browser';
-      engine = createChoiceEngine({
-        browser: browserEngine,
-        scribe: scribeEngine,
-        getChoice: function () { return currentChoice; }
-      });
+    var voice = 'standard';
+    if (!engine && opts.voice === 'punctuated') {
+      if (opts.scribe && opts.scribe.tokenUrl) {
+        voice = 'punctuated';
+        // The builder chose Punctuated. If it cannot start for this person, the mic
+        // uses Standard and says why, so they are never left with a dead button.
+        engine = createChoiceEngine({
+          browser: opts.browserEngine || createBrowserEngine(),
+          scribe: createScribeEngine(opts.scribe),
+          getChoice: function () { return 'scribe'; }
+        });
+      } else {
+        warn("voice: 'punctuated' needs scribe.tokenUrl (the address of your token endpoint). Using standard voice.");
+      }
     }
-    if (!engine) engine = createBrowserEngine();
+    if (!engine) engine = opts.browserEngine || createBrowserEngine();
 
     ensureStyle(doc);
     var lang = opts.lang || el.getAttribute('lang') || doc.documentElement.lang ||
@@ -1011,47 +960,6 @@
     wrap.appendChild(btn);
     wrap.appendChild(bubble);
 
-    // The person's choice of voice: a small menu beside the mic, only when the page offers Scribe.
-    var optBtn = null;
-    var menu = null;
-    var items = {};
-    var menuOpen = false;
-    var choiceNote = '';
-    var choiceTimer = null;
-    if (scribeEngine) {
-      optBtn = doc.createElement('button');
-      optBtn.type = 'button';
-      optBtn.className = 'soma-speech-opt';
-      optBtn.setAttribute('aria-haspopup', 'menu');
-      optBtn.setAttribute('aria-expanded', 'false');
-      optBtn.setAttribute('aria-label', 'Choose how your voice is turned into text');
-      optBtn.title = 'Choose how your voice is turned into text';
-      optBtn.appendChild(chevronIcon(doc));
-      menu = doc.createElement('div');
-      menu.className = 'soma-speech-menu';
-      menu.setAttribute('role', 'menu');
-      menu.hidden = true;
-      CHOICES.forEach(function (c) {
-        var item = doc.createElement('button');
-        item.type = 'button';
-        item.className = 'soma-speech-item';
-        item.setAttribute('role', 'menuitemradio');
-        item.setAttribute('data-engine', c[0]);
-        var name = doc.createElement('strong');
-        name.textContent = c[1];
-        var desc = doc.createElement('span');
-        desc.textContent = c[2];
-        item.appendChild(name);
-        item.appendChild(desc);
-        item.addEventListener('mousedown', function (e) { e.preventDefault(); });
-        item.addEventListener('click', function () { choose(c[0]); });
-        items[c[0]] = { el: item, desc: desc, base: c[2] };
-        menu.appendChild(item);
-      });
-      wrap.insertBefore(optBtn, bubble);
-      wrap.insertBefore(menu, bubble);
-    }
-
     var mount = resolveElement(opts.mount, doc);
     if (mount) mount.appendChild(wrap);
     else el.insertAdjacentElement('afterend', wrap);
@@ -1060,32 +968,12 @@
     var noticeTimer = null;
     var ctl = null;
 
-    function setMenu(open) {
-      menuOpen = open;
-      menu.hidden = !open;
-      optBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
-      render(ctl.info);
-    }
-
-    function choose(id) {
-      var picked = id === 'scribe' ? scribeEngine : browserEngine;
-      if (!picked || !picked.supported) return;     // the item already says it is not available
-      currentChoice = id;
-      saveChoice(storageKey, id);
-      choiceNote = 'Voice: ' + (id === 'scribe' ? 'Punctuated' : 'Standard');
-      if (choiceTimer) clearTimeout(choiceTimer);
-      choiceTimer = setTimeout(function () { choiceTimer = null; choiceNote = ''; render(ctl.info); }, 3000);
-      setMenu(false);
-      try {
-        el.dispatchEvent(new root.CustomEvent('soma-speech-engine', { bubbles: true, detail: { engine: id } }));
-      } catch (e) { /* old browsers without CustomEvent constructors */ }
-    }
-
     function render(info) {
       var listening = info.state === 'starting' || info.state === 'listening';
       var supported = !!engine.supported;
       wrap.setAttribute('data-state', info.state);
       wrap.setAttribute('data-supported', supported ? 'true' : 'false');
+      wrap.setAttribute('data-voice', voice);
       el.setAttribute('data-soma-speech-state', info.state);
       btn.setAttribute('aria-pressed', listening ? 'true' : 'false');
       var label = !supported ? unsupportedMessage()
@@ -1103,25 +991,7 @@
         } else text = 'Listening. Speak now. Click the mic or press Esc to stop.';
       } else if (info.state === 'stopping') text = 'Finishing…';
       else if (info.message) text = info.message;
-      else if (choiceNote) text = choiceNote;
       if (info.notice && listening && !info.interim) { text = info.notice; italic = false; }
-
-      if (optBtn) {
-        optBtn.disabled = listening || info.state === 'stopping';
-        if (optBtn.disabled && menuOpen) {
-          menuOpen = false;
-          menu.hidden = true;
-          optBtn.setAttribute('aria-expanded', 'false');
-        }
-        CHOICES.forEach(function (c) {
-          var it = items[c[0]];
-          var available = (c[0] === 'scribe' ? scribeEngine : browserEngine).supported;
-          it.el.setAttribute('aria-checked', currentChoice === c[0] ? 'true' : 'false');
-          it.el.setAttribute('aria-disabled', available ? 'false' : 'true');
-          it.desc.textContent = available ? it.base : 'Not available in this browser.';
-        });
-        wrap.setAttribute('data-engine', currentChoice);
-      }
 
       bubble.textContent = '';
       if (text) {
@@ -1131,7 +1001,7 @@
           bubble.appendChild(em);
         } else bubble.textContent = text;
       }
-      bubble.hidden = !text || menuOpen;
+      bubble.hidden = !text;
 
       if (noticeTimer) { clearTimeout(noticeTimer); noticeTimer = null; }
       if (info.message && (info.state === 'error' || info.state === 'idle')) {
@@ -1152,42 +1022,29 @@
 
     function onKey(e) {
       if (e.key !== 'Escape') return;
-      if (menuOpen) { setMenu(false); return; }
       if (ctl.state === 'listening' || ctl.state === 'starting') ctl.stop();
     }
     function onHidden() {
       if (doc.hidden && (ctl.state === 'listening' || ctl.state === 'starting')) ctl.stop();
     }
-    function onDocDown(e) {
-      if (menuOpen && !wrap.contains(e.target)) setMenu(false);
-    }
     doc.addEventListener('keydown', onKey, true);
     doc.addEventListener('visibilitychange', onHidden);
-    if (optBtn) {
-      optBtn.addEventListener('mousedown', function (e) { e.preventDefault(); });
-      optBtn.addEventListener('click', function () { if (!optBtn.disabled) setMenu(!menuOpen); });
-      doc.addEventListener('mousedown', onDocDown, true);
-    }
-
     var instance = {
       element: wrap,
       button: btn,
       controller: ctl,
       engine: engine,
       get state() { return ctl.state; },
-      get choice() { return currentChoice; },
+      get voice() { return voice; },
       start: function () { ctl.start(); },
       stop: function () { ctl.stop(); },
       toggle: function () { ctl.toggle(); },
-      setChoice: function (id) { if (scribeEngine) choose(id); },
       destroy: function () {
         ctl.destroy();
         target.destroy();
         if (noticeTimer) clearTimeout(noticeTimer);
-        if (choiceTimer) clearTimeout(choiceTimer);
         doc.removeEventListener('keydown', onKey, true);
         doc.removeEventListener('visibilitychange', onHidden);
-        doc.removeEventListener('mousedown', onDocDown, true);
         if (wrap.parentNode) wrap.parentNode.removeChild(wrap);
         el.removeAttribute('data-soma-speech-state');
         delete el.__somaSpeech;
@@ -1210,8 +1067,8 @@
       attach(el, {
         lang: source.getAttribute('data-lang') || undefined,
         mount: source.getAttribute('data-mount') || undefined,
-        scribe: tokenUrl ? { tokenUrl: tokenUrl } : undefined,
-        defaultEngine: source.getAttribute('data-default-engine') || undefined
+        voice: source.getAttribute('data-voice') || undefined,
+        scribe: tokenUrl ? { tokenUrl: tokenUrl } : undefined
       });
     } catch (e) { warn(e.message); }
   }

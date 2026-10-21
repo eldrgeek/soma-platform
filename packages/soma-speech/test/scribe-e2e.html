@@ -70,8 +70,7 @@
       var notices = [];
       var states = [];
       inst = SomaSpeech.attach(box, {
-        defaultEngine: 'scribe',
-        storageKey: 'soma-speech:e2e',
+        voice: 'punctuated',
         scribe: {
           tokenUrl: '/api/speech-token',
           getHeaders: function () { return { 'x-soma-speech-code': code() }; },
