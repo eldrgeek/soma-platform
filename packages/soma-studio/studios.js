@@ -3,6 +3,8 @@
 // person signs in with; hosts may also correct agreements, drop questions and
 // start a new session. A change here ships with the next deploy.
 //
+// `deciders` (default: the hosts) are the people whose own messages make
+// agreements (use case UC1-P4); only their "N: answer" lines answer questions.
 // `team.brief` is a file under ~/Projects that the team listener on Mike's Mac
 // puts in every prompt for this studio. `devHosts`/`devMembers` are the
 // made-up identities of `netlify dev` and count only there.

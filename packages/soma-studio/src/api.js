@@ -50,13 +50,16 @@ export function resolveStudios(studios, env = process.env) {
   return Object.fromEntries(
     Object.entries(studios).map(([id, config]) => {
       const dev = env.NETLIFY_DEV === 'true';
+      const hosts = lower([...(config.hosts ?? []), ...(dev ? config.devHosts ?? [] : [])]);
       return [
         id,
         {
           ...config,
           id,
-          hosts: lower([...(config.hosts ?? []), ...(dev ? config.devHosts ?? [] : [])]),
+          hosts,
           members: lower([...(config.members ?? []), ...(dev ? config.devMembers ?? [] : [])]),
+          // Deciders make agreements (UC1-P4); a studio that names none is decided by its hosts.
+          deciders: config.deciders ? lower([...config.deciders, ...(dev ? config.devDeciders ?? [] : [])]) : hosts,
         },
       ];
     }),
@@ -67,7 +70,12 @@ export function access(studio, identity) {
   const keys = lower([identity?.email, identity?.id].filter(Boolean));
   const isHost = keys.some((key) => studio.hosts.includes(key));
   const isMember = isHost || keys.some((key) => studio.members.includes(key));
-  return { isHost, isMember };
+  const isDecider = isMember && keys.some((key) => studio.deciders.includes(key));
+  return { isHost, isMember, isDecider };
+}
+
+function authoredByDecider(studio, message) {
+  return message?.author?.kind === 'human' && access(studio, message.author).isDecider;
 }
 
 // Realtime topic names carry a keyed suffix, so only members (who are told
@@ -164,7 +172,7 @@ export function createStudioApi({ studios, blobs, verifyIdentity, teamKey, broad
       : [];
     return {
       studio: { id: studio.id, title: studio.title, appId: studio.appId ?? null, purpose: studio.purpose ?? '' },
-      me: { name: role.identity.name, email: role.identity.email ?? null, isHost: role.isHost },
+      me: { name: role.identity.name, email: role.identity.email ?? null, isHost: role.isHost, isDecider: role.isDecider },
       topic: topics(teamKey, studio.id).studio,
       version: state.version,
       msgSeq: state.msgSeq,
@@ -185,6 +193,7 @@ export function createStudioApi({ studios, blobs, verifyIdentity, teamKey, broad
         purpose: studio.purpose ?? '',
         team: studio.team ?? {},
         hosts: studio.hosts,
+        deciders: studio.deciders,
         state: publicState(state),
         pending: [],
         recent: [],
@@ -216,10 +225,19 @@ export function createStudioApi({ studios, blobs, verifyIdentity, teamKey, broad
     if (input.op === 'reply' || input.op === 'note') {
       const text = typeof input.text === 'string' ? input.text : '';
       const reply = input.op === 'reply' ? cleanReply(input) : { replyTo: positiveInt(input.replyTo) };
+      // Which of the messages the reply links to were written by a decider.
+      const linked = input.op === 'reply'
+        ? await store.getMessages(studio.id, [
+          reply.replyTo,
+          ...reply.agreements.map((item) => item.from),
+          ...reply.answered.map((item) => item.from),
+        ])
+        : new Map();
+      const isDeciderMessage = (seq) => authoredByDecider(studio, linked.get(seq));
       const { message, result } = await store.updateState(studio.id, (state) => {
         const admitted = admitMessage(state, { author: TEAM_AUTHOR, text, at: when, replyTo: reply.replyTo });
         if (input.op === 'note') return { message: admitted, result: null };
-        const applied = applyTeamReply(state, reply, { at: when, messageSeq: admitted.seq });
+        const applied = applyTeamReply(state, reply, { at: when, messageSeq: admitted.seq, isDeciderMessage });
         admitted.meta = {
           pickupMs: state.team.pickupMs,
           answerMs: state.team.answerMs,
@@ -279,7 +297,7 @@ export function createStudioApi({ studios, blobs, verifyIdentity, teamKey, broad
         if (typeof input.text !== 'string' || !input.text.trim()) throw new HttpError(400, 'text is required');
         const message = await store.post(
           studio.id,
-          { author: humanAuthor(role.identity), text: input.text, replyTo: positiveInt(input.replyTo) },
+          { author: humanAuthor(role.identity), text: input.text, replyTo: positiveInt(input.replyTo), canDecide: role.isDecider },
           at(),
         );
         await ping(studio.id, { team: true });

@@ -12,6 +12,7 @@
         <a href="/studio/" class="brand-name">SOMA Studio</a>
         <span id="studio-title" class="studio-title"></span>
         <span id="session-badge" class="session-badge" hidden></span>
+        <span id="present" class="present" hidden></span>
         <button id="new-session" type="button" class="ghost" hidden title="Start a new sitting in this studio">New session</button>
       </div>
       <div class="header-right">
@@ -35,7 +36,7 @@
       <aside class="pane agreements-pane" data-pane="agreements" aria-labelledby="agreements-heading">
         <div class="pane-head">
           <h2 id="agreements-heading">Agreements <span class="count" data-count="agreements"></span></h2>
-          <p class="hint">What has been decided. The team writes one line per decision, with a link to the message it came from.</p>
+          <p class="hint">What a decider has decided. The team writes one line per decision, linked to the decider's own message.</p>
         </div>
         <ol id="agreements" class="items"></ol>
         <details id="removed-agreements" class="removed" hidden>
@@ -59,7 +60,7 @@
       <aside class="pane questions-pane" data-pane="questions" aria-labelledby="questions-heading">
         <div class="pane-head">
           <h2 id="questions-heading">Open questions <span class="count" data-count="questions"></span></h2>
-          <p class="hint">Click one to answer it, or write its number in the chat: “3: yes”. An answered question moves to the agreements.</p>
+          <p class="hint">Click one to answer it, or write its number in the chat: “3: yes”. A decider's answer becomes an agreement; the question stays below, closed.</p>
         </div>
         <ol id="questions" class="items"></ol>
       </aside>

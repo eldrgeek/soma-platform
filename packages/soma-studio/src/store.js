@@ -53,8 +53,8 @@ export class StudioStore {
   // Admits a message (number, session, answers) and stores it. The number is
   // taken first, so a reader may briefly see the count before the message;
   // pages keep their own cursor at the last message they actually received.
-  async post(studioId, { author, text, replyTo = null, meta = null }, at) {
-    const message = await this.updateState(studioId, (state) => admitMessage(state, { author, text, at, replyTo }));
+  async post(studioId, { author, text, replyTo = null, meta = null, canDecide = false }, at) {
+    const message = await this.updateState(studioId, (state) => admitMessage(state, { author, text, at, replyTo, canDecide }));
     if (meta) message.meta = meta;
     await this.appendMessage(studioId, message);
     return message;
@@ -75,6 +75,18 @@ export class StudioStore {
       .flatMap((chunk) => chunk?.messages ?? [])
       .filter((message) => message.seq > from && message.seq <= upTo)
       .sort((left, right) => left.seq - right.seq);
+  }
+
+  // The messages with these numbers, keyed by number (missing ones are absent).
+  async getMessages(studioId, seqs) {
+    const wanted = new Set(seqs.filter((seq) => Number.isInteger(seq) && seq > 0));
+    const chunks = [...new Set([...wanted].map((seq) => Math.floor((seq - 1) / CHUNK)))];
+    const found = new Map();
+    for (const chunk of await Promise.all(chunks.map((index) =>
+      this.#blobs.get(this.chunkKey(studioId, index), { type: 'json', ...STRONG })))) {
+      for (const message of chunk?.messages ?? []) if (wanted.has(message.seq)) found.set(message.seq, message);
+    }
+    return found;
   }
 
   // One writer at a time per entry inside this instance; across instances the

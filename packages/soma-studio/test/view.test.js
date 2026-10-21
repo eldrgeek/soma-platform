@@ -7,7 +7,7 @@ import { promisify } from 'node:util';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { escapeHtml, madeText, renderText, seconds, teamStatusText } from '../public/view.js';
+import { escapeHtml, madeText, presentNames, renderText, seconds, teamStatusText } from '../public/view.js';
 
 const run = promisify(execFile);
 
@@ -65,6 +65,13 @@ test('a team message says what it changed', () => {
     'Added agreement A3, A4. Asked question 5. Highlighted question 2.',
   );
   assert.equal(madeText(null), '');
+  assert.equal(madeText({ toConfirm: [7] }), 'Asked a decider to confirm, as question 7.');
+});
+
+test('presence names each person once, sorted', () => {
+  const state = { 'mw@x': [{ name: 'Mike Wolf' }, { name: 'Mike Wolf' }], 'e@x': [{ name: 'Eric' }], ghost: [{}] };
+  assert.deepEqual(presentNames(state), ['Eric', 'Mike Wolf']);
+  assert.deepEqual(presentNames(undefined), []);
 });
 
 test('the install script copies the page, and the speech component when it exists', async () => {
@@ -92,6 +99,25 @@ test('every page file the HTML names is shipped', async () => {
   for (const name of named) assert.ok(files.includes(name), `${name} is named by index.html but missing`);
   const js = await readFile(join(here, '../public/studio.js'), 'utf8');
   assert.match(js, /soma-chip-loader\.js/, 'the page ships the feedback chip');
+});
+
+// The soma-forge site builds from packages/soma-puppet-runtime. Netlify skips a
+// build when nothing there changed, so its ignore rule must also watch this
+// package, or a studio-only merge never ships (it happened to #19).
+const siteToml = fileURLToPath(new URL('../../soma-puppet-runtime/netlify.toml', import.meta.url));
+let siteConfig = null;
+try {
+  siteConfig = await readFile(siteToml, 'utf8');
+} catch {
+  // Not in the monorepo (the mutation check runs on a copy of this package).
+}
+
+test('the soma-forge build runs when the studio or the speech component changes', { skip: !siteConfig }, () => {
+  const ignore = siteConfig.match(/^\s*ignore\s*=\s*"([^"]+)"/m)?.[1] ?? '';
+  assert.match(ignore, /git diff --quiet \$CACHED_COMMIT_REF \$COMMIT_REF -- /);
+  for (const path of [' . ', '../soma-studio', '../soma-speech']) assert.ok(`${ignore} `.includes(path), path);
+  assert.match(siteConfig, /command = "node \.\.\/soma-studio\/scripts\/install\.mjs site\/public\/studio"/);
+  assert.ok(siteConfig.indexOf('from = "/api/studio/*"') < siteConfig.indexOf('from = "/api/*"'), 'the studio route comes first');
 });
 
 test('install copies soma-speech from a sibling package into vendor/', async () => {

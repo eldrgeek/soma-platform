@@ -4,7 +4,7 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/+esm';
 
 import { createSomaAuthConfig } from '/vendor/soma-signin/somaAuthConfig.js';
-import { dateLabel, madeText, renderText, seconds, teamStatusText, timeLabel } from '/studio/view.js';
+import { dateLabel, madeText, presentNames, renderText, seconds, teamStatusText, timeLabel } from '/studio/view.js';
 
 const $ = (selector) => document.querySelector(selector);
 const params = new URLSearchParams(location.search);
@@ -18,6 +18,7 @@ const ui = {
   tabs: $('#tabs'),
   title: $('#studio-title'),
   session: $('#session-badge'),
+  present: $('#present'),
   newSession: $('#new-session'),
   toggleApp: $('#toggle-app'),
   identity: $('#identity'),
@@ -134,16 +135,26 @@ function applyFeed(feed) {
   drawTeamStatus();
 }
 
+// One channel per studio: broadcast pings say "something changed", and
+// presence says who has the studio open.
 function subscribe(topic) {
   if (!supabase || !topic || channel) return;
   channel = supabase
-    .channel(topic, { config: { broadcast: { self: false } } })
+    .channel(topic, { config: { broadcast: { self: false }, presence: { key: me?.email || me?.name || 'someone' } } })
     .on('broadcast', { event: 'changed' }, () => refresh())
+    .on('presence', { event: 'sync' }, () => drawPresence())
     .subscribe((status) => {
       listening = status === 'SUBSCRIBED';
+      if (listening) channel.track({ name: me?.name || 'Someone' }).catch(() => {});
       schedulePoll();
       drawTeamStatus();
     });
+}
+
+function drawPresence() {
+  const names = channel ? presentNames(channel.presenceState()) : [];
+  ui.present.hidden = !names.length;
+  ui.present.textContent = names.length ? `Here: ${names.join(', ')}` : '';
 }
 
 // A push makes the page fetch at once. The poll only catches a lost push, so
@@ -401,14 +412,31 @@ async function dropQuestion(question) {
   }
 }
 
+// A closed question keeps its number and stays in the list, struck through,
+// with its answer and the agreement it became (UC1-P3).
+function closedQuestionNode(question) {
+  const answered = question.status === 'answered';
+  return el('li', { class: 'item question closed', id: `q-${question.n}` }, [
+    el('span', { class: 'num', text: String(question.n) }),
+    el('div', { class: 'item-body' }, [
+      el('p', { class: 'text', text: question.text }),
+      el('div', { class: 'meta' }, [
+        answered ? el('span', { class: 'answer', text: `→ ${question.answer}` }) : el('span', { text: `dropped by ${question.droppedBy}` }),
+        answered && question.agreement ? el('a', { class: 'tag', href: `#a-${question.agreement}`, text: `A${question.agreement}` }) : null,
+        answered && question.answeredIn ? el('a', { class: 'from', href: `#m-${question.answeredIn}`, 'data-ref': question.answeredIn, text: `#${question.answeredIn}` }) : null,
+      ]),
+    ]),
+  ]);
+}
+
 function drawQuestions() {
   const open = state.questions
     .filter((item) => item.status === 'open')
     .sort((left, right) => Number(right.highlighted) - Number(left.highlighted) || left.n - right.n);
-  const answered = state.questions.filter((item) => item.status === 'answered').length;
+  const closed = state.questions.filter((item) => item.status !== 'open').sort((left, right) => right.n - left.n);
   ui.questions.replaceChildren(
     ...(open.length ? open.map(questionNode) : [el('li', { class: 'empty', text: 'No open questions.' })]),
-    ...(answered ? [el('li', { class: 'hint answered-note', text: `${answered} answered; they are in the agreements.` })] : []),
+    ...(closed.length ? [el('li', { class: 'closed-head', text: `Closed (${closed.length})` }), ...closed.map(closedQuestionNode)] : []),
   );
   setCounts('questions', open.length);
 }

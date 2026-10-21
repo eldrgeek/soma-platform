@@ -77,6 +77,15 @@ export function teamStatusText(team, { nowMs, lastHumanAtMs, lastHumanSeq = 0, t
   };
 }
 
+// "Here: Mike Wolf, Eric" from Supabase Realtime presence state, one name per person.
+export function presentNames(presenceState) {
+  const names = new Set();
+  for (const entries of Object.values(presenceState ?? {})) {
+    for (const entry of entries ?? []) if (entry?.name) names.add(String(entry.name));
+  }
+  return [...names].sort((left, right) => left.localeCompare(right));
+}
+
 export function timeLabel(iso) {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return '';
@@ -96,6 +105,7 @@ export function madeText(made) {
   const list = (items, prefix = '') => items.map((n) => `${prefix}${n}`).join(', ');
   if (made.agreements?.length) parts.push(`Added agreement ${list(made.agreements, 'A')}.`);
   if (made.questions?.length) parts.push(`Asked question ${list(made.questions)}.`);
+  if (made.toConfirm?.length) parts.push(`Asked a decider to confirm, as question ${list(made.toConfirm)}.`);
   if (made.answered?.length) parts.push(`Recorded the answer to question ${list(made.answered)}.`);
   if (made.highlighted?.length) parts.push(`Highlighted question ${list(made.highlighted)}.`);
   return parts.join(' ');
