@@ -310,23 +310,28 @@ export function resolveApps(apps, env = process.env) {
   );
 }
 
-let defaultApi;
-
-async function makeDefaultApi() {
-  const apps = resolveApps(JSON.parse(
-    await readFile(new URL('../apps.json', import.meta.url), 'utf8'),
-  ));
-  return createApiHandler({
-    apps,
-    store: createBlobsStore(apps),
-    verifyIdentity: createIdentityVerifier(),
-    readSeed: (appId) =>
-      readFile(new URL(`../../examples/${appId}.puppet`, import.meta.url), 'utf8'),
-    feedbackStore: getStore({ name: 'soma-puppet-feedback', consistency: 'strong' }),
-  });
+// The Blobs stores are made for each request, never kept on a warm instance:
+// getStore() takes the invocation's Blobs token, and that token expires, so a
+// store kept across requests fails with "Failed to decode token: Token
+// expired" (seen live, 2026-10-21). The app configuration is kept.
+export function createApiFunction({ getStoreImpl = getStore, env = process.env } = {}) {
+  let apps;
+  const verifyIdentity = createIdentityVerifier({ env });
+  return async function handler(request) {
+    apps ??= resolveApps(JSON.parse(
+      await readFile(new URL('../apps.json', import.meta.url), 'utf8'),
+    ), env);
+    return createApiHandler({
+      apps,
+      store: createBlobsStore(apps, {
+        blobStore: getStoreImpl({ name: 'soma-puppet-runtime', consistency: 'strong' }),
+      }),
+      verifyIdentity,
+      readSeed: (appId) =>
+        readFile(new URL(`../../examples/${appId}.puppet`, import.meta.url), 'utf8'),
+      feedbackStore: getStoreImpl({ name: 'soma-puppet-feedback', consistency: 'strong' }),
+    })(request);
+  };
 }
 
-export default async function handler(request) {
-  defaultApi ??= makeDefaultApi();
-  return (await defaultApi)(request);
-}
+export default createApiFunction();
