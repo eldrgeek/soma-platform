@@ -101,6 +101,25 @@ test('every page file the HTML names is shipped', async () => {
   assert.match(js, /soma-chip-loader\.js/, 'the page ships the feedback chip');
 });
 
+// The soma-forge site builds from packages/soma-puppet-runtime. Netlify skips a
+// build when nothing there changed, so its ignore rule must also watch this
+// package, or a studio-only merge never ships (it happened to #19).
+const siteToml = fileURLToPath(new URL('../../soma-puppet-runtime/netlify.toml', import.meta.url));
+let siteConfig = null;
+try {
+  siteConfig = await readFile(siteToml, 'utf8');
+} catch {
+  // Not in the monorepo (the mutation check runs on a copy of this package).
+}
+
+test('the soma-forge build runs when the studio or the speech component changes', { skip: !siteConfig }, () => {
+  const ignore = siteConfig.match(/^\s*ignore\s*=\s*"([^"]+)"/m)?.[1] ?? '';
+  assert.match(ignore, /git diff --quiet \$CACHED_COMMIT_REF \$COMMIT_REF -- /);
+  for (const path of [' . ', '../soma-studio', '../soma-speech']) assert.ok(`${ignore} `.includes(path), path);
+  assert.match(siteConfig, /command = "node \.\.\/soma-studio\/scripts\/install\.mjs site\/public\/studio"/);
+  assert.ok(siteConfig.indexOf('from = "/api/studio/*"') < siteConfig.indexOf('from = "/api/*"'), 'the studio route comes first');
+});
+
 test('install copies soma-speech from a sibling package into vendor/', async () => {
   const work = await mkdtemp(join(tmpdir(), 'studio-speech-'));
   const packages = join(work, 'packages');
