@@ -100,7 +100,7 @@ same rule that gates `x-dev-user`.
 ## Live site
 
 The runtime is live at <https://soma-forge.netlify.app/?app=sunday-supper>,
-hosted by Mike Wolf's SOMA account. The site deploys from `master` of this
+hosted by Mike Wolf's personal SOMA account (mw.personalmail@gmail.com). The site deploys from `master` of this
 repository with base directory `packages/soma-puppet-runtime`, so a merge to
 `master` publishes it. `SUPABASE_URL` and `SUPABASE_ANON_KEY` (the shared
 project's publishable key) are set on the site. Its address is on the shared
