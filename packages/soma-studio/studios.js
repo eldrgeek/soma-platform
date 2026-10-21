@@ -12,9 +12,9 @@ export default {
   'soma-studio': {
     title: 'SOMA Studio',
     purpose: 'Building SOMA Studio itself: the chat, the agreements, the open questions and the live app.',
-    // v1 is hand-built, so this studio has no Puppet description yet. The
-    // Puppet rewrite (Mike, 2026-10-21, ruling 4) will be its app.
-    appId: null,
+    // The Puppet rewrite of this studio (Mike, 2026-10-21, ruling 4), shown
+    // in the app pane next to Sunday Supper.
+    appId: 'soma-studio',
     hosts: ['mw.personalmail@gmail.com', 'mw@mike-wolf.com'],
     members: [],
     devHosts: ['rosa'],
