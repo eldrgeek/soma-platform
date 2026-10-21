@@ -41,6 +41,9 @@ const MUTANTS = [
   ['public/view.js', "if (waited > 20000) {", 'if (waited > 2e9) {', 'a stalled team is never reported'],
   ['public/view.js', 'names.add(String(entry.name))', 'void 0', 'presence shows nobody'],
   ['scripts/install.mjs', "await cp(from, resolve(out, 'vendor/soma-speech'), { recursive: true });", '', 'the speech component is not installed'],
+  ['public/view.js', "voice: 'punctuated',", "voice: 'standard',", 'the mic goes back to the browser voice'],
+  ['public/view.js', "tokenUrl: '/api/speech-token'", "tokenUrl: '/api/speech'", 'the mic asks a token address that does not exist'],
+  ['public/studio.js', 'micOptions(() => headers())', "{ mount: '#mic-slot' }", 'the page forgets to give the mic its options'],
 ];
 
 const work = await mkdtemp(join(tmpdir(), 'studio-mutants-'));

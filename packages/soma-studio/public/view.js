@@ -110,3 +110,18 @@ export function madeText(made) {
   if (made.highlighted?.length) parts.push(`Highlighted question ${list(made.highlighted)}.`);
   return parts.join(' ');
 }
+
+// The options the studio gives its mic button (packages/soma-speech). The
+// studio's builder chose the Punctuated voice: punctuation and capital letters,
+// and sentence ends decided from the words. Its token comes from this site's
+// /api/speech-token, checked against the same SOMA sign-in as the rest of the
+// studio, so `getHeaders` is the page's own sign-in headers. If Punctuated
+// cannot start for someone (not signed in, a daily limit, offline), their mic
+// uses the browser's voice and says so.
+export function micOptions(getHeaders) {
+  return {
+    mount: '#mic-slot',
+    voice: 'punctuated',
+    scribe: { tokenUrl: '/api/speech-token', getHeaders },
+  };
+}

@@ -12,7 +12,9 @@ Live: <https://soma-forge.netlify.app/studio/> (sign in with SOMA Auth).
 - **Chat.** Every signed-in member of a studio sees the same chat. Text first (Wispr Flow types into
   the composer). The build copies the speech-to-text component (`packages/soma-speech`, workstream B) to
   `/studio/vendor/soma-speech/`, and the page attaches its mic button beside Send
-  (`SomaSpeech.attach(composer, { mount: '#mic-slot' })`).
+  (`SomaSpeech.attach(composer, micOptions(...))`). The mic uses the Punctuated voice (punctuation and
+  capital letters; a token from `/api/speech-token`, studio hosts and members only). If that cannot
+  start for someone, their mic uses the browser's voice and says why.
 - **The team answers in the chat.** A listener on Mike's Mac (`~/Projects/_estate/studio-team/`) gets a
   Supabase Realtime push about a second after a person posts, asks a read-only Claude copy on the
   subscription, and posts one reply. Mike's work requests are passed to the team with cc-dispatch. The
@@ -38,8 +40,9 @@ same origin anyway:
   `/studio/` (and `../soma-speech` to `/studio/vendor/soma-speech/` when present);
 - `site/functions/studio.mjs` wraps `src/api.js`; `/api/studio/*` is routed to it.
 
-Environment on the site: `SUPABASE_URL`, `SUPABASE_ANON_KEY` (already set for the runtime) and
-`STUDIO_TEAM_KEY` (the same value as `~/.config/soma-studio/team.key` on Mike's Mac).
+Environment on the site: `SUPABASE_URL`, `SUPABASE_ANON_KEY` (already set for the runtime),
+`STUDIO_TEAM_KEY` (the same value as `~/.config/soma-studio/team.key` on Mike's Mac) and
+`ELEVENLABS_API_KEY` (for the mic's Punctuated voice; see `packages/soma-speech/README.md`).
 
 ## Storage
 

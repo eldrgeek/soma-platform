@@ -26,6 +26,12 @@
   to = "/.netlify/functions/studio"
   status = 200
 
+# The Punctuated voice of the studio mic (packages/soma-speech) asks here for a token.
+[[redirects]]
+  from = "/api/speech-token"
+  to = "/.netlify/functions/speech-token"
+  status = 200
+
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/api"
