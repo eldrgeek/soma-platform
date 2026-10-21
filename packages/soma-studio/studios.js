@@ -12,12 +12,24 @@ export default {
   'soma-studio': {
     title: 'SOMA Studio',
     purpose: 'Building SOMA Studio itself: the chat, the agreements, the open questions and the live app.',
-    appId: 'sunday-supper',
+    // v1 is hand-built, so this studio has no Puppet description yet. The
+    // Puppet rewrite (Mike, 2026-10-21, ruling 4) will be its app.
+    appId: null,
     hosts: ['mw.personalmail@gmail.com', 'mw@mike-wolf.com'],
     members: [],
     devHosts: ['rosa'],
     devMembers: ['theo'],
     team: { brief: 'SOMA/specs/forge-room-brief.md' },
+  },
+  'sunday-supper': {
+    title: 'Sunday Supper',
+    purpose: 'The first app on the Puppet runtime: neighbors save a seat and say what they will bring.',
+    appId: 'sunday-supper',
+    hosts: ['mw.personalmail@gmail.com', 'mw@mike-wolf.com'],
+    members: [],
+    devHosts: ['rosa'],
+    devMembers: ['theo'],
+    team: { brief: 'fleet-views/wiki/pages/forge.md' },
   },
   'coaching-age-of-ai': {
     title: 'Coaching in the Age of AI',
