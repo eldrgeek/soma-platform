@@ -1,6 +1,6 @@
 # @soma/speech
 
-A microphone button that turns speech into text in a text box. One script tag, plain JavaScript, no framework, no build step, no dependencies. A person can choose between two voices: **Standard** (the browser's own speech recognition) and **Punctuated** (ElevenLabs Scribe, which adds punctuation and capital letters).
+A microphone button that turns speech into text in a text box. One script tag, plain JavaScript, no framework, no build step, no dependencies. The person building the app chooses between two voices with one setting: **Standard** (the browser's own speech recognition) and **Punctuated** (ElevenLabs Scribe, which adds punctuation and capital letters). The people who use the app see only a mic.
 
 **Try it:** https://soma-speech.netlify.app (no sign-in). **Browser test:** https://soma-speech.netlify.app/test/
 
@@ -57,14 +57,15 @@ Click the mic to start, click it again or press **Esc** to stop. Listening also 
 | Where audio goes | The browser maker's speech service (Google, Apple) | ElevenLabs |
 | Needs | Nothing | A token endpoint on your server (below) |
 
-A page offers Punctuated by giving the component the address of its token endpoint:
+**The app builder chooses the voice; the people using the app do not.** Standard is the default. To use Punctuated, set `data-voice="punctuated"` and give the address of your token endpoint:
 
 ```html
 <script src="https://soma-speech.netlify.app/soma-speech.js"
-        data-target="#chat-input" data-scribe-token-url="/api/speech-token" defer></script>
+        data-target="#chat-input" data-voice="punctuated"
+        data-scribe-token-url="/api/speech-token" defer></script>
 ```
 
-or `SomaSpeech.attach(el, { scribe: { tokenUrl: '/api/speech-token' } })`. A small arrow then appears beside the mic. It opens a menu where **the person chooses**; the choice is remembered in this browser. Without `scribe`, nothing changes: no arrow, Standard only.
+or `SomaSpeech.attach(el, { voice: 'punctuated', scribe: { tokenUrl: '/api/speech-token' } })`. Nothing about the choice shows to the people using the app: they see the same mic either way. If `voice: 'punctuated'` has no `scribe.tokenUrl`, the builder gets a console warning and the mic uses Standard. The demo page has a switch that shows both.
 
 How Punctuated behaves:
 
@@ -100,14 +101,14 @@ To add it to an app that already has a SOMA sign-in, such as the Studio's site: 
 |---|---|---|---|
 | `lang` | `data-lang` | the box's `lang`, then the page's, then the browser's | Language for Standard voice, such as `en-US`. |
 | `mount` | `data-mount` | right after the box | An element or selector to put the button in, such as `#chat-actions`. |
-| `scribe` | `data-scribe-token-url` | none | Offers Punctuated voice (see above). |
-| `defaultEngine` | `data-default-engine` | `browser` | `'browser'` or `'scribe'`, used until the person chooses. |
-| `engine` | | the browser engine | A function returning an engine (see below). One engine, no menu. |
+| `voice` | `data-voice` | `standard` | The builder's choice: `'standard'` or `'punctuated'`. |
+| `scribe` | `data-scribe-token-url` | none | What Punctuated needs: `{ tokenUrl, getHeaders, … }` (see above). |
+| `engine` | | the browser engine | A function returning your own engine (see below), instead of either voice. |
 | `onChange(info)` | | | Called on every state change with `{ state, interim, code, message, notice }`. |
 
-The box also receives a bubbling `soma-speech-state` event with the same `info` as `detail`, and a `soma-speech-engine` event (`detail.engine`) when the person changes voice. Statuses are `idle`, `starting`, `listening`, `stopping` and `error`.
+The box also receives a bubbling `soma-speech-state` event with the same `info` as `detail`. Statuses are `idle`, `starting`, `listening`, `stopping` and `error`.
 
-The instance returned by `attach` has `start()`, `stop()`, `toggle()`, `destroy()`, `setChoice('browser' | 'scribe')`, `choice` and `state`.
+The instance returned by `attach` has `start()`, `stop()`, `toggle()`, `destroy()`, `voice` and `state`.
 
 ## Browser support and privacy
 
@@ -154,7 +155,7 @@ The Node tests use a fake text box, a scripted engine, a fake `SpeechRecognition
 
 `npm run mutation-check` copies a source file to a temporary file, breaks one line at a time (the insert drops the existing text, interim words are written into the box, audio is dropped while the socket opens, the last words are lost on stop, the per-person limit is off by one, the key is sent back to the page, anyone is let in, and so on) and runs the suite on each broken copy. It first runs the suite on the real source, because a failure only means something if the unbroken source passes. It fails if any broken copy passes, and it checks that the source files did not change. Last run, 2026-10-21: baseline green, 19 of 19 broken copies caught.
 
-**The browser test** (`test/browser-test.html`, served at `/test/`) runs 26 checks in a real browser against the real DOM with the scripted engines: the button, the bubble, interim words staying out of the box, the cursor, focus, Esc, the one-line script-tag install, the `data-soma-speech` marker, the state event, Undo, and the voice menu (it opens, Esc and an outside click close it, the choice is remembered, Punctuated text lands in the box, a refused token falls back to Standard with an explanation, the menu is locked while listening). Open `/test/` on the demo site in any browser, or serve this folder with any static server.
+**The browser test** (`test/browser-test.html`, served at `/test/`) runs 24 checks in a real browser against the real DOM with the scripted engines: the button, the bubble, interim words staying out of the box, the cursor, focus, Esc, the one-line script-tag install, the `data-soma-speech` marker, the state event, Undo, and the builder's voice setting (Standard by default, no menu ever shown to the person, Punctuated text lands in the box, a refused token falls back to Standard with an explanation, a missing token address warns the builder, `data-voice` works on a marked box). Open `/test/` on the demo site in any browser, or serve this folder with any static server.
 
 **The end-to-end check** (`test/scribe-e2e.html`, served at `/test/scribe/`) plays an 8-second synthetic voice into the real mic button, the real token endpoint and the real Scribe service, and checks the text that lands in the box: punctuated, capitalised, and not cut at a mid-sentence pause. It needs the demo code. The sample (`test/assets/sample-speech.wav`) was made with ElevenLabs text-to-speech.
 
@@ -164,7 +165,7 @@ The Node tests use a fake text box, a scripted engine, a fake `SpeechRecognition
 
 | File | What |
 |---|---|
-| `src/soma-speech.js` | The component: the mic button, the browser engine, the Scribe engine, the voice menu. |
+| `src/soma-speech.js` | The component: the mic button, the browser engine, the Scribe engine, the builder's voice setting. |
 | `src/soma-speech-fake.js` | The scripted engine, for tests and demos. |
 | `server/speech-token.js` | The token handler, with `supabaseAuthorize` and `demoCodeAuthorize`. |
 | `netlify/functions/speech-token.mjs` | The demo site's token endpoint (`/api/speech-token`), gated by a demo code. |
@@ -184,4 +185,4 @@ The Punctuated voice on the demo is gated by a demo code, because the demo has n
 
 ## Authorship
 
-Version 1 written 2026-10-21 by Claude Sonnet 5.5 (Claude Code) for Mike Wolf, as workstream B of the SOMA Studio start (brief: `SOMA/specs/forge-room-brief.md`), bead sp-hih. Version 2 (the Punctuated voice and the person's choice) the same day, at Mike's request, bead sp-zu0.
+Version 1 written 2026-10-21 by Claude Sonnet 5.5 (Claude Code) for Mike Wolf, as workstream B of the SOMA Studio start (brief: `SOMA/specs/forge-room-brief.md`), bead sp-hih. Version 2 (the Punctuated voice) the same day, at Mike's request, bead sp-zu0. Mike then corrected the design: the voice is a setting for the person building the app, not a menu for the people using it (bead sp-spd).
