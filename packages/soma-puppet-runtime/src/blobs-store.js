@@ -157,12 +157,17 @@ export class BlobsStore extends StoreAdapter {
     return this.#update(appId, (app) => {
       const entry = this.#rows(app, data).find(({ id }) => id === rowId);
       if (!entry) throw new Error(`Unknown row: ${rowId}`);
-      return applyStatus(entry, this.#sketch(app), data, status);
+      const sketch = this.#sketch(app);
+      return applyStatus(entry, sketch, data, status, isPrivate(app, sketch, data), actor);
     });
   }
 
   async privateData(appId) {
     return Object.keys((await this.#load(appId)).private ?? {});
+  }
+
+  async privacyLevels(appId) {
+    return structuredClone((await this.#load(appId)).private ?? {});
   }
 
   #sketch(app) {

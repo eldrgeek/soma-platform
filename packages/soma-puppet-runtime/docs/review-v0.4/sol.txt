@@ -1,0 +1,71 @@
+1. SMALLEST DESIGN
+
+The delta is close, but three parts can be smaller or sharper.
+
+“screen "Name" from Data” should itself imply no tab, as already stated. Do not make authors also write or reason about “tab: none” there. Keep “tab: none” only for ordinary destination screens.
+
+Consider merging “read: private” into a corrected meaning of “read: own”: own naturally means author-only, including against the host. The current host exception is surprising and caused this failure. If compatibility prevents changing v0.3 semantics, keep “private,” but the naming remains awkward: “own” sounds at least as restrictive as “private.” A clearer closed pair would be “read: own” and “read: own+host,” with a migration rule, though that adds migration cost rather than capability.
+
+“A token in an adds to that the runtime will not fill is a warning” should be dropped. Make it the same parse error as every other unfillable token. The exception preserves exactly the silent-placeholder failure this section is meant to eliminate.
+
+“play-view” and “stage-read” should remain separate. They have distinct rendering, authorization, cost, and failure behavior. Combining them would create modes or properties and would not be smaller.
+
+The detailed script syntax belongs in one shared “play text” definition referenced by both elements. Do not let each component independently interpret it.
+
+2. AMBIGUITIES
+
+“Something must open it, a button or a row” — Does an unreachable opening action count? May dialogs open it? What exact row syntax opens it?
+
+“It shows a Back button that returns to the screen that opened it.” — What happens after refresh, deep-linking, version change, nested opens, or browser Back? “Opening screen,” not navigation history, needs definition.
+
+“The first screen is where the app opens” — First in source order, first surviving authorization filtering, or first tabbed screen? A host-only first screen creates different answers.
+
+“list "Scenes" from scenes -> opens screen "Scene"” — “hook” is later used but never defined. Clarify whether the whole row is clickable and whether a nested button suppresses row opening.
+
+“The row comes from rows the reader was already allowed to read.” — “Already” could mean previously fetched, client-held, or currently authorized. It must mean currently authorized by the server/live policy whenever data or speech is requested.
+
+“If the row disappears (removed, or a new version)” — A new version does not necessarily make a row disappear. Define changes of collection, field, authorization, and screen binding separately.
+
+“Buttons on it act on its row: removes from scenes” — Is naming any other collection a parse error? Can an ordinary author remove an “own” row under v0.3’s pending/action restrictions?
+
+“Privacy only tightens… everyone, read: own, read: private.” — Is the strongest historical policy retained per app plus collection name forever? What happens after deletion, renaming, restoration, import, or name reuse?
+
+“{me.name} … anywhere” — What is produced for an unsigned reader of a publicRead app?
+
+“In text that people read” versus “A token in an adds to…” — It is unclear whether tokens in component arguments, action values, headings, field defaults, and non-visible properties are checked.
+
+“line in capitals,” “NAME: words,” and “line number” — Unicode case, whitespace, blank lines, wrapped lines, headings, parentheticals, and newline normalization could make client and server select different lines.
+
+“Each character keeps the same voice every time.” — Per row, person, app, normalized character name, or globally? Does versioning change the assignment?
+
+“A line already spoken once is replayed from a cache” — Once by whom, and under which text, voice, app, row version, and authorization?
+
+3. SECURITY AND ABUSE HOLES
+
+All row access must be server-authorized at request time. A row-bound screen cannot trust client navigation state, a prior list response, supplied collection names, row IDs, fields, or the filtered description. The server must derive the live binding and fetch only an authorized row; inaccessible and nonexistent rows must be indistinguishable in status, body, size, and practical timing.
+
+Private authorship must be immutable server metadata derived from the verified token, never a submitted field. POST still needs the visible-action/schema check. Host identity must come only from verified token account ID and server config.
+
+Undo/redo must retain the strongest historical privacy classification. That protection needs a stable collection identity; keying only by reusable collection name permits deletion/rename/version tricks that weaken or incorrectly transfer privacy.
+
+Counts must always be computed after row filtering. No total counts, pagination totals, ETags, timings, sequential IDs, error differences, logs returned to clients, or speculative prefetches may reveal other writers’ rows.
+
+Filtered descriptions and data must not enter shared CDN/browser/service-worker caches without identity-sensitive keys and private/no-store policy. Never cache a host response under a publicRead URL. publicRead must not turn private endpoints, counts, row screens, or audio into anonymous resources.
+
+Stage Read must re-check bearer token, live declaration, current row authorization, exact bound field, and current row content on every request, including cache hits. Cached audio must not have a reusable public URL. Cache keys need app, content digest, parsed line identity, and voice—not merely row ID and line number—to prevent stale or cross-app audio.
+
+The TTS allowance must be atomically enforced server-side before generation. Otherwise parallel requests race past it. Add maximum request rate, maximum line/script length, bounded character/voice count, and normalization so attackers cannot create unlimited costly variants using whitespace or Unicode. Charge failures or reserve budget before calling the provider; enforce both account and app limits across instances. Cached playback should remain rate-limited even if it does not consume TTS characters.
+
+A malicious author can create one enormous “line” or thousands of unique lines and repeatedly edit them to evade the cache. The grammar/runtime needs explicit size ceilings, even if those are runtime limits rather than new Puppet words.
+
+Ranked changes
+
+1. Require current server-side row authorization on every row and Stage Read access, including cache hits.
+2. Make TTS quotas atomic and add hard input, concurrency, rate, and voice-count limits.
+3. Define private-policy persistence using stable collection identity across undo, rename, deletion, and reuse.
+4. Make unknown tokens in “adds to” parse errors, not warnings.
+5. Specify identity-safe no-store/private caching for descriptions, rows, counts, and audio.
+6. Precisely define server-side script parsing, line numbering, normalization, and cache keys.
+7. Clarify initial-screen, Back, refresh, nested navigation, and vanished-row behavior.
+8. Rename or redefine “read: own” so the host exception is explicit rather than surprising.
+9. State that row-bound screens are implicitly untabbed and reject redundant “tab: none.”

@@ -1,0 +1,36 @@
+puppet "Monologues" version "0.4"
+
+app "Monologues" {
+  promise: "Keep your audition pieces private, read them as a script page, and hear them aloud."
+  requires: signin
+}
+
+data pieces {
+  fields: [title, play, text]
+  read: private
+}
+
+screen "My pieces" {
+  hero { title: "My pieces", subtitle: "Only you can read these, {me.name}." }
+  text "{pieces.count} pieces"
+  list "Pieces" from pieces empty: "No pieces yet. Add your first one below." -> opens screen "Piece"
+  field "Title" @required
+  field "From the play"
+  field "Text" @multiline @required
+  button "Add the piece" @primary -> adds to pieces { title: "{form.Title}", play: "{form.From the play}", text: "{form.Text}" } ; toast "Saved. Only you can read it."
+  button "How to write a piece" @ghost -> opens dialog "How to write a piece"
+}
+
+screen "Piece" from pieces {
+  hero { title: "{row.title}", subtitle: "{row.play}" }
+  stage-read "{row.text}"
+  play-view "{row.text}"
+  button "Delete this piece" @danger -> removes from pieces
+}
+
+dialog "How to write a piece" {
+  text "Put the character's name in capitals on a line of its own, and the speech under it."
+  text "Or write NAME: words on one line."
+  text "Put stage directions in parentheses."
+  button "Close" -> closes self
+}

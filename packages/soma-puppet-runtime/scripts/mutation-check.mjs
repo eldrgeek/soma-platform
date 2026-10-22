@@ -16,6 +16,7 @@ import { promisify } from 'node:util';
 const run = promisify(execFile);
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const API = 'site/functions/api.mjs';
+const PLAY = '../soma-play/server/stage-read.js';
 
 const MUTANTS = [
   // 1. Host-only screens
@@ -34,7 +35,7 @@ const MUTANTS = [
   [API, 'reader.id === config.hostId ? {} : { author: reader.id }', '{}', "a guest's GET returns everyone's rows"],
   ['src/store.js', '.filter((entry) => author === undefined || entry.author === author)', '.filter(() => true)', 'the memory store ignores the author filter'],
   ['src/blobs-store.js', '.filter((entry) => author === undefined || entry.author === author)', '.filter(() => true)', 'the blobs store ignores the author filter'],
-  [API, "declaration.read === 'own' || (await store.privateData(appId)).includes(name)", "declaration.read === 'own'", 'privacy loosens with the live version'],
+  [API, 'const level = stricter(declaration.read, (await store.privacyLevels(appId))[name]);\n        let rows;', 'const level = declaration.read;\n        let rows;', 'privacy loosens with the live version'],
   ['src/store.js', '    rememberPrivacy(app, version.sketch);\n', '', 'the memory store forgets privacy on approve'],
   ['src/blobs-store.js', '      rememberPrivacy(app, parse(version.source).sketch);\n', '', 'the blobs store forgets privacy on approve'],
   [API, 'if (!declaration) throw new HttpError(404, `Unknown data: ${name}`);', 'if (!declaration) return json(await store.list(appId, name));', 'undeclared data is returned'],
@@ -49,6 +50,32 @@ const MUTANTS = [
   // Choice lists
   [API, '    return [].concat(field.props.items).map(String).includes(value);', '    return true;', 'a choice that is not one of the items is accepted'],
   ['src/render.js', "if (roles.includes('@select') && items.length) {", 'if (false) {', 'the page draws a choice list as a text box'],
+  // Puppet v0.4: row screens, read: private, the token check
+  ['src/parser.js', 'if(fromList||el.rowOf===target.from)opened.add(target.name);else errors.push(', 'opened.add(target.name);if(false)errors.push(', 'a row screen opens without a row'],
+  ['src/parser.js', "Number.isNaN(version)||version>=0.4?errors:", "Number.isNaN(version)||version>=0.4?warnings:", 'an unfillable token is only a warning in v0.4'],
+  ['src/parser.js', "if(!m||!o.from)errors.push({line:el.line,message:'stage-read reads one field", "if(false)errors.push({line:el.line,message:'stage-read reads one field", 'stage-read takes any text'],
+  ['src/parser.js', "if((a.targetType==='dialog'||target?.from)&&target&&el.hostOnly&&!target.hostOnly)", "if(a.targetType==='dialog'&&target&&el.hostOnly&&!target.hostOnly)", 'a host-only screen opens a row screen everyone receives'],
+  ['src/parser.js', "if(data.read==='private'&&data.fields?.includes('status'))errors.push(", 'if(false)errors.push(', 'private data has a status the host cannot read'],
+  ['src/render.js', "          root.dataset.puppetRow = opened.id;\n", '', 'the page forgets which row a screen shows'],
+  ['src/render.js', 'if (tabbed.length >= 2) {', 'if (tabbed.length >= 1) {', 'one tabbed screen draws a tab bar'],
+  ['src/render.js', '    const brief = opensRow(element.hook) || buttons.some((child) => opensRow(child.hook));', '    const brief = false;', 'a list that opens row screens prints whole scenes'],
+  ['src/render.js', "    if (row && name.startsWith('row.')) return String(row[name.slice(4)] ?? '');\n", '', 'a row screen leaves {row.field} unfilled'],
+  [API, '          rows = await store.list(appId, name, { author: (await signedIn()).id });', '          rows = await store.list(appId, name);', 'the host reads private rows'],
+  ['src/store.js', "  if (privateRow === 'private' && entry.author !== actor) throw new Error(`Unknown row: ${entry.id}`);\n", '', 'the host removes a private row'],
+  ['src/store.js', '(app.private ??= {})[name] = stricter(app.private?.[name], declaration.read);', '(app.private ??= {})[name] = declaration.read;', 'a looser version lowers the remembered privacy'],
+  [API, "          if (!isHost || level === 'private') {", '          if (!isHost) {', 'the host removes a private row with no remove action'],
+  // Stage Read
+  [API, '        const offered = [...sketch.screens, ...sketch.dialogs].some(', '        const offered = true || [...sketch.screens, ...sketch.dialogs].some(', 'Stage Read reads a field no stage-read offers'],
+  [API, "            (!owner.hostOnly || reader.id === config.hostId) &&\n", '', "a guest hears a host-only screen's Stage Read"],
+  [API, '        const { rows } = await readable(sketch, name);', '        const rows = await store.list(appId, name);', 'Stage Read speaks a row the reader may not read'],
+  [API, "      if (limit !== undefined && next > limit) return false;\n", '', 'an allowance has no limit'],
+  [API, "      if (stored) conditions = stored.etag ? { onlyIfMatch: stored.etag } : {};\n      const { modified } = await blobs.setJSON(key, Math.max(0, next), conditions);", "      if (stored) conditions = {};\n      const { modified } = await blobs.setJSON(key, Math.max(0, next), conditions);", 'parallel lines all pass one allowance'],
+  [PLAY, '    if (chars > limits.perLine) return', '    if (false) return', 'a line of any length is spoken'],
+  [PLAY, '    if (!(await store.reserve(personKey, chars, limits.perPerson))) {', '    if (false) {', "the person's allowance is not checked"],
+  [PLAY, '    if (!(await store.reserve(appKey, chars, limits.perApp))) {', '    if (false) {', "the app's allowance is not checked"],
+  [PLAY, "    if (!(await store.reserve(`lines/${today}/${person}`, 1, limits.linesPerPerson))) {", '    if (false) {', 'lines per person are not counted'],
+  [PLAY, '    const giveBack = () => Promise.all([store.release(personKey, chars), store.release(appKey, chars)]);', '    const giveBack = () => Promise.resolve();', 'a failed call keeps the characters'],
+  [PLAY, '    const audioKey = `audio/${person}/${sha(', '    const audioKey = `audio/${sha(', 'the audio cache is shared between people'],
   // 4. Approve or decline
   ['src/store.js', "approval ? { ...structuredClone(row), status: 'pending' } : structuredClone(row)", 'structuredClone(row)', 'a new row does not start pending'],
   ['src/parser.js', "&&Object.hasOwn(a.row||{},'status'))errors.push", '&&false)errors.push', 'an adds-to sets status'],
@@ -70,8 +97,15 @@ for (const name of ['src', 'site', 'test', 'examples', 'scripts', 'package.json'
   await cp(join(root, name), join(work, name), { recursive: true });
 }
 await symlink(join(root, 'node_modules'), join(work, 'node_modules'));
+// soma-play is copied, not linked, because its server half is mutated below.
+const COPIED = new Set(['soma-play']);
 for (const entry of await readdir(dirname(root), { withFileTypes: true })) {
-  if (entry.isDirectory() && entry.name !== basename(root)) {
+  if (!entry.isDirectory() || entry.name === basename(root)) continue;
+  if (COPIED.has(entry.name)) {
+    for (const name of ['src', 'server', 'package.json']) {
+      await cp(join(dirname(root), entry.name, name), join(folder, entry.name, name), { recursive: true });
+    }
+  } else {
     await symlink(join(dirname(root), entry.name), join(folder, entry.name));
   }
 }

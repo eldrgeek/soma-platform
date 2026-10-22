@@ -3,7 +3,8 @@ import { readFile } from 'node:fs/promises';
 
 import { createBlobsStore } from '../../src/blobs-store.js';
 import { DAYS, guestSource, parse, walk } from '../../src/parser.js';
-import { PuppetParseError, STATUSES } from '../../src/store.js';
+import { createStageReader, DEFAULT_LIMITS } from '../../../soma-play/server/stage-read.js';
+import { PuppetParseError, STATUSES, stricter } from '../../src/store.js';
 import { createIdentityVerifier, HttpError } from '../lib/auth.mjs';
 
 const json = (value, status = 200) =>
@@ -168,6 +169,7 @@ export function createApiHandler({
   verifyIdentity,
   readSeed,
   feedbackStore,
+  stageReader,
 }) {
   // Seeding is two writes, propose then approve. If a request stops between
   // them, the next request finds the seed still proposed and approves it,
@@ -225,6 +227,28 @@ export function createApiHandler({
       }
       const signedIn = async () => (identity ??= await verifyIdentity(request));
       const isHost = identity?.id === config.hostId;
+
+      // The rows of a collection this reader may read, by the strictest read
+      // rule the live version or any approved version gave it. GET and Stage
+      // Read both use this, so they cannot disagree.
+      const readable = async (sketch, name) => {
+        const declaration = sketch.data[name];
+        if (!declaration) throw new HttpError(404, `Unknown data: ${name}`);
+        const level = stricter(declaration.read, (await store.privacyLevels(appId))[name]);
+        let rows;
+        if (level === 'private') {
+          rows = await store.list(appId, name, { author: (await signedIn()).id });
+        } else if (level === 'own') {
+          const reader = await signedIn();
+          rows = await store.list(appId, name, reader.id === config.hostId ? {} : { author: reader.id });
+        } else {
+          rows = await store.list(appId, name);
+        }
+        if (declaration.fields.includes('status')) {
+          rows = rows.map((row) => ({ ...row, status: row.status ?? 'pending' }));
+        }
+        return { rows, level };
+      };
 
       if (request.method === 'GET' && route === 'current') {
         await seed(appId, config);
@@ -321,29 +345,43 @@ export function createApiHandler({
         return json(items);
       }
 
+      if (request.method === 'POST' && route === 'stage-read') {
+        // Checks in order: signed in; a stage-read of this field on a screen
+        // from this data that the reader can see; the row is one the reader
+        // may read (otherwise the same answer as a missing row); then the
+        // spend allowance, inside the stage reader.
+        const reader = await signedIn();
+        const input = await body(request);
+        const { data: name, rowId, field, line } = input;
+        if (typeof name !== 'string' || typeof rowId !== 'string' || typeof field !== 'string' || !Number.isInteger(line)) {
+          throw new HttpError(400, 'Body must be { data, rowId, field, line }');
+        }
+        const sketch = await liveSketch(store, appId);
+        const offered = [...sketch.screens, ...sketch.dialogs].some(
+          (owner) =>
+            owner.from === name &&
+            (!owner.hostOnly || reader.id === config.hostId) &&
+            walk(owner.children).some((element) => element.kind === 'stage-read' && element.field === field),
+        );
+        if (!offered) throw new HttpError(404, `No Stage Read of ${name}.${field} here`);
+        const { rows } = await readable(sketch, name);
+        const row = rows.find((candidate) => candidate.id === rowId);
+        if (!row || typeof row[field] !== 'string') throw new HttpError(404, `Unknown row: ${rowId}`);
+        if (!stageReader) throw new HttpError(503, 'Stage Read is not configured');
+        const out = await stageReader({ who: reader.id, scope: appId, text: row[field], line });
+        if (out.status !== 200) return json({ error: out.error }, out.status);
+        return new Response(out.body, {
+          status: 200,
+          headers: { ...out.headers, 'cache-control': 'private, no-store' },
+        });
+      }
+
       const dataMatch = route.match(/^data\/([^/]+)(?:\/([^/]+))?$/);
       if (dataMatch) {
         const name = decodeURIComponent(dataMatch[1]);
         const rowId = dataMatch[2] ? decodeURIComponent(dataMatch[2]) : null;
         if (request.method === 'GET' && !rowId) {
-          const sketch = await liveSketch(store, appId);
-          const declaration = sketch.data[name];
-          if (!declaration) throw new HttpError(404, `Unknown data: ${name}`);
-          let rows;
-          if (declaration.read === 'own' || (await store.privateData(appId)).includes(name)) {
-            const reader = await signedIn();
-            rows = await store.list(
-              appId,
-              name,
-              reader.id === config.hostId ? {} : { author: reader.id },
-            );
-          } else {
-            rows = await store.list(appId, name);
-          }
-          if (declaration.fields.includes('status')) {
-            rows = rows.map((row) => ({ ...row, status: row.status ?? 'pending' }));
-          }
-          return json(rows);
+          return json((await readable(await liveSketch(store, appId), name)).rows);
         }
         if (request.method === 'POST' && !rowId) {
           const row = await prepareDataRow(
@@ -358,10 +396,12 @@ export function createApiHandler({
         }
         if (request.method === 'DELETE' && rowId) {
           // Someone other than the host removes a row only through a
-          // removes-from action they can see in the live description.
-          if (!isHost) {
-            const sketch = await liveSketch(store, appId);
-            const visible = [...visibleActions(sketch, false)].some(
+          // removes-from action they can see in the live description; a
+          // private row needs one even for the host, and only its author may.
+          const sketch = await liveSketch(store, appId);
+          const level = stricter(sketch.data[name]?.read, (await store.privacyLevels(appId))[name]);
+          if (!isHost || level === 'private') {
+            const visible = [...visibleActions(sketch, isHost)].some(
               ({ action }) => action.type === 'remove' && action.target === name,
             );
             if (!visible) throw new HttpError(403, `No action lets you remove rows from ${name}`);
@@ -420,7 +460,40 @@ export function resolveApps(apps, env = process.env) {
 // getStore() takes the invocation's Blobs token, and that token expires, so a
 // store kept across requests fails with "Failed to decode token: Token
 // expired" (seen live, 2026-10-21). The app configuration is kept.
-export function createApiFunction({ getStoreImpl = getStore, env = process.env } = {}) {
+// Stage Read's counters and audio cache in Netlify Blobs. A reservation lands
+// only if the counter is unchanged since it was read (etag), and is retried on
+// fresh data otherwise, so parallel lines cannot all pass one allowance. The
+// netlify dev sandbox returns no etags; there a counter is written as read.
+export function blobCounters(blobs) {
+  async function change(key, delta, limit) {
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      const stored = await blobs.getWithMetadata(key, { type: 'json', consistency: 'strong' });
+      const next = Number(stored?.data ?? 0) + delta;
+      if (limit !== undefined && next > limit) return false;
+      let conditions = { onlyIfNew: true };
+      if (stored) conditions = stored.etag ? { onlyIfMatch: stored.etag } : {};
+      const { modified } = await blobs.setJSON(key, Math.max(0, next), conditions);
+      if (modified) return true;
+    }
+    return false;
+  }
+  return {
+    reserve: (key, amount, limit) => change(key, amount, limit),
+    release: (key, amount) => change(key, -amount),
+    async getAudio(key) {
+      const buffer = await blobs.get(key, { type: 'arrayBuffer', consistency: 'strong' });
+      return buffer ? new Uint8Array(buffer) : null;
+    },
+    setAudio: (key, bytes) => blobs.set(key, bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength)),
+  };
+}
+
+export function createApiFunction({
+  getStoreImpl = getStore,
+  env = process.env,
+  fetchImpl = globalThis.fetch,
+  stageReadLimits = DEFAULT_LIMITS,
+} = {}) {
   let apps;
   const verifyIdentity = createIdentityVerifier({ env });
   return async function handler(request) {
@@ -436,6 +509,12 @@ export function createApiFunction({ getStoreImpl = getStore, env = process.env }
       readSeed: (appId) =>
         readFile(new URL(`../../examples/${appId}.puppet`, import.meta.url), 'utf8'),
       feedbackStore: getStoreImpl({ name: 'soma-puppet-feedback', consistency: 'strong' }),
+      stageReader: createStageReader({
+        apiKey: env.ELEVENLABS_API_KEY,
+        fetch: fetchImpl,
+        store: blobCounters(getStoreImpl({ name: 'soma-stage-read', consistency: 'strong' })),
+        limits: stageReadLimits,
+      }),
     })(request);
   };
 }

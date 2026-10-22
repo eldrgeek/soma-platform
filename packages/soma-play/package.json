@@ -1,0 +1,13 @@
+{
+  "name": "@soma/play",
+  "version": "0.1.0",
+  "description": "SOMA play components from PlayMaker: a scene in Diana's script format (play-view) and Stage Read (the scene read aloud, a voice per character). Plain browser modules, no framework.",
+  "type": "module",
+  "main": "src/script.js",
+  "files": ["src", "server", "README.md"],
+  "scripts": {
+    "test": "node --test"
+  },
+  "license": "UNLICENSED",
+  "private": true
+}

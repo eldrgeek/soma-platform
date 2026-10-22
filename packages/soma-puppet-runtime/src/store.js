@@ -40,6 +40,10 @@ export class StoreAdapter {
   privateData(_appId) {
     throw new Error('privateData is not implemented');
   }
+
+  privacyLevels(_appId) {
+    throw new Error('privacyLevels is not implemented');
+  }
 }
 
 export class PuppetParseError extends Error {
@@ -50,19 +54,26 @@ export class PuppetParseError extends Error {
   }
 }
 
-// Puppet v0.3 row rules, shared by MemoryStore and BlobsStore.
+// Puppet v0.3 and v0.4 row rules, shared by MemoryStore and BlobsStore.
 export const STATUSES = ['confirmed', 'declined'];
 
-// Privacy only tightens: once an approved version says read: own, the
-// collection stays private, even after undo to a version that does not.
+// Who reads a collection, from least to most private: everyone, read: own
+// (each person their own rows, the host all), read: private (each person
+// their own rows, the host included).
+const LEVELS = [undefined, 'own', 'private'];
+export const stricter = (a, b) => (LEVELS.indexOf(a) >= LEVELS.indexOf(b) ? a : b);
+
+// Privacy only tightens: the strictest read: an approved version ever gave a
+// collection name stays, through undo, redo and declaring the name again.
 export function rememberPrivacy(app, sketch) {
   for (const [name, declaration] of Object.entries(sketch.data)) {
-    if (declaration.read === 'own') (app.private ??= {})[name] = 'own';
+    if (declaration.read) (app.private ??= {})[name] = stricter(app.private?.[name], declaration.read);
   }
 }
 
+// The read rule in force for a collection: 'private', 'own', or undefined.
 export function isPrivate(app, sketch, data) {
-  return sketch?.data[data]?.read === 'own' || app.private?.[data] === 'own';
+  return stricter(sketch?.data[data]?.read, app.private?.[data]);
 }
 
 // A private row's id is unguessable and does not reveal how many rows exist.
@@ -75,6 +86,9 @@ export function newRow(app, row, author, { privateRow, approval }) {
 }
 
 export function checkRemove(entry, actor, hostId, privateRow) {
+  // A read: private row is its author's alone: anyone else, the host included,
+  // is answered as if it did not exist.
+  if (privateRow === 'private' && entry.author !== actor) throw new Error(`Unknown row: ${entry.id}`);
   if (entry.author !== actor && hostId !== actor) {
     // Someone else's private row answers like a missing one.
     if (privateRow) throw new Error(`Unknown row: ${entry.id}`);
@@ -85,7 +99,8 @@ export function checkRemove(entry, actor, hostId, privateRow) {
   }
 }
 
-export function applyStatus(entry, sketch, data, status) {
+export function applyStatus(entry, sketch, data, status, level, actor) {
+  if (level === 'private' && entry.author !== actor) throw new Error(`Unknown row: ${entry.id}`);
   if (!sketch?.data[data]?.fields?.includes('status')) {
     throw new Error(`Data ${data} has no status field`);
   }
@@ -220,11 +235,15 @@ export class MemoryStore extends StoreAdapter {
     const current = app.versions.find(({ id }) => id === app.currentVersionId);
     const entry = this.#rows(app, data).find(({ id }) => id === rowId);
     if (!entry) throw new Error(`Unknown row: ${rowId}`);
-    return applyStatus(entry, current?.sketch, data, status);
+    return applyStatus(entry, current?.sketch, data, status, isPrivate(app, current?.sketch, data), actor);
   }
 
   async privateData(appId) {
     return Object.keys(this.#app(appId).private ?? {});
+  }
+
+  async privacyLevels(appId) {
+    return structuredClone(this.#app(appId).private ?? {});
   }
 
   #app(appId) {

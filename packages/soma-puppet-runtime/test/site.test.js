@@ -433,10 +433,13 @@ test('local feedback chip uses the app identity-header hook', async () => {
   assert.match(chip, /window\.somaFeedbackHeaders/);
 });
 
-test('static browser parser and renderer mirror the package sources', async () => {
+test('static browser parser, renderer and soma-play components mirror the package sources', async () => {
   const pairs = [
     ['../src/parser.js', '../site/public/vendor/puppet/parser.js'],
     ['../src/render.js', '../site/public/vendor/puppet/render.js'],
+    ['../../soma-play/src/script.js', '../site/public/vendor/soma-play/script.js'],
+    ['../../soma-play/src/play-view.js', '../site/public/vendor/soma-play/play-view.js'],
+    ['../../soma-play/src/stage-read.js', '../site/public/vendor/soma-play/stage-read.js'],
   ];
   for (const [source, browser] of pairs) {
     assert.equal(
