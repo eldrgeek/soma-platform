@@ -35,11 +35,50 @@ function collectionRows(sketch, data, name) {
   return sketch.stubs[name]?.children ?? [];
 }
 
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const DAY_NAMES = {
+  Sun: 'Sunday', Mon: 'Monday', Tue: 'Tuesday', Wed: 'Wednesday',
+  Thu: 'Thursday', Fri: 'Friday', Sat: 'Saturday',
+};
+
+function isoDate(value) {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const date = new Date(`${value}T00:00:00Z`);
+  return Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value ? null : date;
+}
+
+// A stored ISO date is shown with its weekday, in the reader's language. It is
+// read in UTC, so the weekday never shifts with the reader's time zone.
+export function formatValue(value) {
+  const date = isoDate(value);
+  if (!date) return value;
+  return new Intl.DateTimeFormat(undefined, {
+    weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC',
+  }).format(date);
+}
+
 function rowText(row) {
   return Object.entries(row)
-    .filter(([key]) => key !== 'id')
-    .map(([, value]) => value)
+    .filter(([key]) => key !== 'id' && key !== 'status')
+    .map(([, value]) => formatValue(value))
     .join(' · ');
+}
+
+// Checks the fields a person filled before their row is sent: a @required
+// field may not be empty, and a @date field takes a date on one of its days.
+// The server makes the same checks.
+function checkFields(root) {
+  for (const input of root.querySelectorAll('[data-puppet-field]')) {
+    const label = input.dataset.puppetField;
+    if (input.required && !input.value.trim()) throw new Error(`Please fill in "${label}" first.`);
+    const days = input.dataset.puppetDays?.split(' ').filter(Boolean);
+    if (days?.length && input.value) {
+      const date = isoDate(input.value);
+      if (!date || !days.includes(WEEKDAYS[date.getUTCDay()])) {
+        throw new Error(`"${label}" must be a ${days.map((day) => DAY_NAMES[day]).join(' or ')}.`);
+      }
+    }
+  }
 }
 
 /**
@@ -50,12 +89,15 @@ function rowText(row) {
  * @param {HTMLElement} options.root
  * @param {Record<string, object[]>} [options.data]
  * @param {{id?: string, name?: string}} [options.me]
+ * @param {boolean} [options.host] whether the reader is the app's host
  * @param {(action: object) => unknown | Promise<unknown>} [options.onAction]
  */
-export function render(sketch, { root, data = {}, me = {}, onAction = () => {} }) {
+export function render(sketch, { root, data = {}, me = {}, host = false, onAction = () => {} }) {
   if (!root?.ownerDocument) throw new TypeError('render requires a DOM root');
 
-  const screens = sketch?.screens ?? [];
+  // The server never sends host-only screens to anyone else; this is the
+  // same rule in the page, for a host-only screen drawn from a full source.
+  const screens = (sketch?.screens ?? []).filter((screen) => !screen.hostOnly || host);
   let current =
     screens.find(({ name }) => name === root.dataset.puppetScreen) ?? screens[0] ?? null;
   let toastTimer;
@@ -79,7 +121,8 @@ export function render(sketch, { root, data = {}, me = {}, onAction = () => {} }
     toastTimer = setTimeout(() => toast.remove(), 3000);
   };
 
-  const runActions = async (actions, row) => {
+  const runActions = async (actions, row, element) => {
+    if (actions?.some(({ type }) => type === 'add')) checkFields(root);
     for (const action of actions ?? []) {
       if (action.type === 'add') {
         await onAction({
@@ -90,6 +133,14 @@ export function render(sketch, { root, data = {}, me = {}, onAction = () => {} }
       } else if (action.type === 'remove') {
         if (!row?.id) throw new Error('A remove action requires a persisted row id');
         await onAction({ type: 'remove', target: action.target, rowId: row.id });
+      } else if (action.type === 'set-status') {
+        if (!row?.id) throw new Error('A status action requires a persisted row id');
+        await onAction({
+          type: 'set-status',
+          target: element?.rowOf,
+          rowId: row.id,
+          status: action.status,
+        });
       } else if (action.type === 'open' && action.targetType === 'screen') {
         const target = screens.find(({ name }) => name === action.name);
         if (target) {
@@ -103,20 +154,46 @@ export function render(sketch, { root, data = {}, me = {}, onAction = () => {} }
     }
   };
 
-  const wireActions = (node, actions, row) => {
+  const wireActions = (node, actions, row, element) => {
     if (!actions?.length) return;
     node.addEventListener('click', async () => {
       try {
-        await runActions(actions, row);
+        await runActions(actions, row, element);
       } catch (error) {
         showToast(error instanceof Error ? error.message : 'Action failed');
       }
     });
   };
 
+  // A button inside a list or table block is drawn on every row and acts on it.
+  const rowButtons = (element) =>
+    (element.children ?? []).filter((child) => child.kind === 'button');
+
+  const drawRowButtons = (parent, buttons, row) => {
+    for (const child of buttons) {
+      const button = append(parent, 'button', {
+        className: [
+          'puppet-runtime-button',
+          child.roles?.includes('@primary') ? 'puppet-runtime-primary' : '',
+          child.roles?.includes('@danger') ? 'puppet-runtime-danger' : '',
+        ].filter(Boolean).join(' '),
+        text: child.label ?? 'Button',
+        attrs: { type: 'button' },
+      });
+      wireActions(button, child.hook, row, child);
+    }
+  };
+
+  const statusBadge = (parent, status) =>
+    append(parent, 'span', {
+      className: `puppet-runtime-status puppet-runtime-status-${status}`,
+      text: status,
+    });
+
   const drawRows = (parent, element) => {
     const rows = collectionRows(sketch, data, element.from);
     const removeAction = element.hook?.find(({ type }) => type === 'remove');
+    const buttons = rowButtons(element);
     if (!rows.length) {
       append(parent, 'p', {
         className: 'puppet-runtime-empty',
@@ -132,19 +209,26 @@ export function render(sketch, { root, data = {}, me = {}, onAction = () => {} }
       ];
       const head = append(append(table, 'thead'), 'tr');
       fields.forEach((field) => append(head, 'th', { text: field }));
-      if (removeAction) append(head, 'th', { text: 'Actions' });
+      if (removeAction || buttons.length) append(head, 'th', { text: 'Actions' });
       const body = append(table, 'tbody');
       for (const row of rows) {
         const tr = append(body, 'tr');
-        fields.forEach((field) => append(tr, 'td', { text: row[field] ?? '' }));
-        if (removeAction) {
+        fields.forEach((field) => {
           const cell = append(tr, 'td');
-          const button = append(cell, 'button', {
-            className: 'puppet-runtime-button puppet-runtime-danger',
-            text: 'Remove',
-            attrs: { type: 'button' },
-          });
-          wireActions(button, [removeAction], row);
+          if (field === 'status' && row.status) statusBadge(cell, row.status);
+          else cell.textContent = formatValue(row[field] ?? '');
+        });
+        if (removeAction || buttons.length) {
+          const cell = append(tr, 'td');
+          if (removeAction) {
+            const button = append(cell, 'button', {
+              className: 'puppet-runtime-button puppet-runtime-danger',
+              text: 'Remove',
+              attrs: { type: 'button' },
+            });
+            wireActions(button, [removeAction], row);
+          }
+          drawRowButtons(cell, buttons, row);
         } else {
           wireActions(tr, element.hook, row);
         }
@@ -156,6 +240,7 @@ export function render(sketch, { root, data = {}, me = {}, onAction = () => {} }
     for (const row of rows) {
       const item = append(list, 'div', { className: 'puppet-runtime-list-row' });
       append(item, 'span', { text: rowText(row) });
+      if (row.status) statusBadge(item, row.status);
       if (removeAction) {
         const button = append(item, 'button', {
           className: 'puppet-runtime-button puppet-runtime-danger',
@@ -163,9 +248,10 @@ export function render(sketch, { root, data = {}, me = {}, onAction = () => {} }
           attrs: { type: 'button' },
         });
         wireActions(button, [removeAction], row);
-      } else {
+      } else if (!buttons.length) {
         wireActions(item, element.hook, row);
       }
+      drawRowButtons(item, buttons, row);
     }
   };
 
@@ -192,13 +278,21 @@ export function render(sketch, { root, data = {}, me = {}, onAction = () => {} }
       const label = append(parent, 'label', { className: 'puppet-runtime-field' });
       append(label, 'span', { text: element.label ?? 'Field' });
       const tag = roles.includes('@multiline') ? 'textarea' : 'input';
+      const days = [].concat(element.props?.days ?? []);
       const input = append(label, tag, {
         attrs: {
           'data-puppet-field': element.label ?? '',
           ...(roles.includes('@required') ? { required: '' } : {}),
+          ...(roles.includes('@date') && days.length ? { 'data-puppet-days': days.join(' ') } : {}),
         },
       });
-      if (tag === 'input') input.type = 'text';
+      if (tag === 'input') input.type = roles.includes('@date') ? 'date' : 'text';
+      if (roles.includes('@date') && days.length) {
+        append(label, 'small', {
+          className: 'puppet-runtime-hint',
+          text: `${days.map((day) => DAY_NAMES[day] ?? day).join(' or ')} only`,
+        });
+      }
       return;
     }
 
@@ -311,6 +405,9 @@ export function render(sketch, { root, data = {}, me = {}, onAction = () => {} }
         text: screen.name,
         attrs: { type: 'button', 'aria-current': screen === current ? 'page' : 'false' },
       });
+      if (screen.hostOnly) {
+        append(tab, 'span', { className: 'puppet-runtime-host-only', text: 'only you' });
+      }
       tab.addEventListener('click', () => {
         current = screen;
         root.dataset.puppetScreen = current.name;

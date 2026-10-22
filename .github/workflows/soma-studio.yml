@@ -41,3 +41,5 @@ jobs:
       - run: npm ci
       - name: Node tests
         run: npm test
+      - name: Mutation check (loosens each server rule on purpose; every break must be caught)
+        run: npm run mutation

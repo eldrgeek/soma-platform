@@ -32,6 +32,14 @@ export class StoreAdapter {
   remove(_appId, _data, _rowId, _actor) {
     throw new Error('remove is not implemented');
   }
+
+  setStatus(_appId, _data, _rowId, _status, _actor) {
+    throw new Error('setStatus is not implemented');
+  }
+
+  privateData(_appId) {
+    throw new Error('privateData is not implemented');
+  }
 }
 
 export class PuppetParseError extends Error {
@@ -40,6 +48,52 @@ export class PuppetParseError extends Error {
     this.name = 'PuppetParseError';
     this.errors = structuredClone(errors);
   }
+}
+
+// Puppet v0.3 row rules, shared by MemoryStore and BlobsStore.
+export const STATUSES = ['confirmed', 'declined'];
+
+// Privacy only tightens: once an approved version says read: own, the
+// collection stays private, even after undo to a version that does not.
+export function rememberPrivacy(app, sketch) {
+  for (const [name, declaration] of Object.entries(sketch.data)) {
+    if (declaration.read === 'own') (app.private ??= {})[name] = 'own';
+  }
+}
+
+export function isPrivate(app, sketch, data) {
+  return sketch?.data[data]?.read === 'own' || app.private?.[data] === 'own';
+}
+
+// A private row's id is unguessable and does not reveal how many rows exist.
+export function newRow(app, row, author, { privateRow, approval }) {
+  return {
+    id: privateRow ? `r-${crypto.randomUUID()}` : `r${app.nextRowId++}`,
+    row: approval ? { ...structuredClone(row), status: 'pending' } : structuredClone(row),
+    author,
+  };
+}
+
+export function checkRemove(entry, actor, hostId, privateRow) {
+  if (entry.author !== actor && hostId !== actor) {
+    // Someone else's private row answers like a missing one.
+    if (privateRow) throw new Error(`Unknown row: ${entry.id}`);
+    throw new Error('Only the row author or app host may remove this row');
+  }
+  if (actor !== hostId && entry.row.status !== undefined && entry.row.status !== 'pending') {
+    throw new Error('Only the host may remove a row that is already confirmed or declined');
+  }
+}
+
+export function applyStatus(entry, sketch, data, status) {
+  if (!sketch?.data[data]?.fields?.includes('status')) {
+    throw new Error(`Data ${data} has no status field`);
+  }
+  if (!STATUSES.includes(status)) {
+    throw new Error(`Status must be ${STATUSES.join(' or ')}`);
+  }
+  entry.row.status = status;
+  return { ...structuredClone(entry.row), id: entry.id };
 }
 
 export class MemoryStore extends StoreAdapter {
@@ -97,6 +151,7 @@ export class MemoryStore extends StoreAdapter {
     version.approver = approver;
     app.currentVersionId = version.id;
     app.approvalHistory.push(version.id);
+    rememberPrivacy(app, version.sketch);
     return this.#publicVersion(version);
   }
 
@@ -112,11 +167,13 @@ export class MemoryStore extends StoreAdapter {
     return this.getCurrent(appId);
   }
 
-  async list(appId, data) {
-    return this.#rows(this.#app(appId), data).map(({ id, row }) => ({
-      ...structuredClone(row),
-      id,
-    }));
+  async list(appId, data, { author } = {}) {
+    return this.#rows(this.#app(appId), data)
+      .filter((entry) => author === undefined || entry.author === author)
+      .map(({ id, row }) => ({
+        ...structuredClone(row),
+        id,
+      }));
   }
 
   async add(appId, data, row, author) {
@@ -135,11 +192,10 @@ export class MemoryStore extends StoreAdapter {
       throw new Error(`Undeclared field(s) for ${data}: ${undeclared.join(', ')}`);
     }
 
-    const entry = {
-      id: `r${app.nextRowId++}`,
-      row: structuredClone(row),
-      author,
-    };
+    const entry = newRow(app, row, author, {
+      privateRow: isPrivate(app, current.sketch, data),
+      approval: declaration.fields.includes('status'),
+    });
     this.#rows(app, data).push(entry);
     return { ...structuredClone(entry.row), id: entry.id };
   }
@@ -151,12 +207,24 @@ export class MemoryStore extends StoreAdapter {
     if (index === -1) {
       throw new Error(`Unknown row: ${rowId}`);
     }
-    if (rows[index].author !== actor && this.#appConfigs[appId]?.hostId !== actor) {
-      throw new Error('Only the row author or app host may remove this row');
-    }
+    const current = app.versions.find(({ id }) => id === app.currentVersionId);
+    checkRemove(rows[index], actor, this.#appConfigs[appId]?.hostId, isPrivate(app, current?.sketch, data));
 
     const [{ id, row }] = rows.splice(index, 1);
     return { ...structuredClone(row), id };
+  }
+
+  async setStatus(appId, data, rowId, status, actor) {
+    this.#requireHost(appId, actor);
+    const app = this.#app(appId);
+    const current = app.versions.find(({ id }) => id === app.currentVersionId);
+    const entry = this.#rows(app, data).find(({ id }) => id === rowId);
+    if (!entry) throw new Error(`Unknown row: ${rowId}`);
+    return applyStatus(entry, current?.sketch, data, status);
+  }
+
+  async privateData(appId) {
+    return Object.keys(this.#app(appId).private ?? {});
   }
 
   #app(appId) {

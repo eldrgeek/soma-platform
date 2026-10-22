@@ -1,7 +1,15 @@
 import { getStore } from '@netlify/blobs';
 
 import { parse } from './parser.js';
-import { PuppetParseError, StoreAdapter } from './store.js';
+import {
+  applyStatus,
+  checkRemove,
+  isPrivate,
+  newRow,
+  PuppetParseError,
+  rememberPrivacy,
+  StoreAdapter,
+} from './store.js';
 
 function emptyApp() {
   return {
@@ -9,6 +17,7 @@ function emptyApp() {
     currentVersionId: null,
     approvalHistory: [],
     rows: {},
+    private: {},
     nextVersionId: 1,
     nextRowId: 1,
   };
@@ -78,6 +87,7 @@ export class BlobsStore extends StoreAdapter {
       version.approver = approver;
       app.currentVersionId = version.id;
       app.approvalHistory.push(version.id);
+      rememberPrivacy(app, parse(version.source).sketch);
       return structuredClone(version);
     });
   }
@@ -96,12 +106,14 @@ export class BlobsStore extends StoreAdapter {
     });
   }
 
-  async list(appId, data) {
+  async list(appId, data, { author } = {}) {
     const app = await this.#load(appId);
-    return this.#rows(app, data).map(({ id, row }) => ({
-      ...structuredClone(row),
-      id,
-    }));
+    return this.#rows(app, data)
+      .filter((entry) => author === undefined || entry.author === author)
+      .map(({ id, row }) => ({
+        ...structuredClone(row),
+        id,
+      }));
   }
 
   async add(appId, data, row, author) {
@@ -120,11 +132,10 @@ export class BlobsStore extends StoreAdapter {
         throw new Error(`Undeclared field(s) for ${data}: ${undeclared.join(', ')}`);
       }
 
-      const entry = {
-        id: `r${app.nextRowId++}`,
-        row: structuredClone(row),
-        author,
-      };
+      const entry = newRow(app, row, author, {
+        privateRow: isPrivate(app, parsed.sketch, data),
+        approval: declaration.fields.includes('status'),
+      });
       this.#rows(app, data).push(entry);
       return { ...structuredClone(entry.row), id: entry.id };
     });
@@ -135,12 +146,28 @@ export class BlobsStore extends StoreAdapter {
       const rows = this.#rows(app, data);
       const index = rows.findIndex(({ id }) => id === rowId);
       if (index === -1) throw new Error(`Unknown row: ${rowId}`);
-      if (rows[index].author !== actor && this.#appConfigs[appId]?.hostId !== actor) {
-        throw new Error('Only the row author or app host may remove this row');
-      }
+      checkRemove(rows[index], actor, this.#appConfigs[appId]?.hostId, isPrivate(app, this.#sketch(app), data));
       const [{ id, row }] = rows.splice(index, 1);
       return { ...structuredClone(row), id };
     });
+  }
+
+  async setStatus(appId, data, rowId, status, actor) {
+    this.#requireHost(appId, actor);
+    return this.#update(appId, (app) => {
+      const entry = this.#rows(app, data).find(({ id }) => id === rowId);
+      if (!entry) throw new Error(`Unknown row: ${rowId}`);
+      return applyStatus(entry, this.#sketch(app), data, status);
+    });
+  }
+
+  async privateData(appId) {
+    return Object.keys((await this.#load(appId)).private ?? {});
+  }
+
+  #sketch(app) {
+    const current = app.versions.find(({ id }) => id === app.currentVersionId);
+    return current ? parse(current.source).sketch : null;
   }
 
   async #load(appId) {

@@ -1,0 +1,65 @@
+1. SMALLEST DESIGN
+
+The proposal covers all four needs, but it is not quite the smallest design.
+
+- Drop `read: host` from this graduation. The four demonstrated needs are covered by `read: own`: students see their rows and the host sees all rows. `host_notes` introduces a fifth use case. Host-private collections can graduate when an app actually requires them.
+- Limit `requires: host` to screens for now. Inline elements and dialogs add sanitization, inheritance, navigation, and action-validation complexity. The piano app only needs a host-only screen.
+- Drop `sets status "pending"`. New rows already start pending; the demonstrated decisions are only confirm and decline. Reopening can graduate later.
+- Do not add special per-row meaning to links unless an app needs it. Buttons alone cover approval and deletion.
+- `status` plus `sets status` is otherwise a reasonable small design. Making approval a wholly separate collection kind would add more grammar, not less.
+- `days:` is justified by the Saturday-only requirement. `@date` alone is insufficient.
+- Consider making `read: own` mandatory for an approval collection. Approval requests are inherently personal in both motivating apps, and this avoids accidentally declaring approval rows publicly. If that coupling is considered too implicit, keep the two words separate.
+
+2. AMBIGUITIES
+
+“The host is the account that hosts the app: the one that approves its versions” is circular. State that `hostId` alone is authoritative and describe what happens if it changes.
+
+“everything inside it” does not define structural containment, especially for dialogs, navigation targets, interpolations, or elements referenced from elsewhere.
+
+“with every `stub` that only host-only parts read taken out” leaves “only” and “read” undefined. A stub referenced by both public and host-only content is especially unclear, as is whether stub contents themselves may be confidential.
+
+“An action on a host-only element counts only for the host” and “only a host-only button could send” do not define action matching when identical actions occur in public and private places.
+
+“A `list`, `table` or `{Name.count}` that everyone sees” is unclear for nested visibility and dialogs. Visibility should be determined statically by ancestry.
+
+“read: own means a signed-in person reads only the rows they added” needs an explicit immutable server-side `authorAccountId`; a displayed `who` field is not ownership.
+
+“A `@date` field…” versus “a value that came from a `@date` field” is ambiguous because an attacker sends values, not field provenance. The server must map an `adds to` interpolation to one uniquely identified field declaration.
+
+“An empty value is accepted” conflicts with `@required` in the example. Is `@required` server-enforced or merely UI behavior?
+
+“Lists and tables show…” does not specify locale or whether the example format is mandatory.
+
+“A collection that declares a field named `status` is an approval collection” silently changes the meaning of any existing ordinary field named `status`. Existing rows may also lack that field after an upgrade.
+
+“on an element around it” does not identify which element kinds are containers or how inheritance works.
+
+“`removes from Name` … removes that row” is ambiguous if `Name` differs from the list/table source.
+
+3. SECURITY HOLES
+
+The largest hole is version rollback. If private rows exist under v0.3, undoing to a version where the same collection is public—or to v0.2—can expose all historical rows. Privacy must be durable collection metadata, or activation/undo must reject any privacy downgrade while rows exist. Route authorization must switch atomically with the live version.
+
+All reads and writes must be evaluated against the server’s canonical live description, never the redacted description supplied by the client. Cache keys must include host/non-host identity and authorization; otherwise `/current`, rows, or counts can cross-leak.
+
+`publicRead: true` needs explicit rules: anonymous callers must never receive `read: own` rows, host rows, private counts, private source, or distinguishable row-existence errors. Writes must still require a verified bearer token.
+
+Source redaction must cover `/current`, errors, parse diagnostics, caches, generated navigation, dialogs, stubs, labels, literals, and action definitions. `/versions` being host-only is necessary; old version-source routes must also be covered.
+
+Date and `@required` validation cannot trust client provenance. Duplicate field labels, forged form values, and actions on hidden screens must be resolved and validated from the canonical action and field definitions.
+
+PATCH is safe only if it verifies host identity, the live collection/action, the row’s membership in that collection, and an allowed transition/value. The row ID and body are wholly attacker-controlled.
+
+DELETE must use immutable stored authorship, not `who`, and should return indistinguishable responses for nonexistent versus unauthorized row IDs. IDs should be opaque.
+
+Counts and empty/nonempty states can leak data even when rows are filtered. Every aggregate and rendering query must use the same authorization filter as GET.
+
+Ranked changes
+
+1. Prevent version activation, undo, or redo from weakening privacy for collections containing rows.
+2. Define all authorization against the canonical live description and immutable server-side authorship.
+3. Specify publicRead behavior, authenticated writes, cache partitioning, and non-leaking errors.
+4. Make date and required validation server-side and define unambiguous action-to-field binding.
+5. Reduce v0.3 to host-only screens, `read: own`, `@date`/`days:`, and host-only confirm/decline buttons.
+6. Define sanitization transitively for dialogs, navigation, stubs, literals, actions, counts, and diagnostics.
+7. Require row-bound actions to target the enclosing list/table’s collection.

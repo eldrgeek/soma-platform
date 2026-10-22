@@ -123,6 +123,8 @@ function draw() {
     root: appRoot,
     data: liveData,
     me: me(),
+    // The server sends anyone but the host a description without host-only screens.
+    host: me().id === current.hostId,
     onAction: async (action) => {
       if (action.type === 'add') {
         await api(`data/${encodeURIComponent(action.target)}`, {
@@ -133,6 +135,11 @@ function draw() {
         await api(
           `data/${encodeURIComponent(action.target)}/${encodeURIComponent(action.rowId)}`,
           { method: 'DELETE' },
+        );
+      } else if (action.type === 'set-status') {
+        await api(
+          `data/${encodeURIComponent(action.target)}/${encodeURIComponent(action.rowId)}`,
+          { method: 'PATCH', body: { status: action.status } },
         );
       }
       await loadData();

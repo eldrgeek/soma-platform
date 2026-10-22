@@ -1,0 +1,58 @@
+puppet "Sunday Supper" version "0.3"
+
+app "Sunday Supper" {
+  promise: "Neighbors say yes in one tap and know who is bringing what."
+  requires: signin
+}
+
+data seats {
+  fields: [name]
+}
+
+data dishes {
+  fields: [who, dish, cant_eat]
+}
+
+data guest_requests {
+  fields: [who, guest, sunday, status]
+  read: own
+}
+
+data host_notes {
+  fields: [note]
+  read: own
+}
+
+screen "Next supper" {
+  hero { title: "Sunday, Nov 2 · 6 pm", subtitle: "At Rosa's. Bring a dish if you can." }
+  text "{seats.count} coming"
+  button "Save me a seat" @primary -> adds to seats { name: "{me.name}" }
+}
+
+screen "Who's bringing what" {
+  list "Dishes" from dishes
+  field "Dish"
+  field "Can't eat"
+  button "Add my dish" @primary -> adds to dishes { who: "{me.name}", dish: "{form.Dish}", cant_eat: "{form.Can't eat}" }
+}
+
+screen "Bring a guest" {
+  text "Ask Rosa if you may bring someone. Nothing is settled until she confirms."
+  field "Guest's name" @required
+  field "Which Sunday?" @date @required days: [Sun]
+  button "Ask Rosa" @primary -> adds to guest_requests { who: "{me.name}", guest: "{form.Guest's name}", sunday: "{form.Which Sunday?}" } ; toast "Sent. Rosa will confirm or decline."
+  list "My requests" from guest_requests empty: "You have not asked yet."
+}
+
+screen "Rosa's list" {
+  requires: host
+  table "Guest requests" from guest_requests {
+    button "Confirm" -> sets status "confirmed"
+    button "Decline" -> sets status "declined"
+  }
+  list "Notes to self" from host_notes {
+    button "Remove" -> removes from host_notes
+  }
+  field "Note"
+  button "Save note" -> adds to host_notes { note: "{form.Note}" }
+}
