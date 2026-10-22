@@ -1,7 +1,7 @@
 # `@soma/puppet-runtime`
 
 The runtime for applications described in Puppet Script. It parses and
-validates Puppet Script v0.1/v0.2, renders it directly in the browser, and
+validates Puppet Script v0.1 to v0.3, renders it directly in the browser, and
 provides memory and Netlify Blobs stores for versioned descriptions and
 declared application data.
 
@@ -20,9 +20,11 @@ deploy.
 - `propose(appId, { source, author, reason })`
 - `approve(appId, versionId, approver)`
 - `undo(appId, approver)`
-- `list(appId, data)`
+- `list(appId, data, { author })`: with `author`, only the rows that account added
 - `add(appId, data, row, author)`
 - `remove(appId, data, rowId, actor)`
+- `setStatus(appId, data, rowId, status, actor)`: host only, `confirmed` or `declined` (v0.3)
+- `privateData(appId)`: the collections an approved version ever declared `read: own` (v0.3)
 
 `MemoryStore` and `createMemoryStore()` implement that contract in process.
 `BlobsStore` and `createBlobsStore()` implement the same rules over
@@ -43,18 +45,32 @@ identity, `{form.*}` values remain client-supplied, and literals must match the
 description. Undo removes the latest approval from the live history; the host
 can re-approve that undone version as redo.
 
+### Puppet v0.3: one person's private view
+
+[`GRAMMAR-v0.3.md`](./GRAMMAR-v0.3.md) adds host-only screens
+(`requires: host`), rows each person reads only for themselves (`read: own`),
+date fields (`@date`, `days:`) and approve or decline (`status` and
+`sets status`). The server enforces all of it: a reader who is not the host
+receives the description without host-only screens, `read: own` rows are
+filtered by the stored author account, privacy only tightens across undo and
+redo, and only the host sets a status. The Brain Trust review that shaped it is
+[`docs/grammar-v0.3-review.md`](./docs/grammar-v0.3-review.md), and
+`examples/sunday-supper-v3.puppet` uses every v0.3 word.
+
 ## Browser renderer
 
 `src/render.js` exports:
 
-- `render(sketch, { root, data, me, onAction })`
+- `render(sketch, { root, data, me, host, onAction })`
 - `interpolate(template, context)`
 - `mapFormToRow(template, form, me)`
 
 The renderer has no framework or build step. It draws screen tabs and the
 standard hero, text, button, field, list/table, badge, card, and toast elements.
-Add and remove hooks are sent to `onAction`, while field and identity tokens
-are resolved in the browser.
+Add, remove and set-status hooks are sent to `onAction`, while field and
+identity tokens are resolved in the browser. Host-only screens are drawn only
+when `host` is true, marked "only you"; a button inside a list or table is
+drawn on every row; a `@date` field is a date picker.
 
 ## Run locally
 
@@ -123,14 +139,15 @@ All routes are under `/api/app/:appId`.
 
 | Method | Route | Result |
 |---|---|---|
-| `GET` | `/current` | Current description source, version id, and host id; seeds `examples/:appId.puppet` when no versions exist |
-| `GET` | `/versions` | Version history |
+| `GET` | `/current` | Current description source, version id, and host id; seeds `examples/:appId.puppet` when no versions exist. A reader who is not the host gets the source without host-only parts |
+| `GET` | `/versions` | Host-only version history |
 | `POST` | `/propose` | Host proposes `{ source, reason }` without changing the live version |
 | `POST` | `/approve` | Host approves `{ versionId }` |
 | `POST` | `/undo` | Host restores the previous approved version |
-| `GET` | `/data/:name` | Rows in a declared collection |
-| `POST` | `/data/:name` | Add a declared row |
-| `DELETE` | `/data/:name/:rowId` | Remove a row as its author or the host |
+| `GET` | `/data/:name` | Rows in a collection the live version declares; `read: own` gives a person only their own rows |
+| `POST` | `/data/:name` | Add a row that matches an action the sender can see |
+| `PATCH` | `/data/:name/:rowId` | Host sets `{ status }` to `confirmed` or `declined` through a `sets status` action |
+| `DELETE` | `/data/:name/:rowId` | Remove a row as the host, or as its author through a visible `removes from` action while it is `pending` |
 | `GET` | `/feedback` | Host-only list of stored feedback |
 | `POST` | `/feedback` | Store `{ text, page }` plus the verified author in Blobs |
 
@@ -154,6 +171,13 @@ Run the tests with:
 timeout 120 node --test
 ```
 
+The mutation check loosens each server rule on purpose (35 of them, most from
+v0.3) and requires a failing test for every one. CI runs it too:
+
+```sh
+timeout 1500 npm run mutation
+```
+
 ## SOMA Studio on this site
 
 Since 2026-10-21 this site also serves SOMA Studio v1 (`packages/soma-studio`) at `/studio/`, so the
@@ -173,6 +197,12 @@ version, `app.js` tells the studio (`postMessage`), and it redraws when the stud
 ## Example apps
 
 - `examples/sunday-supper.puppet` (and `-v2`): the supper app. Unchanged.
+- `examples/sunday-supper-v3.puppet`: the same supper with every v0.3 word,
+  live as its own app at `?app=sunday-supper-v3`. Guests ask to bring a guest
+  on a Sunday and see only their own requests; Rosa's list (host-only) shows
+  every request with Confirm and Decline, and her private notes. It is
+  `publicRead`, so `scripts/live-check.mjs` can prove the v0.3 refusals live
+  without signing in: public rows are served, private ones are refused.
 - `examples/soma-studio.puppet`: SOMA Studio as a Puppet app, `?app=soma-studio`.
   It looks like the `/studio/` page: header, Agreements column, Chat with a
   prompt box and mic slot, Open questions column. Chat is live (`data

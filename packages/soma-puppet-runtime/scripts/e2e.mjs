@@ -19,8 +19,8 @@ let failures = 0;
 let initialVersionId;
 let proposedVersionId;
 
-async function call(path, { method = 'GET', user, body } = {}) {
-  const response = await fetch(`${apiBase}/${path}`, {
+async function call(path, { method = 'GET', user, body, base = apiBase } = {}) {
+  const response = await fetch(`${base}/${path}`, {
     method,
     headers: {
       ...(user ? { 'x-dev-user': user } : {}),
@@ -161,6 +161,83 @@ await step('Rosa re-approves the undone v2', async () => {
   const current = await call('current', { user: guest });
   assert.equal(current.payload.versionId, proposedVersionId);
   assert.equal(current.payload.source, v2Source);
+});
+
+// ---------- Puppet v0.3 on the demo app (seeded from examples/sunday-supper-v3.puppet) ----------
+const v3Base = `${baseUrl}/api/app/sunday-supper-v3`;
+const ana = 'ana:Ana';
+const guestName = `Mo ${runId}`;
+
+const v3call = (path, options = {}) => call(path, { ...options, base: v3Base });
+
+// The next Sunday and Saturday from today, as ISO dates.
+function next(weekday) {
+  const date = new Date();
+  date.setUTCDate(date.getUTCDate() + ((weekday - date.getUTCDay() + 7) % 7 || 7));
+  return date.toISOString().slice(0, 10);
+}
+
+let theoRequest;
+
+await step('v0.3: a reader without sign-in gets the description without the host-only screen', async () => {
+  const { response, payload } = await v3call('current');
+  assert.equal(response.status, 200, payload.error);
+  assert.equal(payload.source.includes("Rosa's list"), false);
+  const hostView = await v3call('current', { user: host });
+  assert.match(hostView.payload.source, /Rosa's list/);
+});
+
+await step('v0.3: a date on the wrong weekday is refused', async () => {
+  const { response } = await v3call('data/guest_requests', {
+    method: 'POST', user: guest, body: { who: 'Theo', guest: guestName, sunday: next(6) },
+  });
+  assert.equal(response.status, 400);
+});
+
+await step('v0.3: Theo and Ana each ask to bring a guest; requests start pending', async () => {
+  const theo = await v3call('data/guest_requests', {
+    method: 'POST', user: guest, body: { who: 'Theo', guest: guestName, sunday: next(0) },
+  });
+  assert.equal(theo.response.status, 201, theo.payload.error);
+  assert.equal(theo.payload.status, 'pending');
+  theoRequest = theo.payload;
+  const anaAsk = await v3call('data/guest_requests', {
+    method: 'POST', user: ana, body: { who: 'Ana', guest: guestName, sunday: next(0) },
+  });
+  assert.equal(anaAsk.response.status, 201, anaAsk.payload.error);
+});
+
+await step("v0.3: Theo's GET returns only his own requests; Rosa's returns both", async () => {
+  const theo = await v3call('data/guest_requests', { user: guest });
+  assert.ok(theo.payload.length >= 1);
+  assert.ok(theo.payload.every((row) => row.who === 'Theo'));
+  const rosa = await v3call('data/guest_requests', { user: host });
+  const mine = rosa.payload.filter((row) => row.guest === guestName).map((row) => row.who).sort();
+  assert.deepEqual(mine, ['Ana', 'Theo']);
+});
+
+await step("v0.3: Rosa's notes are hers alone, and Theo cannot write one", async () => {
+  const note = await v3call('data/host_notes', { method: 'POST', user: host, body: { note: `Order chairs ${runId}` } });
+  assert.equal(note.response.status, 201, note.payload.error);
+  const forged = await v3call('data/host_notes', { method: 'POST', user: guest, body: { note: 'hi' } });
+  assert.equal(forged.response.status, 400);
+  assert.deepEqual((await v3call('data/host_notes', { user: guest })).payload, []);
+  assert.equal((await v3call('data/host_notes')).response.status, 401);
+});
+
+await step('v0.3: only Rosa confirms a request, and Theo sees it confirmed', async () => {
+  const path = `data/guest_requests/${encodeURIComponent(theoRequest.id)}`;
+  const theo = await v3call(path, { method: 'PATCH', user: guest, body: { status: 'confirmed' } });
+  assert.equal(theo.response.status, 403);
+  const rosa = await v3call(path, { method: 'PATCH', user: host, body: { status: 'confirmed' } });
+  assert.equal(rosa.response.status, 200, rosa.payload.error);
+  const seen = (await v3call('data/guest_requests', { user: guest })).payload.find((row) => row.id === theoRequest.id);
+  assert.equal(seen.status, 'confirmed');
+});
+
+await step('v0.3: version history is the host\'s alone', async () => {
+  assert.equal((await v3call('versions', { user: guest })).response.status, 403);
+  assert.equal((await v3call('versions', { user: host })).response.status, 200);
 });
 
 if (failures) {

@@ -94,6 +94,46 @@ await step('SOMA sign-in redirects back to this site', async () => {
   );
 });
 
+// Puppet v0.3. The demo app sunday-supper-v3 is publicRead, so its public
+// rows need no sign-in; that makes every refusal below the v0.3 rule itself,
+// not the blanket sign-in rule of the other apps.
+const v3 = `${baseUrl}/api/app/sunday-supper-v3`;
+
+await step('v0.3: a reader without a token gets the description without the host-only screen', async () => {
+  const response = await fetch(`${v3}/current`);
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get('cache-control'), 'no-store');
+  const { source } = await response.json();
+  assert.match(source, /screen "Bring a guest"/);
+  for (const secret of ["Rosa's list", 'host_notes', 'sets status']) {
+    assert.equal(source.includes(secret), false, `the description still contains ${secret}`);
+  }
+});
+
+await step('v0.3: public rows are readable without a token', async () => {
+  assert.equal(await status(`${v3}/data/seats`), 200);
+});
+
+await step("v0.3: the host's private notes are refused without a token", async () => {
+  assert.equal(await status(`${v3}/data/host_notes`), 401);
+});
+
+await step('v0.3: my-rows-only requests and the version history are refused without a token', async () => {
+  assert.equal(await status(`${v3}/data/guest_requests`), 401);
+  assert.equal(await status(`${v3}/versions`), 401);
+  assert.equal(await status(`${v3}/data/host_notes`, {
+    headers: { authorization: 'Bearer not-a-real-token' },
+  }), 401);
+});
+
+await step('v0.3: setting a status without a token is refused', async () => {
+  assert.equal(await status(`${v3}/data/guest_requests/r1`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ status: 'confirmed' }),
+  }), 401);
+});
+
 await step('the feedback chip loader and its central channel are served', async () => {
   assert.equal(await status(`${baseUrl}/vendor/soma-feedback/soma-chip-loader.js`), 200);
   assert.equal(await status(`${baseUrl}/soma-chip/channels/stable.json`), 200);

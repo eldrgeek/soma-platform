@@ -1,0 +1,41 @@
+1. SMALLEST DESIGN
+
+No. Four reductions cover the same four needs with a smaller grammar:
+
+- Drop `read: host` (keep only `read: own`). None of the four needs require a blind dropbox where submitters cannot read their own submissions. For host-private data (`host_notes`), all `adds to` buttons live on a `requires: host` screen, so only the host ever authors rows. Under `read: own`, non-hosts authored zero rows so they read zero rows, while the host reads all rows. Dropping `read: host` removes a keyword and the parse rules banning public views/counts on `read: host` data.
+- Drop inline `requires: host` on elements (allow `requires: host` only on `screen` and `dialog`, matching v0.2 `requires: signin`). Both the teacher app and `sunday-supper-v3` put host actions on a host-only screen. Dropping element-level `requires: host` avoids inline token-order rules, ancestor-inheritance rules, and element-level AST stripping.
+- Drop `sets status "pending"`. The server already initializes new rows to `"pending"`; teacher approval only needs `"confirmed"` and `"declined"`.
+- Drop `link` from per-row actions in `list` and `table`. Row actions (`sets status`, `removes from`) are mutations and belong only on `button`.
+
+
+2. AMBIGUITIES
+
+- "`requires: host` may appear in a `screen` or `dialog` block, or inline on an element." — Does not define token order when an inline element also has `@primary` or properties like `empty:`.
+- "...and with every `stub` that only host-only parts read taken out." — Ambiguous when a `stub` is read by zero elements: is "only host-only parts read" vacuously true (stripped) or false (leaked)?
+- "An element that everyone sees may not open a host-only screen or dialog. That is a parse error." — Leaves the converse unspecified: if a `requires: host` screen opens a `dialog` whose author omitted `requires: host`, is that a parse error, or does the dialog leak in `GET /current`?
+- "The server refuses a row when a value that came from a `@date` field is not a real calendar date in that form, or falls on a day that `days:` excludes. An empty value is accepted." — Two ambiguities: (1) If two screens declare `field "Day"` with different rules, how does the server know which field `{form.Day}` came from? (2) Does "An empty value is accepted" override `@required` on the server (as in `field "Which Sunday?" @date @required days: [Sun]`)?
+- "Lists and tables show a stored ISO date with its weekday, for example `Sat 25 Oct 2026`." — `data` fields are untyped (`fields: [who, day, status]`). It is unclear whether the renderer regex-matches every cell value matching `YYYY-MM-DD` or traces the column back to a `@date` field, and whether weekday calculation uses UTC (preventing local-timezone off-by-one shifts).
+- "`button "Clear the notes" requires: host -> removes from notes`" vs "`removes from Name` removes the row to which the triggering element is bound." — Section 1's example puts `removes from` on a standalone button outside any `list` or `table`, contradicting row binding and implying `removes from` can clear a whole collection.
+- "A collection that declares a field named `status` is an approval collection." — Unclear whether "collection" includes `stub` or only `data`.
+
+
+3. SECURITY HOLES
+
+- Description source and stubs (`GET /current`): Stripping only removes host-only screens, dialogs, elements, and stubs they read. It leaves `data` declarations (leaking private collection/field names like `host_notes`), comments, unreferenced `stub`s, and unmarked `dialog`s opened from host screens in `GET /current`.
+- Actions on hidden elements (`POST` and `DELETE`): Section 1 says "The server refuses a row from anyone else that only a host-only button could send." A button inside a `requires: host` screen (`button "Save note" -> adds to host_notes`) has no inline `requires: host` on the button itself; if the server checks the button node rather than matching strictly against the stripped non-host description, any user can POST to `host_notes`. Worse, `DELETE /data/:name/:rowId` keeps its v0.2 rule ("row author or host") without requiring a visible non-host `removes from` action: a student can call `DELETE` directly via the API to erase a `"declined"` request or delete rows from a `read: host` collection.
+- Undo/redo and version history: `GET /versions` is made host-only, but data blobs persist by name across versions. If the host undoes to a v0.2 version (or an earlier draft) where `requests` or `notes` lacked `read: own` / `read: host`, `GET /data/:name` immediately exposes all stored private rows to every reader.
+- Attacker-controlled client and metadata/validation bypass: Because the server accepts empty `@date` values and v0.2/v0.3 never states that the server enforces `@required` on `POST`, a malicious client can POST `sunday: ""` to bypass both `@required` and `days: [Sun]`. Also, `data` only forbids naming `status`, not `id`, `rowId`, or `author`; if the server merges client fields with internal row metadata, a client can spoof `author` (reading/deleting others' `read: own` rows) or overwrite row IDs.
+- Row IDs and counts: Sequential row IDs on `read: own` leak global row counts to non-hosts, and `DELETE` returning 403 vs 404 lets attackers enumerate existing row IDs. And because the browser renderer computes `{Name.count}`, any public `{Name.count}` on a collection without `read: own` exposes full row payloads via `GET /data/:name`.
+- `publicRead: true` apps: If an unauthenticated caller reads a `read: own` collection where `null`-author rows exist, matching `callerId === row.author` (`null === null`) leaks all anonymous rows. `GET /current` must also strip host-only parts when called without a bearer token.
+
+
+RANKED CHANGES TO MAKE
+
+1. Validate non-host `POST` and `DELETE` strictly against the stripped non-host description, requiring a visible `removes from :name` action for non-host `DELETE` and forbidding non-host `DELETE` once `status` is not `"pending"`.
+2. Require sign-in for `GET /data/:name` and `POST /data/:name` on `read: own` collections even when `publicRead: true`, and strip host-only parts in `GET /current` for unauthenticated callers.
+3. Enforce `@required` on the server during `POST` (rejecting empty strings on `@required @date` fields) and bind `{form.X}` only to fields in the same screen or dialog as the button.
+4. Reserve internal row metadata field names (`id`, `rowId`, `author`, `status`), use random UUID row IDs, and return uniform 404s when a non-host targets another user's `rowId`.
+5. Refuse version activation/undo if an existing collection's `read:` policy would become more permissive than in any prior version that wrote to it.
+6. Strip `data` and `stub` blocks from `GET /current` for non-hosts whenever no remaining non-host element references them, and make unmarked dialogs opened from host-only screens a parse error.
+7. Drop `read: host`, inline element-level `requires: host`, `sets status "pending"`, and per-row `link` actions.
+8. Fix Section 1's standalone `removes from notes` example by placing it inside a `list`/`table`, and specify UTC regex-based date formatting in `list`/`table`.

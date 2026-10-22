@@ -88,6 +88,12 @@ button { cursor: pointer; }
 .puppet-runtime-table th, .puppet-runtime-table td { padding: 10px; text-align: left; border-bottom: 1px solid #e7edf3; }
 .puppet-runtime-card, .puppet-runtime-element { margin: 12px 0; padding: 16px; border: 1px solid #d8e1ea; border-radius: 9px; }
 .puppet-runtime-badge { display: inline-block; padding: 4px 8px; color: #204e9c; border-radius: 999px; background: #e8f0ff; font-size: 12px; }
+.puppet-runtime-status { display: inline-block; padding: 3px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; color: #6b4e00; background: #fff4cc; }
+.puppet-runtime-status-confirmed { color: #135c2b; background: #dcf5e3; }
+.puppet-runtime-status-declined { color: #8a1c1c; background: #fde2e2; }
+.puppet-runtime-host-only { margin-left: 6px; padding: 1px 6px; border-radius: 999px; font-size: 11px; font-weight: 600; color: #5b3d99; background: #efe7ff; }
+.puppet-runtime-hint { display: block; margin-top: 4px; color: #66768a; font-size: 12px; }
+.puppet-runtime-list-row .puppet-runtime-button + .puppet-runtime-button, .puppet-runtime-table td .puppet-runtime-button + .puppet-runtime-button { margin-left: 6px; }
 .puppet-runtime-row { display: flex; flex-wrap: wrap; gap: 10px; }
 .puppet-runtime-stack, .puppet-runtime-region { display: grid; gap: 10px; }
 .puppet-runtime-empty { color: #66768a; }

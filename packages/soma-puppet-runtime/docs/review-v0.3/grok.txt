@@ -1,0 +1,50 @@
+1. SMALLEST DESIGN
+
+This is close to the smallest closed design for the four needs. Do not merge `requires: host` with `read:`. Rosa's list is a host-only screen over `read: own` rows that students also read, so the private chrome cannot be inferred from the data rule. Do not merge `read: host` into `read: own`. `read: own` lets the author read the row back. `read: host` is what still hides a row a non-host wrote under an older version. Keep `@date` and `days:`. A general constraint language would be larger. Keep `sets status` closed. A general `sets field` would let a writer edit any column.
+
+Three cuts still cover the four needs. Drop element-level `requires: host`. A host screen or dialog already hides Confirm and Decline, and none of the four needs is a single host button on a shared screen. Drop the new `requires: signin` on dialogs. v0.2 already has it on `app` and `screen`. Drop `sets status "pending"`. The server already creates `pending`, and the teacher only confirms or declines. Keep the row button. Confirm and decline are two actions on one existing row, and v0.1 `on select` is only one hook. The weekday display sentence is renderer behavior, not a word these needs require.
+
+`read: own` does not make PlayMaker private from the host. The host still reads every row. That is correct for the piano teacher, because the teacher is the host. It is wrong if the host is some other account. Do not add a third read mode here. Say that trust choice in one sentence.
+
+2. AMBIGUITIES
+
+"Anyone else receives the description with every host-only screen, dialog and element taken out, and with every stub that only host-only parts read taken out." One reading strips only those blocks. A navbar item, a story path, and `data host_notes` still carry the private name. "Only host-only parts read" is also unclear when a stub is reached by a placeholder rather than by `from`.
+
+"`read: own` means a signed-in person reads only the rows they added, and the host reads all of them." "Added" can mean the `who` column equals `{me.name}`, or the account id. An unsigned caller is not described. The same sentence gives the host every writer row, which a PlayMaker builder will miss.
+
+"An empty value is accepted." The draft field is `@required` and `days: [Sun]`. One reading is that the server stores `""` and the day rule applies only when a date is present. In v0.1, `@required` is sketch-level, so a builder can think the server enforces it.
+
+"The server sets it." That can mean "fill `status` when absent" or "overwrite the client." The route then says the PATCH body "must match a `sets status` action", while section 4 allows `pending`, `confirmed`, and `declined` even when the live file has no such button.
+
+"A button or link inside a list or table block appears on every row and acts on that row." It does not say what a nested field or a v0.1 `on select` in that same block means. "`removes from Name` may also go on a button inside a list or table block" does not say `Name` must be that list's `from`.
+
+"falls on a day that `days:` excludes." A zoned conversion of `YYYY-MM-DD` can move the weekday. `days: [Sat]` is also not a v0.1 list, because `list_lit` allows quoted strings, not bare names.
+
+"Without `read:`, everyone who can open the app reads every row, as in v0.2." With `publicRead: true`, that includes a caller with no account. This delta never says so.
+
+3. SECURITY HOLES
+
+The client is not a boundary, and a parse error is not a boundary. The caller posts the body the stripped file does not show.
+
+If "the server sets it" does not overwrite, a student posts `status: "confirmed"` with an `adds to` that does not name `status`. v0.2 exact-match stores it when extra fields are kept, so the student confirms their own row. PATCH does the same if "host only" is checked against the UI copy instead of `hostId`.
+
+GET `/current` is two documents. A cache keyed only on the URL returns the host document to the next student, including Rosa's list, the notes, and the confirm actions. GET `/versions` is host-only only for the route in the table. A leftover version body, undo preview, or static puppet file is still the unstripped source.
+
+v0.2 GET `/data/:name` returns every row of any name. If `publicRead` skips sign-in before the new check, an anonymous caller receives `host_notes` and every student's requests. If `read: own` compares the `who` column to the display name, two students with the same name read each other, and a form-fed `who` plants a row into someone else's list. If GET reuses DELETE's "author or host" rule, the author reads `read: host` rows.
+
+Rows survive in the blob. The server refuses a name the live file does not declare, and otherwise uses the live `read:`. Host undo, or a new file that keeps the name and drops `read:`, exposes those stored rows to every signed-in reader. A non-host cannot press undo. They can read the moment the looser file is live. Reusing a private name for a new collection does the same.
+
+`""` is legal, so an attacker skips the Saturday rule. A timezone-shifted weekday check accepts a Friday or rejects a Saturday.
+
+A row button may `removes from` another collection. If the handler deletes by id without the collection and the author, a student list can target `host_notes`. The hidden-action rule refuses a row "only a host-only button could send." A second, public `adds to` with the same shape makes that payload legal for everyone.
+
+4. CHANGES, MOST IMPORTANT FIRST
+
+1. On insert, ignore client `status` and store `pending`. Accept PATCH only when the verified account is the configured host and the live approved file has a host-only row action for that exact value.
+2. Apply stripping and `read:` to every caller, including `publicRead` and a missing token. Anonymous callers get no `read: own` and no `read: host` rows. Mark the description private and uncacheable by URL alone.
+3. When undo, redo, or a new live file would widen `read:` on an existing name, keep the stricter audience or refuse the version. Do not revive old rows by redeclaring the name.
+4. Filter `read: own` by the account id stored at insert, not by a column. Do not let the author read `read: host` rows, and do not reuse the DELETE rule for GET.
+5. Reject an empty date when the field is `@required` or has `days:`. Take the weekday from the calendar date, not a zoned instant.
+6. A row button may remove only a row of the collection that list or table reads. DELETE and PATCH must use the same read check as GET.
+7. Strip host-only names from nav items and stories in the served file. State that a `data` block stays visible and its rows do not. Match an action only if this caller may run that action.
+8. Drop element-level `requires: host`, dialog `requires: signin`, and client-settable `pending`. Say in one line that `read: own` still lets the host read every row.
