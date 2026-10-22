@@ -306,6 +306,30 @@ screen "Home" {
   assert.equal((await api.call('data/notes', { method: 'POST', user: THEO, body: { day: '', text: '  ' } })).status, 400);
 });
 
+test('a choice list takes one of its items, and nothing only when not @required', async () => {
+  const source = `puppet "Times" version "0.3"
+data picks {
+  fields: [time, room]
+}
+screen "Home" {
+  list "Picks" from picks
+  field "Saturday time" @select @required items: ["Saturday 9:00", "Saturday 9:30"]
+  field "Room" @select items: [Studio, Hall]
+  button "Pick" -> adds to picks { time: "{form.Saturday time}", room: "{form.Room}" }
+}`;
+  const { sketch, errors } = parse(source);
+  assert.deepEqual(errors, []);
+  assert.deepEqual(walk(sketch.screens[0].children)[1].props.items, ['Saturday 9:00', 'Saturday 9:30']);
+  const api = makeApi({ source });
+  await api.call('current', { user: THEO });
+  const pick = (time, room) => api.call('data/picks', { method: 'POST', user: THEO, body: { time, room } });
+  assert.equal((await pick('Saturday 9:30', 'Hall')).status, 201);
+  assert.equal((await pick('Saturday 9:30', '')).status, 201, 'Room is not @required');
+  assert.equal((await pick('Sunday 9:00', 'Hall')).status, 400, 'not one of the items');
+  assert.equal((await pick('Saturday 9:30', 'Attic')).status, 400, 'not one of the items');
+  assert.equal((await pick('', 'Hall')).status, 400, 'empty but @required');
+});
+
 test('lists show a stored ISO date with its weekday, read in UTC', () => {
   assert.match(formatValue('2026-10-24'), /Sat/);
   assert.match(formatValue('2026-10-24'), /24/);

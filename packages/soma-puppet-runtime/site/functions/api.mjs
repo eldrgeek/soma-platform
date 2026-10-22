@@ -82,6 +82,10 @@ function fieldValueOk(field, value) {
   if (!field) return true;
   if (field.roles.includes('@required') && !value.trim()) return false;
   if (field.roles.includes('@date') && value) return validDate(value, field.props.days);
+  // A choice list takes one of its items (or nothing, when it is not @required).
+  if (field.roles.includes('@select') && field.props.items !== undefined && value) {
+    return [].concat(field.props.items).map(String).includes(value);
+  }
   return true;
 }
 

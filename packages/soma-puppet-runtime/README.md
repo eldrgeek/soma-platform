@@ -70,7 +70,8 @@ standard hero, text, button, field, list/table, badge, card, and toast elements.
 Add, remove and set-status hooks are sent to `onAction`, while field and
 identity tokens are resolved in the browser. Host-only screens are drawn only
 when `host` is true, marked "only you"; a button inside a list or table is
-drawn on every row; a `@date` field is a date picker.
+drawn on every row; a `@date` field is a date picker; a `@select` field with
+`items:` is a choice list.
 
 ## Run locally
 
@@ -171,7 +172,7 @@ Run the tests with:
 timeout 120 node --test
 ```
 
-The mutation check loosens each server rule on purpose (35 of them, most from
+The mutation check loosens each server rule on purpose (37 of them, most from
 v0.3) and requires a failing test for every one. CI runs it too:
 
 ```sh
