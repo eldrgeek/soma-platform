@@ -1,0 +1,14 @@
+{
+  "name": "@soma/video",
+  "version": "0.1.0",
+  "description": "SOMA video components for VideoMaker: a video script in the SOMA script format drawn as a two-column AV script (video-view) and its narration read aloud, a voice per narrator (video-read). Plain browser modules, no framework.",
+  "type": "module",
+  "main": "src/film.js",
+  "files": ["src", "server", "bin", "README.md"],
+  "bin": { "vm-export": "bin/vm-export.mjs" },
+  "scripts": {
+    "test": "node --test"
+  },
+  "license": "UNLICENSED",
+  "private": true
+}

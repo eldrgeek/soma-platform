@@ -5,6 +5,7 @@
  *     text,                                   // the scene, as play-view reads it
  *     speak: (lineIndex) => fetch(...),       // resolves to a Response with the line's audio
  *     onActive: (blockIndex) => {},           // the block being read, or null when reading stops
+ *     lines, label,                           // optional: another format's spoken lines, the button's words
  *   });
  *
  * The page never sends the words: speak() names a line by its number, and the server reads the
@@ -13,6 +14,8 @@
  *
  * Written 2026-10-22 by Claude Opus 5.5 (CCc) for Mike Wolf, bead sp-u4x. The sequencing follows
  * PlayMaker's StageReadPlayer (src/lib/stageRead.ts): fetch ahead, play in order, spotlight the line.
+ * `lines` (each { blockIndex, character }) lets another script format reuse the player: soma-video's
+ * narration read passes a video script's lines and the label "Hear the narration" (bead sp-go2).
  */
 import { parseScript, spokenLines } from './script.js';
 
@@ -28,11 +31,13 @@ export function mountStageRead(container, {
   text,
   speak,
   onActive = () => {},
+  lines: givenLines,
+  label = 'Hear this scene',
   document = container.ownerDocument,
   createAudio = (url) => new document.defaultView.Audio(url),
   createUrl = (blob) => document.defaultView.URL.createObjectURL(blob),
 } = {}) {
-  const lines = spokenLines(parseScript(text));
+  const lines = givenLines ?? spokenLines(parseScript(text));
   const root = document.createElement('div');
   root.className = 'soma-stage-read';
   const button = document.createElement('button');
@@ -47,7 +52,7 @@ export function mountStageRead(container, {
   let run = 0;
   let audio = null;
   const idle = (message) => {
-    button.textContent = 'Hear this scene';
+    button.textContent = label;
     status.textContent = message ?? (lines.length ? '' : 'No lines to read yet.');
     onActive(null);
   };

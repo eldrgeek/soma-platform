@@ -104,10 +104,15 @@ function checkFields(root) {
  * @param {{id?: string, name?: string}} [options.me]
  * @param {boolean} [options.host] whether the reader is the app's host
  * @param {(action: object) => unknown | Promise<unknown>} [options.onAction]
- * @param {{'play-view'?: Function, 'stage-read'?: Function}} [options.components]
+ * @param {{'play-view'?: Function, 'stage-read'?: Function, 'video-view'?: Function, 'video-read'?: Function}} [options.components]
  *   library components (packages/soma-play): play-view(node, text) returns
- *   { highlight(blockIndex) }; stage-read(node, { text, data, rowId, field, onActive })
+ *   { highlight(blockIndex) }; stage-read(node, { text, data, rowId, field, onActive });
+ *   (packages/soma-video, v0.5): video-view(node, text) returns { highlight(blockIndex), update(text) };
+ *   video-read takes what stage-read takes. script-editor needs no component: it sends
+ *   onAction({ type: 'edit', target, rowId, field, value }).
  */
+const DRAFTS = new WeakMap();
+
 export function render(sketch, { root, data = {}, me = {}, host = false, onAction = () => {}, components = {} }) {
   if (!root?.ownerDocument) throw new TypeError('render requires a DOM root');
 
@@ -129,6 +134,11 @@ export function render(sketch, { root, data = {}, me = {}, host = false, onActio
   let dialog = dialogs.find(({ name }) => name === root.dataset.puppetDialog) ?? null;
   let toastTimer;
   let mounted = [];
+  // The script editor's unsaved text, by row and field, kept per page root across redraws.
+  const drafts = DRAFTS.get(root) ?? new Map();
+  DRAFTS.set(root, drafts);
+  const draftKey = (label) => `${current?.from}/${currentRow?.id}/${label}`;
+  const draftOf = (label) => (currentRow?.id ? drafts.get(draftKey(label)) : undefined);
 
   const values = () =>
     Object.fromEntries(
@@ -352,6 +362,85 @@ export function render(sketch, { root, data = {}, me = {}, host = false, onActio
         },
       });
       mounted.push({ view: player, label: null });
+      return;
+    }
+
+    // Puppet v0.5 (VideoMaker, packages/soma-video): a video script drawn as an AV script, its
+    // narration read aloud, and the editor that changes the row's text. Typing in the editor redraws
+    // every view of the same field at once, and its unsaved text survives a redraw of the page.
+    if (element.kind === 'video-view') {
+      const node = append(parent, 'section', { className: 'puppet-runtime-video-view' });
+      const source = draftOf(element.label) ?? text(element.label);
+      if (components['video-view']) {
+        mounted.push({ view: components['video-view'](node, source), label: element.label });
+      } else {
+        append(node, 'pre', { className: 'puppet-runtime-script', text: source });
+      }
+      return;
+    }
+
+    if (element.kind === 'video-read') {
+      const node = append(parent, 'section', { className: 'puppet-runtime-stage-read' });
+      if (!components['video-read'] || !currentRow?.id) {
+        append(node, 'p', { className: 'puppet-runtime-empty', text: 'The narration read is not available here.' });
+        return;
+      }
+      // It reads the saved script, the text the server has.
+      const player = components['video-read'](node, {
+        text: text(element.label),
+        data: current.from,
+        rowId: currentRow.id,
+        field: element.field,
+        onActive: (blockIndex) => {
+          for (const entry of mounted) if (entry.label === element.label) entry.view?.highlight?.(blockIndex);
+        },
+      });
+      mounted.push({ view: player, label: null });
+      return;
+    }
+
+    if (element.kind === 'script-editor') {
+      const node = append(parent, 'section', { className: 'puppet-runtime-script-editor' });
+      if (!currentRow?.id) {
+        append(node, 'p', { className: 'puppet-runtime-empty', text: 'The editor is not available here.' });
+        return;
+      }
+      const key = draftKey(element.label);
+      const area = append(node, 'textarea', {
+        className: 'puppet-runtime-script-text',
+        attrs: { 'aria-label': 'Script text', spellcheck: 'false' },
+      });
+      area.value = drafts.get(key) ?? text(element.label);
+      const bar = append(node, 'div', { className: 'puppet-runtime-script-bar' });
+      const save = append(bar, 'button', {
+        className: 'puppet-runtime-button puppet-runtime-primary',
+        text: 'Save',
+        attrs: { type: 'button' },
+      });
+      const note = append(bar, 'span', {
+        className: 'puppet-runtime-script-note',
+        text: drafts.has(key) ? 'Not saved yet.' : 'Saved.',
+        attrs: { role: 'status' },
+      });
+      const row = currentRow;
+      const target = current.from;
+      area.addEventListener('input', () => {
+        drafts.set(key, area.value);
+        note.textContent = 'Not saved yet.';
+        for (const entry of mounted) if (entry.label === element.label) entry.view?.update?.(area.value);
+      });
+      save.addEventListener('click', async () => {
+        const value = area.value;
+        note.textContent = 'Saving…';
+        drafts.delete(key);
+        try {
+          await onAction({ type: 'edit', target, rowId: row.id, field: element.field, value });
+          note.textContent = 'Saved.';
+        } catch (error) {
+          drafts.set(key, value);
+          note.textContent = error instanceof Error ? error.message : 'Saving failed';
+        }
+      });
       return;
     }
 

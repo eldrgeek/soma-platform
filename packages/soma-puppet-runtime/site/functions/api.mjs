@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { createBlobsStore } from '../../src/blobs-store.js';
 import { DAYS, guestSource, parse, walk } from '../../src/parser.js';
 import { createStageReader, DEFAULT_LIMITS } from '../../../soma-play/server/stage-read.js';
+import { createVideoReader, VIDEO_LIMITS } from '../../../soma-video/server/video-read.js';
 import { PuppetParseError, STATUSES, stricter } from '../../src/store.js';
 import { createIdentityVerifier, HttpError } from '../lib/auth.mjs';
 
@@ -34,6 +35,9 @@ function requireHost(config, identity) {
 // A field longer than this is refused before matching, so a hostile body
 // cannot make a template with several {form.*} tokens backtrack for long.
 const MAX_FIELD_LENGTH = 10000;
+// A script-editor saves a whole script, so an edit may be longer than a new row's field. No pattern is
+// matched against an edit.
+export const MAX_EDIT_LENGTH = 40000;
 
 function escapeRegex(value) {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -170,6 +174,7 @@ export function createApiHandler({
   readSeed,
   feedbackStore,
   stageReader,
+  videoReader,
 }) {
   // Seeding is two writes, propose then approve. If a request stops between
   // them, the next request finds the seed still proposed and approves it,
@@ -345,11 +350,13 @@ export function createApiHandler({
         return json(items);
       }
 
-      if (request.method === 'POST' && route === 'stage-read') {
-        // Checks in order: signed in; a stage-read of this field on a screen
-        // from this data that the reader can see; the row is one the reader
-        // may read (otherwise the same answer as a missing row); then the
-        // spend allowance, inside the stage reader.
+      if (request.method === 'POST' && (route === 'stage-read' || route === 'video-read')) {
+        // Checks in order: signed in; a stage-read (or, v0.5, a video-read)
+        // of this field on a screen from this data that the reader can see;
+        // the row is one the reader may read (otherwise the same answer as a
+        // missing row); then the spend allowance, inside the reader.
+        const kind = route;
+        const speaker = kind === 'stage-read' ? stageReader : videoReader;
         const reader = await signedIn();
         const input = await body(request);
         const { data: name, rowId, field, line } = input;
@@ -361,14 +368,14 @@ export function createApiHandler({
           (owner) =>
             owner.from === name &&
             (!owner.hostOnly || reader.id === config.hostId) &&
-            walk(owner.children).some((element) => element.kind === 'stage-read' && element.field === field),
+            walk(owner.children).some((element) => element.kind === kind && element.field === field),
         );
-        if (!offered) throw new HttpError(404, `No Stage Read of ${name}.${field} here`);
+        if (!offered) throw new HttpError(404, `No ${kind} of ${name}.${field} here`);
         const { rows } = await readable(sketch, name);
         const row = rows.find((candidate) => candidate.id === rowId);
         if (!row || typeof row[field] !== 'string') throw new HttpError(404, `Unknown row: ${rowId}`);
-        if (!stageReader) throw new HttpError(503, 'Stage Read is not configured');
-        const out = await stageReader({ who: reader.id, scope: appId, text: row[field], line });
+        if (!speaker) throw new HttpError(503, `${kind} is not configured`);
+        const out = await speaker({ who: reader.id, scope: appId, text: row[field], line });
         if (out.status !== 200) return json({ error: out.error }, out.status);
         return new Response(out.body, {
           status: 200,
@@ -407,6 +414,29 @@ export function createApiHandler({
             if (!visible) throw new HttpError(403, `No action lets you remove rows from ${name}`);
           }
           return json(await store.remove(appId, name, rowId, identity.id));
+        }
+        if (request.method === 'PUT' && rowId) {
+          // Puppet v0.5: the live version has a script-editor of this field
+          // on a screen from this data that the reader can see; the value is
+          // text of at most MAX_EDIT_LENGTH characters; and the store lets
+          // only the row's author change it.
+          const input = await body(request);
+          const { field, value } = input;
+          if (typeof field !== 'string' || typeof value !== 'string' || Object.keys(input).length !== 2) {
+            throw new HttpError(400, 'Body must be { "field": "...", "value": "..." }');
+          }
+          if (value.length > MAX_EDIT_LENGTH) {
+            throw new HttpError(413, `A script may be at most ${MAX_EDIT_LENGTH} characters`);
+          }
+          const sketch = await liveSketch(store, appId);
+          const editable = [...sketch.screens, ...sketch.dialogs].some(
+            (owner) =>
+              owner.from === name &&
+              (!owner.hostOnly || isHost) &&
+              walk(owner.children).some((element) => element.kind === 'script-editor' && element.field === field),
+          );
+          if (!editable) throw new HttpError(403, `No script editor of ${name}.${field} here`);
+          return json(await store.edit(appId, name, rowId, field, value, identity.id));
         }
         if (request.method === 'PATCH' && rowId) {
           requireHost(config, identity);
@@ -493,6 +523,7 @@ export function createApiFunction({
   env = process.env,
   fetchImpl = globalThis.fetch,
   stageReadLimits = DEFAULT_LIMITS,
+  videoReadLimits = VIDEO_LIMITS,
 } = {}) {
   let apps;
   const verifyIdentity = createIdentityVerifier({ env });
@@ -514,6 +545,13 @@ export function createApiFunction({
         fetch: fetchImpl,
         store: blobCounters(getStoreImpl({ name: 'soma-stage-read', consistency: 'strong' })),
         limits: stageReadLimits,
+      }),
+      // The narration read (v0.5) shares Stage Read's store; its keys start video/.
+      videoReader: createVideoReader({
+        apiKey: env.ELEVENLABS_API_KEY,
+        fetch: fetchImpl,
+        store: blobCounters(getStoreImpl({ name: 'soma-stage-read', consistency: 'strong' })),
+        limits: videoReadLimits,
       }),
     })(request);
   };

@@ -1,7 +1,7 @@
 # `@soma/puppet-runtime`
 
 The runtime for applications described in Puppet Script. It parses and
-validates Puppet Script v0.1 to v0.4, renders it directly in the browser, and
+validates Puppet Script v0.1 to v0.5, renders it directly in the browser, and
 provides memory and Netlify Blobs stores for versioned descriptions and
 declared application data.
 
@@ -70,6 +70,17 @@ PlayMaker in [`packages/soma-play`](../soma-play/README.md): `play-view`
 character, through `POST /api/app/:appId/stage-read`). The review that shaped
 it is [`docs/grammar-v0.4-review.md`](./docs/grammar-v0.4-review.md), and
 `examples/monologues.puppet` uses every v0.4 word.
+
+### Puppet v0.5: write and hear a video script (VideoMaker)
+
+[`GRAMMAR-v0.5.md`](./GRAMMAR-v0.5.md) adds three elements for VideoMaker,
+the app for video scripts (`examples/videomaker.puppet`, `?app=videomaker`):
+`video-view` (a video script in the SOMA script format drawn as a two-column AV
+script), `video-read` (its narration read aloud, a voice per narrator, through
+`POST /api/app/:appId/video-read`) and `script-editor` (the row's author changes
+its text, through `PUT /api/app/:appId/data/:name/:rowId`). The two video
+components are in [`packages/soma-video`](../soma-video/README.md); the screen
+layout `writer` puts the editor beside the view.
 
 ## Browser renderer
 

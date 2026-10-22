@@ -19,6 +19,8 @@
  *       getAudio(key) -> bytes | null, setAudio(key, bytes),
  *     },
  *     limits: { perLine: 600, perPerson: 3000, perApp: 8000, linesPerPerson: 400 },
+ *     readScript,   // optional: (text) -> { lines, voiceOf(character) } for another script format
+ *     prefix,       // optional: a key prefix, so another format's allowance is counted apart
  *   });
  *   const out = await speak({ who, scope, text, line });   // { status, body?, headers?, error? }
  *
@@ -35,34 +37,43 @@ export const DEFAULT_LIMITS = { perLine: 600, perPerson: 3000, perApp: 8000, lin
 
 const sha = (text) => createHash('sha256').update(text).digest('hex');
 
+/** How a play scene is read: its spoken lines, and each character's voice (script.js). */
+export function readPlay(text) {
+  const blocks = parseScript(text);
+  const cast = castVoices(blocks);
+  return { lines: spokenLines(blocks), voiceOf: (character) => cast[character.toUpperCase()] };
+}
+
 export function createStageReader({
   apiKey,
   fetch = globalThis.fetch,
   store,
   limits = DEFAULT_LIMITS,
   now = () => new Date(),
+  readScript = readPlay,
+  prefix = '',
 } = {}) {
   return async function speak({ who, scope = 'app', text, line }) {
     if (!who) return { status: 401, error: 'Sign in to hear the scene' };
-    const blocks = parseScript(text);
-    const entry = Number.isInteger(line) && line >= 0 ? spokenLines(blocks)[line] : undefined;
+    const script = readScript(text);
+    const entry = Number.isInteger(line) && line >= 0 ? script.lines[line] : undefined;
     if (!entry) return { status: 404, error: 'No such line in this scene' };
     const chars = entry.text.length;
     if (chars > limits.perLine) return { status: 413, error: `A line may be at most ${limits.perLine} characters` };
-    const voice = castVoices(blocks)[entry.character.toUpperCase()];
+    const voice = script.voiceOf(entry.character);
     const today = now().toISOString().slice(0, 10);
     const person = sha(String(who)).slice(0, 32);
     const headers = { 'content-type': 'audio/mpeg', 'x-stage-read-voice': voice.name };
 
-    if (!(await store.reserve(`lines/${today}/${person}`, 1, limits.linesPerPerson))) {
+    if (!(await store.reserve(`${prefix}lines/${today}/${person}`, 1, limits.linesPerPerson))) {
       return { status: 429, error: 'Too many lines read today' };
     }
-    const audioKey = `audio/${person}/${sha(`${MODEL}\n${voice.id}\n${entry.text}`)}`;
+    const audioKey = `${prefix}audio/${person}/${sha(`${MODEL}\n${voice.id}\n${entry.text}`)}`;
     const cached = await store.getAudio(audioKey);
     if (cached) return { status: 200, body: cached, headers: { ...headers, 'x-stage-read-cached': 'yes' } };
 
-    const personKey = `chars/${today}/${person}`;
-    const appKey = `chars/${today}/${sha(String(scope)).slice(0, 32)}`;
+    const personKey = `${prefix}chars/${today}/${person}`;
+    const appKey = `${prefix}chars/${today}/${sha(String(scope)).slice(0, 32)}`;
     if (!(await store.reserve(personKey, chars, limits.perPerson))) {
       return { status: 402, error: "Today's reading allowance is used up" };
     }

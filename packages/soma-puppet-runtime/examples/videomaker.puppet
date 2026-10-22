@@ -1,0 +1,57 @@
+puppet "VideoMaker" version "0.5"
+
+app "VideoMaker" {
+  promise: "Write a video script, hear each narrator in their own voice, and hand it to the renderer."
+  requires: signin
+}
+
+data scripts {
+  fields: [title, logline, text]
+  read: private
+}
+
+screen "My videos" {
+  hero { title: "VideoMaker", subtitle: "Your video scripts, {me.name}. Only you can read them." }
+  text "{scripts.count} scripts"
+  list "Scripts" from scripts empty: "No scripts yet. Start one below." -> opens screen "Script"
+  field "Title" @required
+  field "What it is about"
+  field "Script" @multiline
+  button "Start the script" @primary -> adds to scripts { title: "{form.Title}", logline: "{form.What it is about}", text: "{form.Script}" } ; toast "Started. Open it to write and hear it."
+  button "How to write a video script" @ghost -> opens dialog "How to write a video script"
+}
+
+screen "Voices" {
+  hero { title: "Voices", subtitle: "Each narrator speaks in their own voice." }
+  text "Give each narrator a voice in a CAST block near the top of the script, one line each, such as CLAUDE: Chris."
+  text "The voices: Chris, Charlie, Callum, Matilda, Eric, Liam, Laura, Lily, Jessica, George, Rachel, Adam and Elli."
+  text "A narrator with no CAST line gets a voice no one else in the script has, and the script's checks say so."
+  text "Hear the narration reads every narrator line in its voice. Cards, clips and music stay silent."
+  text "To make the film, the soma-cut renderer takes the saved script with its voices."
+}
+
+screen "Script" from scripts {
+  layout: writer
+  hero { title: "{row.title}", subtitle: "{row.logline}" }
+  video-read "{row.text}"
+  row {
+    region editor {
+      script-editor "{row.text}"
+    }
+    region view {
+      video-view "{row.text}"
+    }
+  }
+  button "How to write a video script" @ghost -> opens dialog "How to write a video script"
+  button "Delete this script" @danger -> removes from scripts
+}
+
+dialog "How to write a video script" {
+  text "Start with a title page: Title:, Credit: and Draft date: lines, then a blank line."
+  text "Start each scene with a line that begins with a full stop, such as .THE SONG"
+  text "Write a narrator's name in capitals on a line of its own, and what they say under it."
+  text "Put a picture before the line it plays under: CARD title, CARD quote, or CLIP file: with in and out times."
+  text "MUSIC starts a track under the narration; MUSIC out ends it."
+  text "The left column is the picture, the right column the sound. Save keeps your changes."
+  button "Close" -> closes self
+}

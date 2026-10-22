@@ -73,9 +73,9 @@ const MUTANTS = [
   [PLAY, '    if (chars > limits.perLine) return', '    if (false) return', 'a line of any length is spoken'],
   [PLAY, '    if (!(await store.reserve(personKey, chars, limits.perPerson))) {', '    if (false) {', "the person's allowance is not checked"],
   [PLAY, '    if (!(await store.reserve(appKey, chars, limits.perApp))) {', '    if (false) {', "the app's allowance is not checked"],
-  [PLAY, "    if (!(await store.reserve(`lines/${today}/${person}`, 1, limits.linesPerPerson))) {", '    if (false) {', 'lines per person are not counted'],
+  [PLAY, "    if (!(await store.reserve(`${prefix}lines/${today}/${person}`, 1, limits.linesPerPerson))) {", '    if (false) {', 'lines per person are not counted'],
   [PLAY, '    const giveBack = () => Promise.all([store.release(personKey, chars), store.release(appKey, chars)]);', '    const giveBack = () => Promise.resolve();', 'a failed call keeps the characters'],
-  [PLAY, '    const audioKey = `audio/${person}/${sha(', '    const audioKey = `audio/${sha(', 'the audio cache is shared between people'],
+  [PLAY, '    const audioKey = `${prefix}audio/${person}/${sha(', '    const audioKey = `${prefix}audio/${sha(', 'the audio cache is shared between people'],
   // 4. Approve or decline
   ['src/store.js', "approval ? { ...structuredClone(row), status: 'pending' } : structuredClone(row)", 'structuredClone(row)', 'a new row does not start pending'],
   ['src/parser.js', "&&Object.hasOwn(a.row||{},'status'))errors.push", '&&false)errors.push', 'an adds-to sets status'],
@@ -87,6 +87,17 @@ const MUTANTS = [
   ['src/store.js', '  if (!STATUSES.includes(status)) {', '  if (false) {', 'a store accepts any status value'],
   ['src/store.js', "entry.row.status !== undefined && entry.row.status !== 'pending'", 'false', 'a guest removes a decided row'],
   [API, '            if (!visible) throw', '            if (false) throw', 'a guest removes rows with no remove action'],
+  // 5. Puppet v0.5: the script editor and the narration read
+  [API, '          if (!editable) throw', '          if (false) throw', 'an edit changes a field no script-editor offers'],
+  [API, '          if (value.length > MAX_EDIT_LENGTH) {', '          if (false) {', 'an edit of any length is stored'],
+  [API, "          if (typeof field !== 'string' || typeof value !== 'string' || Object.keys(input).length !== 2) {", '          if (false) {', 'an edit stores a value that is not text'],
+  ['src/store.js', '  if (entry.author !== actor) {\n    if (level) throw', '  if (false) {\n    if (level) throw', 'someone other than the author edits a row'],
+  ['src/store.js', '    if (level) throw new Error(`Unknown row: ${entry.id}`);\n    throw new Error(\'Only the row author', '    throw new Error(\'Only the row author', "someone else's private script answers differently from a missing one"],
+  [API, '            walk(owner.children).some((element) => element.kind === kind && element.field === field),', "            walk(owner.children).some((element) => ['stage-read', 'video-read'].includes(element.kind) && element.field === field),", 'a video-read answers as a stage-read'],
+  ['src/parser.js', "if(!(version>=0.5))errors.push(", 'if(false)errors.push(', 'a v0.4 description uses v0.5 elements'],
+  ['src/parser.js', "if(el.kind==='script-editor'&&m[1]==='status')errors.push(", 'if(false)errors.push(', 'a script-editor changes status'],
+  ['src/render.js', '        drafts.set(key, area.value);\n', '', 'unsaved text is lost on a redraw'],
+  ['src/render.js', "        for (const entry of mounted) if (entry.label === element.label) entry.view?.update?.(area.value);\n", '', 'the view does not follow the typing'],
 ];
 
 // The site's functions import their neighbours in packages/ (soma-studio,
@@ -97,8 +108,9 @@ for (const name of ['src', 'site', 'test', 'examples', 'scripts', 'package.json'
   await cp(join(root, name), join(work, name), { recursive: true });
 }
 await symlink(join(root, 'node_modules'), join(work, 'node_modules'));
-// soma-play is copied, not linked, because its server half is mutated below.
-const COPIED = new Set(['soma-play']);
+// soma-play is copied, not linked, because its server half is mutated below;
+// soma-video is copied with it, so its import of soma-play reaches the copy.
+const COPIED = new Set(['soma-play', 'soma-video']);
 for (const entry of await readdir(dirname(root), { withFileTypes: true })) {
   if (!entry.isDirectory() || entry.name === basename(root)) continue;
   if (COPIED.has(entry.name)) {

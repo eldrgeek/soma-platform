@@ -4,6 +4,8 @@ import { parse } from '/vendor/puppet/parser.js';
 import { render } from '/vendor/puppet/render.js';
 import { mountPlayView } from '/vendor/soma-play/play-view.js';
 import { mountStageRead } from '/vendor/soma-play/stage-read.js';
+import { mountVideoView } from '/vendor/soma-video/video-view.js';
+import { mountVideoRead } from '/vendor/soma-video/video-read.js';
 import { createSomaAuthConfig } from '/vendor/soma-signin/somaAuthConfig.js';
 
 const appId = new URLSearchParams(location.search).get('app') || 'sunday-supper';
@@ -120,9 +122,20 @@ function attachMic() {
   }
 }
 
-// The library components the renderer draws (packages/soma-play). Stage Read
-// sends the server a row id and a line number, never the words.
+// The library components the renderer draws (packages/soma-play, and for
+// Puppet v0.5 packages/soma-video). Stage Read and the narration read send
+// the server a row id and a line number, never the words.
+const reader = (route) => ({ data, rowId, field }) => (line) =>
+  fetch(`/api/app/${encodeURIComponent(appId)}/${route}`, {
+    method: 'POST',
+    headers: authHeaders({ 'content-type': 'application/json' }),
+    body: JSON.stringify({ data, rowId, field, line }),
+  });
+
 const components = {
+  'video-view': (node, text) => mountVideoView(node, text),
+  'video-read': (node, { text, onActive, ...where }) =>
+    mountVideoRead(node, { text, onActive, mountStageRead, speak: reader('video-read')(where) }),
   'play-view': (node, text) => mountPlayView(node, text),
   'stage-read': (node, { text, data, rowId, field, onActive }) =>
     mountStageRead(node, {
@@ -158,6 +171,11 @@ function draw() {
         await api(
           `data/${encodeURIComponent(action.target)}/${encodeURIComponent(action.rowId)}`,
           { method: 'DELETE' },
+        );
+      } else if (action.type === 'edit') {
+        await api(
+          `data/${encodeURIComponent(action.target)}/${encodeURIComponent(action.rowId)}`,
+          { method: 'PUT', body: { field: action.field, value: action.value } },
         );
       } else if (action.type === 'set-status') {
         await api(
