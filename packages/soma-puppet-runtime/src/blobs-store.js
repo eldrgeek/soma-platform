@@ -2,6 +2,7 @@ import { getStore } from '@netlify/blobs';
 
 import { parse } from './parser.js';
 import {
+  applyEdit,
   applyStatus,
   checkRemove,
   isPrivate,
@@ -149,6 +150,15 @@ export class BlobsStore extends StoreAdapter {
       checkRemove(rows[index], actor, this.#appConfigs[appId]?.hostId, isPrivate(app, this.#sketch(app), data));
       const [{ id, row }] = rows.splice(index, 1);
       return { ...structuredClone(row), id };
+    });
+  }
+
+  async edit(appId, data, rowId, field, value, actor) {
+    return this.#update(appId, (app) => {
+      const entry = this.#rows(app, data).find(({ id }) => id === rowId);
+      if (!entry) throw new Error(`Unknown row: ${rowId}`);
+      const sketch = this.#sketch(app);
+      return applyEdit(entry, sketch, data, field, value, isPrivate(app, sketch, data), actor);
     });
   }
 

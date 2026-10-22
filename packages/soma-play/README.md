@@ -21,8 +21,8 @@ copies of `src/` at `/vendor/soma-play/` (a test checks they match).
 |---|---|
 | `src/script.js` | The scene's plain script text, read the way PlayMaker reads it: `parseScript`, `spokenLines`, `isTechnicalCue`, `castVoices`, `VOICES`. Shared by the page and the server, so the line the page highlights is the line the server speaks. |
 | `src/play-view.js` | `mountPlayView(container, text)` returns `{ blocks, highlight(blockIndex), destroy() }`. |
-| `src/stage-read.js` | `mountStageRead(container, { text, speak(line), onActive(blockIndex) })`. `speak` names a line by number and resolves to a `Response` with its audio. |
-| `server/stage-read.js` | `createStageReader({ apiKey, store, limits })` returns `speak({ who, scope, text, line })`. The caller passes text it has already allowed this reader to read. |
+| `src/stage-read.js` | `mountStageRead(container, { text, speak(line), onActive(blockIndex), lines?, label? })`. `speak` names a line by number and resolves to a `Response` with its audio. `lines` and `label` let another script format reuse the player (soma-video's narration read). |
+| `server/stage-read.js` | `createStageReader({ apiKey, store, limits, readScript?, prefix? })` returns `speak({ who, scope, text, line })`. The caller passes text it has already allowed this reader to read. `readScript` and `prefix` let another format reuse it with its own lines, voices and allowance (soma-video). |
 
 ## The text
 

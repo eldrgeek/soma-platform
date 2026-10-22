@@ -157,3 +157,34 @@ button { cursor: pointer; }
   .puppet-runtime-layout-studio .puppet-runtime-region-agreements,
   .puppet-runtime-layout-studio .puppet-runtime-region-questions { border: 0; border-top: 1px solid #dbe3ec; }
 }
+
+/* Puppet v0.5 (VideoMaker): the script editor beside the AV script, screen layout "writer". */
+.runtime-root:has(.puppet-runtime-layout-writer) { width: min(1360px, calc(100% - 32px)); }
+.puppet-runtime-layout-writer > .puppet-runtime-row {
+  display: grid;
+  grid-template-columns: minmax(280px, 5fr) minmax(320px, 7fr);
+  gap: 16px;
+  align-items: start;
+}
+.puppet-runtime-layout-writer .puppet-runtime-region-view { max-height: 78vh; overflow: auto; }
+.puppet-runtime-script-editor { display: grid; gap: 8px; position: sticky; top: 8px; }
+.puppet-runtime-script-text {
+  width: 100%;
+  min-height: 62vh;
+  padding: 12px;
+  border: 1px solid #bdc9d7;
+  border-radius: 8px;
+  font: 13px/1.55 ui-monospace, Menlo, monospace;
+  resize: vertical;
+  tab-size: 2;
+}
+.puppet-runtime-script-bar { display: flex; align-items: center; gap: 12px; }
+.puppet-runtime-script-bar .puppet-runtime-button { margin: 0; }
+.puppet-runtime-script-note { color: #4a5a6e; font-size: 14px; }
+.puppet-runtime-video-view { margin: 0; }
+@media (max-width: 900px) {
+  .puppet-runtime-layout-writer > .puppet-runtime-row { grid-template-columns: 1fr; }
+  .puppet-runtime-script-editor { position: static; }
+  .puppet-runtime-script-text { min-height: 40vh; }
+  .puppet-runtime-layout-writer .puppet-runtime-region-view { max-height: none; }
+}

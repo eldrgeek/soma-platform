@@ -33,6 +33,10 @@ export class StoreAdapter {
     throw new Error('remove is not implemented');
   }
 
+  edit(_appId, _data, _rowId, _field, _value, _actor) {
+    throw new Error('Not implemented');
+  }
+
   setStatus(_appId, _data, _rowId, _status, _actor) {
     throw new Error('setStatus is not implemented');
   }
@@ -108,6 +112,21 @@ export function applyStatus(entry, sketch, data, status, level, actor) {
     throw new Error(`Status must be ${STATUSES.join(' or ')}`);
   }
   entry.row.status = status;
+  return { ...structuredClone(entry.row), id: entry.id };
+}
+
+// Puppet v0.5: a script-editor changes one declared field of a row, and only the row's author may.
+// Status is never edited (only the host sets it). Someone else's private or own-only row answers like a
+// missing one, as everywhere else.
+export function applyEdit(entry, sketch, data, field, value, level, actor) {
+  if (entry.author !== actor) {
+    if (level) throw new Error(`Unknown row: ${entry.id}`);
+    throw new Error('Only the row author may edit this row');
+  }
+  if (field === 'status') throw new Error('Only the host sets status');
+  if (!sketch?.data[data]?.fields?.includes(field)) throw new Error(`Undeclared field for ${data}: ${field}`);
+  if (typeof value !== 'string') throw new Error('The value must be text');
+  entry.row[field] = value;
   return { ...structuredClone(entry.row), id: entry.id };
 }
 
@@ -227,6 +246,14 @@ export class MemoryStore extends StoreAdapter {
 
     const [{ id, row }] = rows.splice(index, 1);
     return { ...structuredClone(row), id };
+  }
+
+  async edit(appId, data, rowId, field, value, actor) {
+    const app = this.#app(appId);
+    const current = app.versions.find(({ id }) => id === app.currentVersionId);
+    const entry = this.#rows(app, data).find(({ id }) => id === rowId);
+    if (!entry) throw new Error(`Unknown row: ${rowId}`);
+    return applyEdit(entry, current?.sketch, data, field, value, isPrivate(app, current?.sketch, data), actor);
   }
 
   async setStatus(appId, data, rowId, status, actor) {
