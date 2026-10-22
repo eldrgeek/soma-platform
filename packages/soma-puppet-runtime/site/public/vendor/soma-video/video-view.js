@@ -9,6 +9,7 @@
  * row per moment. It is to a video script what Diana's format (soma-play's play-view) is to a play.
  * A visual plays under the narration line that follows it (SCRIPT-FORMAT.md §6), so each CARD, CLIP or
  * other performer is drawn in the same row as the next narrator turn. MUSIC and SFX cues are sound.
+ * Sung lyrics (Fountain `~` lines) are sound too, drawn like a narrator turn but never read aloud.
  * Each scene shows its number, heading and estimated length; the top shows the cast with each narrator's
  * voice, the film's estimated length, and the checks a writer should fix before rendering.
  *
@@ -44,6 +45,7 @@ const CSS = `
 .soma-video-voice { color: var(--sv-muted); font-weight: 400; font-size: 12px; margin-left: 6px; }
 .soma-video-paren { font-style: italic; color: var(--sv-muted); }
 .soma-video-track { font: 12px/1.5 ui-monospace, Menlo, monospace; color: #6b4fa0; }
+.soma-video-lyric { font-style: italic; border-left: 4px solid #6b4fa0; padding-left: 8px; }
 .soma-video-direction, .soma-video-transition, .soma-video-note { grid-column: 1 / -1; padding: 6px 12px; border-bottom: 1px solid var(--sv-line); font-style: italic; color: var(--sv-muted); }
 .soma-video-transition { text-align: right; font-style: normal; font-size: 12px; letter-spacing: .05em; }
 .soma-video-spotlight { background: rgb(245 158 11 / 0.14); box-shadow: inset 3px 0 0 rgb(245 158 11 / 0.9); }
@@ -170,6 +172,14 @@ function draw(document, root, text) {
         sound.append(el(document, 'div', line.kind === 'parenthetical' ? 'soma-video-paren' : 'soma-video-words', line.text));
       }
       rowsByBlock.set(index, row(pending, sound));
+      pending = [];
+      return;
+    }
+    if (block.type === 'lyric') {
+      // Sung lines sit in the sound column like narration, beside the pictures they play under.
+      const sound = el(document, 'div', 'soma-video-lyric');
+      for (const line of block.lines) sound.append(el(document, 'div', '', line));
+      row(pending, sound);
       pending = [];
       return;
     }

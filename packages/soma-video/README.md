@@ -37,11 +37,34 @@ soma-cut reads voices from a `<film>.cast.json` sidecar instead. That is the one
 deviation from the standard, and `vm-export` resolves it: it writes the script
 without `CAST` and the sidecar beside it.
 
+A music video is clocked by its song, not by narration. Two pieces of
+Fountain carry that:
+
+```
+.VERSE 1 0:14-0:48
+
+CARD reveal
+# War
+
+~War is the angry expression of…
+~The absence of reason, the absence of Love
+```
+
+- A line that starts with `~` is a sung lyric (Fountain's lyric syntax). It is
+  drawn in the sound column beside the picture before it, one line each, and a
+  reading never speaks it.
+- Song times in a heading (`0:14-0:48`, `0:14 to 0:48`, or with an en dash)
+  are that scene's length, in place of the estimate from words and footage.
+
+The renderer for such a script is the `kinetic-lyric-video` skill, not
+soma-cut. The first one is The Compassionate Heart
+(`~/Projects/compassionate-heart-video/script.fountain`).
+
 ## Files
 
 | File | What it is |
 |---|---|
-| `src/film.js` | The script read the way soma-cut reads it: `parseFilm`, `filmInfo`, `spokenLines`, `filmVoices`, `estimate`, `checks`, `toSomaCut`, `VOICES`. Shared by the page and the server. |
+| `src/film.js` | The script read the way soma-cut reads it: `parseFilm`, `filmInfo`, `spokenLines`, `filmVoices`, `songTimes`, `estimate`, `checks`, `toSomaCut`, `VOICES`. Shared by the page and the server. |
 | `src/video-view.js` | `mountVideoView(container, text)` returns `{ blocks, highlight(blockIndex), update(text), destroy() }`. |
 | `src/video-read.js` | `mountVideoRead(container, { text, speak, onActive, mountStageRead })`; the page passes soma-play's player. |
 | `server/video-read.js` | `createVideoReader({ apiKey, store, fetch })`: soma-play's `createStageReader` with `readFilm`, its own allowance (`VIDEO_LIMITS`) and keys under `video/`. |
