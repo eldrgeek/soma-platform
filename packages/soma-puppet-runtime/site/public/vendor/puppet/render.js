@@ -277,6 +277,20 @@ export function render(sketch, { root, data = {}, me = {}, host = false, onActio
     if (element.kind === 'field') {
       const label = append(parent, 'label', { className: 'puppet-runtime-field' });
       append(label, 'span', { text: element.label ?? 'Field' });
+      // A @select field with items: is a choice list. The server refuses a
+      // value that is not one of the items.
+      const items = element.props?.items === undefined ? [] : [].concat(element.props.items);
+      if (roles.includes('@select') && items.length) {
+        const select = append(label, 'select', {
+          attrs: {
+            'data-puppet-field': element.label ?? '',
+            ...(roles.includes('@required') ? { required: '' } : {}),
+          },
+        });
+        append(select, 'option', { text: 'Choose…', attrs: { value: '' } });
+        items.forEach((item) => append(select, 'option', { text: String(item), attrs: { value: String(item) } }));
+        return;
+      }
       const tag = roles.includes('@multiline') ? 'textarea' : 'input';
       const days = [].concat(element.props?.days ?? []);
       const input = append(label, tag, {

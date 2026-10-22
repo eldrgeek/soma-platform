@@ -46,6 +46,9 @@ const MUTANTS = [
   [API, 'date.toISOString().slice(0, 10) !== value', 'false', 'a date that does not exist is accepted'],
   [API, "  if (field.roles.includes('@required') && !value.trim()) return false;\n", '', 'an empty @required value is accepted'],
   ['src/render.js', 'if (!date || !days.includes(WEEKDAYS[date.getUTCDay()]))', 'if (false)', 'the page sends a date on a wrong weekday'],
+  // Choice lists
+  [API, '    return [].concat(field.props.items).map(String).includes(value);', '    return true;', 'a choice that is not one of the items is accepted'],
+  ['src/render.js', "if (roles.includes('@select') && items.length) {", 'if (false) {', 'the page draws a choice list as a text box'],
   // 4. Approve or decline
   ['src/store.js', "approval ? { ...structuredClone(row), status: 'pending' } : structuredClone(row)", 'structuredClone(row)', 'a new row does not start pending'],
   ['src/parser.js', "&&Object.hasOwn(a.row||{},'status'))errors.push", '&&false)errors.push', 'an adds-to sets status'],

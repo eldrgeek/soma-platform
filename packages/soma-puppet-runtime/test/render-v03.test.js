@@ -109,3 +109,18 @@ test('a date field is a date picker, and its day and @required are checked befor
     row: { who: 'Theo', guest: 'Mo', sunday: '2026-10-25' },
   }]);
 });
+
+test('a @select field with items is drawn as a choice list', () => {
+  const { sketch } = parse(`puppet "Times" version "0.3"
+screen "Home" {
+  field "Saturday time" @select @required items: ["Saturday 9:00", "Saturday 9:30"]
+  field "Note" @select
+}`);
+  const root = mount();
+  render(sketch, { root, data: {}, me: {} });
+  const [time, note] = root.querySelectorAll('[data-puppet-field]');
+  assert.equal(time.tagName, 'SELECT');
+  assert.equal(time.required, true);
+  assert.deepEqual(time.children.map((option) => option.attributes.value), ['', 'Saturday 9:00', 'Saturday 9:30']);
+  assert.equal(note.tagName, 'INPUT', 'a @select without items stays a text box');
+});

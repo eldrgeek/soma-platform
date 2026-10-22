@@ -103,6 +103,13 @@ field "Which Saturday?" @date @required days: [Sat]
   weekday is worked out in UTC, so it never shifts with the reader's time
   zone.
 
+### Choice lists (a v0.1 word, now drawn and checked)
+
+`field "Time" @select items: ["9:00", "9:30"]` is drawn as a choice list
+with those items. The server refuses a value that is not one of the items,
+and an empty value when the field is `@required`. A `@select` field without
+`items:` is still a text box.
+
 ## 4. Approve or decline: `status` and `sets status`
 
 `data` (not `stub`) that declares a field named `status` holds requests that
