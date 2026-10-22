@@ -10,6 +10,7 @@ on:
     paths:
       - 'packages/soma-studio/**'
       - 'packages/soma-puppet-runtime/**'
+      - 'packages/soma-play/**'
       - '.github/workflows/soma-studio.yml'
 
 jobs:
@@ -43,3 +44,16 @@ jobs:
         run: npm test
       - name: Mutation check (loosens each server rule on purpose; every break must be caught)
         run: npm run mutation
+
+  play:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/soma-play
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Node tests
+        run: npm test

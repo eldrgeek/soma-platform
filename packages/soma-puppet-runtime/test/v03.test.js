@@ -136,8 +136,8 @@ test('v0.3 refuses each misuse with a plain message', () => {
   const cases = [
     [withScreen('app "X" {\n  requires: host\n}'), /requires: host goes on a screen or dialog, not on app/],
     [withScreen('screen "S" {\n  button "B" requires: host\n}'), /not on an element/],
-    [withScreen('screen "S" {\n  list "L" from notes\n}', 'data notes {\n  fields: [text]\n  read: host\n}'), /read: takes only own, not host/],
-    [withScreen('screen "S" {\n  requires: host\n  list "L" from notes\n}', 'data notes {\n  fields: [text]\n}'), /Data notes is read only on host-only screens; add read: own/],
+    [withScreen('screen "S" {\n  list "L" from notes\n}', 'data notes {\n  fields: [text]\n  read: host\n}'), /read: takes own or private, not host/],
+    [withScreen('screen "S" {\n  requires: host\n  list "L" from notes\n}', 'data notes {\n  fields: [text]\n}'), /Data notes is read only on host-only screens; add read: own or read: private/],
     [withScreen('screen "S" {\n  button "Go" -> opens screen "P"\n}\nscreen "P" {\n  requires: host\n}'), /Only the host sees screen "P"/],
     [withScreen('screen "P" {\n  requires: host\n  button "Go" -> opens dialog "D"\n}\ndialog "D" {\n  text "hi"\n}'), /Dialog "D" is sent to everyone/],
     [withScreen('screen "P" {\n  requires: host\n  button "OK" -> sets status "confirmed"\n}'), /sets status goes on a button inside a list or table/],

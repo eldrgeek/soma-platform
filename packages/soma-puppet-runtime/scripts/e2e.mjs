@@ -240,6 +240,58 @@ await step('v0.3: version history is the host\'s alone', async () => {
   assert.equal((await v3call('versions', { user: host })).response.status, 200);
 });
 
+// ---------- Puppet v0.4 on the demo app (seeded from examples/monologues.puppet) ----------
+const v4call = (path, options = {}) => call(path, { ...options, base: `${baseUrl}/api/app/monologues` });
+const piece = (who, title) => ({ title: `${title} ${runId}`, play: '', text: `${who.toUpperCase()}: Short line ${runId}.` });
+let theoPiece;
+
+await step('v0.4: each person, the host included, reads only their own private pieces', async () => {
+  assert.equal((await v4call('current', { user: guest })).response.status, 200);
+  const theo = await v4call('data/pieces', { method: 'POST', user: guest, body: piece('Theo', 'Hamlet') });
+  assert.equal(theo.response.status, 201, theo.payload.error);
+  theoPiece = theo.payload;
+  assert.match(theoPiece.id, /^r-/);
+  const rosa = await v4call('data/pieces', { method: 'POST', user: host, body: piece('Rosa', 'Lear') });
+  assert.equal(rosa.response.status, 201, rosa.payload.error);
+  const theoRows = (await v4call('data/pieces', { user: guest })).payload;
+  const rosaRows = (await v4call('data/pieces', { user: host })).payload;
+  assert.ok(theoRows.some((row) => row.id === theoPiece.id));
+  assert.equal(rosaRows.some((row) => row.id === theoPiece.id), false, 'the host does not read a private piece');
+  assert.equal((await v4call('data/pieces')).response.status, 401);
+});
+
+await step("v0.4: nobody else removes Theo's piece, the host included", async () => {
+  const path = `data/pieces/${encodeURIComponent(theoPiece.id)}`;
+  assert.equal((await v4call(path, { method: 'DELETE', user: host })).response.status, 404);
+  assert.equal((await v4call(path, { method: 'DELETE', user: 'ana:Ana' })).response.status, 404);
+});
+
+await step('v0.4: Stage Read refuses a piece the reader may not read, and a line that does not exist', async () => {
+  const ask = (user, body) => v4call('stage-read', { method: 'POST', user, body: { data: 'pieces', field: 'text', rowId: theoPiece.id, line: 0, ...body } });
+  assert.equal((await ask(undefined, {})).response.status, 401);
+  assert.equal((await ask(host, {})).response.status, 404);
+  assert.equal((await ask(guest, { line: 5 })).response.status, 404);
+  assert.equal((await ask(guest, { field: 'title' })).response.status, 404);
+});
+
+if (process.env.STAGE_READ_LIVE === '1') {
+  await step('v0.4: Stage Read speaks one short line of Theo\'s own piece (spends about 20 characters)', async () => {
+    const response = await fetch(`${baseUrl}/api/app/monologues/stage-read`, {
+      method: 'POST',
+      headers: { 'x-dev-user': guest, 'content-type': 'application/json' },
+      body: JSON.stringify({ data: 'pieces', field: 'text', rowId: theoPiece.id, line: 0 }),
+    });
+    assert.equal(response.status, 200, await response.clone().text());
+    assert.equal(response.headers.get('content-type'), 'audio/mpeg');
+    assert.ok((await response.arrayBuffer()).byteLength > 1000, 'real audio');
+  });
+}
+
+await step('v0.4: the Theo piece is removed by Theo through the visible Delete button', async () => {
+  const removed = await v4call(`data/pieces/${encodeURIComponent(theoPiece.id)}`, { method: 'DELETE', user: guest });
+  assert.equal(removed.response.status, 200, removed.payload.error);
+});
+
 if (failures) {
   console.log(`FAIL ${failures} end-to-end step(s) failed`);
   process.exitCode = 1;

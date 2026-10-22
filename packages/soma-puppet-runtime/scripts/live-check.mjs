@@ -134,6 +134,38 @@ await step('v0.3: setting a status without a token is refused', async () => {
   }), 401);
 });
 
+// Puppet v0.4. The demo app monologues is publicRead too, so these refusals
+// are the v0.4 rules: private pieces and Stage Read need a signed-in author.
+const v4 = `${baseUrl}/api/app/monologues`;
+
+await step('v0.4: a reader without a token gets the description, with its row screen and components', async () => {
+  const response = await fetch(`${v4}/current`);
+  assert.equal(response.status, 200);
+  const { source } = await response.json();
+  assert.match(source, /version "0\.4"/);
+  assert.match(source, /screen "Piece" from pieces/);
+  assert.match(source, /stage-read "\{row\.text\}"/);
+});
+
+await step('v0.4: private pieces are refused without a token, even in a publicRead app', async () => {
+  assert.equal(await status(`${v4}/data/pieces`), 401);
+  assert.equal(await status(`${v4}/data/pieces`, { headers: { authorization: 'Bearer not-a-real-token' } }), 401);
+});
+
+await step('v0.4: Stage Read is refused without a token', async () => {
+  assert.equal(await status(`${v4}/stage-read`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ data: 'pieces', rowId: 'r1', field: 'text', line: 0 }),
+  }), 401);
+});
+
+await step('v0.4: the soma-play components are served', async () => {
+  for (const file of ['script.js', 'play-view.js', 'stage-read.js']) {
+    assert.equal(await status(`${baseUrl}/vendor/soma-play/${file}`), 200, file);
+  }
+});
+
 await step('the feedback chip loader and its central channel are served', async () => {
   assert.equal(await status(`${baseUrl}/vendor/soma-feedback/soma-chip-loader.js`), 200);
   assert.equal(await status(`${baseUrl}/soma-chip/channels/stable.json`), 200);

@@ -1,9 +1,12 @@
 const tokenPattern = /\{([^}]+)\}/g;
 
-export function interpolate(template, { data = {}, me = {}, form = {} } = {}) {
+// One pass: words that come from a row or a form are inserted as they are, and a
+// {...} inside them is never filled.
+export function interpolate(template, { data = {}, me = {}, form = {}, row } = {}) {
   return String(template ?? '').replace(tokenPattern, (token, name) => {
     if (name === 'me.name') return String(me.name ?? '');
     if (name.startsWith('form.')) return String(form[name.slice(5)] ?? '');
+    if (row && name.startsWith('row.')) return String(row[name.slice(4)] ?? '');
     const count = name.match(/^([\w-]+)\.count$/);
     if (count && Array.isArray(data[count[1]])) return String(data[count[1]].length);
     return token;
@@ -57,10 +60,20 @@ export function formatValue(value) {
   }).format(date);
 }
 
-function rowText(row) {
+// A list or table that opens a row screen shows a long value cut to its first
+// line, at most 80 characters: the row screen shows it whole.
+export function shorten(value) {
+  const text = String(value ?? '');
+  const first = text.split('\n').find((line) => line.trim()) ?? '';
+  const cut = first.length > 80 ? `${first.slice(0, 80).trimEnd()}…` : first;
+  return cut === text ? text : cut.endsWith('…') ? cut : `${cut} …`;
+}
+
+function rowText(row, brief) {
   return Object.entries(row)
     .filter(([key]) => key !== 'id' && key !== 'status')
-    .map(([, value]) => formatValue(value))
+    .map(([, value]) => (brief ? shorten(formatValue(value)) : formatValue(value)))
+    .filter(Boolean)
     .join(' · ');
 }
 
@@ -91,16 +104,31 @@ function checkFields(root) {
  * @param {{id?: string, name?: string}} [options.me]
  * @param {boolean} [options.host] whether the reader is the app's host
  * @param {(action: object) => unknown | Promise<unknown>} [options.onAction]
+ * @param {{'play-view'?: Function, 'stage-read'?: Function}} [options.components]
+ *   library components (packages/soma-play): play-view(node, text) returns
+ *   { highlight(blockIndex) }; stage-read(node, { text, data, rowId, field, onActive })
  */
-export function render(sketch, { root, data = {}, me = {}, host = false, onAction = () => {} }) {
+export function render(sketch, { root, data = {}, me = {}, host = false, onAction = () => {}, components = {} }) {
   if (!root?.ownerDocument) throw new TypeError('render requires a DOM root');
 
   // The server never sends host-only screens to anyone else; this is the
   // same rule in the page, for a host-only screen drawn from a full source.
   const screens = (sketch?.screens ?? []).filter((screen) => !screen.hostOnly || host);
+  const dialogs = (sketch?.dialogs ?? []).filter((dialog) => !dialog.hostOnly || host);
+  // A screen from data shows one row and has no tab. The page keeps which row
+  // (and where Back goes) on the root, so a redraw with new data keeps them.
+  const tabbed = screens.filter((screen) => !screen.from);
+  const rowsOf = (screen) => collectionRows(sketch, data, screen.from);
   let current =
-    screens.find(({ name }) => name === root.dataset.puppetScreen) ?? screens[0] ?? null;
+    screens.find(({ name }) => name === root.dataset.puppetScreen) ?? tabbed[0] ?? null;
+  let currentRow = null;
+  if (current?.from) {
+    currentRow = rowsOf(current).find((row) => row.id === root.dataset.puppetRow) ?? null;
+    if (!currentRow) current = screens.find(({ name }) => name === root.dataset.puppetBack && !current.from) ?? tabbed[0] ?? null;
+  }
+  let dialog = dialogs.find(({ name }) => name === root.dataset.puppetDialog) ?? null;
   let toastTimer;
+  let mounted = [];
 
   const values = () =>
     Object.fromEntries(
@@ -143,16 +171,45 @@ export function render(sketch, { root, data = {}, me = {}, host = false, onActio
         });
       } else if (action.type === 'open' && action.targetType === 'screen') {
         const target = screens.find(({ name }) => name === action.name);
-        if (target) {
-          current = target;
-          root.dataset.puppetScreen = current.name;
+        if (target?.from) {
+          const opened = row ?? (current?.from === target.from ? currentRow : null);
+          if (!opened?.id) throw new Error(`Screen "${target.name}" opens from a row`);
+          if (!current.from) root.dataset.puppetBack = current.name;
+          root.dataset.puppetRow = opened.id;
+          show(target, opened);
+        } else if (target) {
+          show(target, null);
+        }
+      } else if (action.type === 'open' && action.targetType === 'dialog') {
+        dialog = dialogs.find(({ name }) => name === action.name) ?? null;
+        root.dataset.puppetDialog = dialog?.name ?? '';
+        draw();
+      } else if (action.type === 'close-self' || action.type === 'close-dialog' || action.type === 'back') {
+        if (dialog) {
+          dialog = null;
+          root.dataset.puppetDialog = '';
           draw();
+        } else if (action.type === 'back' && current?.from) {
+          goBack();
         }
       } else if (action.type === 'toast') {
         showToast(action.message);
       }
     }
   };
+
+  function show(screen, row) {
+    current = screen;
+    currentRow = row;
+    dialog = null;
+    root.dataset.puppetScreen = screen.name;
+    root.dataset.puppetDialog = '';
+    draw();
+  }
+
+  function goBack() {
+    show(tabbed.find(({ name }) => name === root.dataset.puppetBack) ?? tabbed[0], null);
+  }
 
   const wireActions = (node, actions, row, element) => {
     if (!actions?.length) return;
@@ -194,10 +251,12 @@ export function render(sketch, { root, data = {}, me = {}, host = false, onActio
     const rows = collectionRows(sketch, data, element.from);
     const removeAction = element.hook?.find(({ type }) => type === 'remove');
     const buttons = rowButtons(element);
+    const opensRow = (actions) => actions?.some((action) => action.type === 'open' && screens.find(({ name }) => name === action.name)?.from);
+    const brief = opensRow(element.hook) || buttons.some((child) => opensRow(child.hook));
     if (!rows.length) {
       append(parent, 'p', {
         className: 'puppet-runtime-empty',
-        text: element.props?.empty ?? 'Nothing here yet.',
+        text: interpolate(element.props?.empty ?? 'Nothing here yet.', { data, me }),
       });
       return;
     }
@@ -216,7 +275,7 @@ export function render(sketch, { root, data = {}, me = {}, host = false, onActio
         fields.forEach((field) => {
           const cell = append(tr, 'td');
           if (field === 'status' && row.status) statusBadge(cell, row.status);
-          else cell.textContent = formatValue(row[field] ?? '');
+          else cell.textContent = brief ? shorten(formatValue(row[field] ?? '')) : formatValue(row[field] ?? '');
         });
         if (removeAction || buttons.length) {
           const cell = append(tr, 'td');
@@ -239,7 +298,7 @@ export function render(sketch, { root, data = {}, me = {}, host = false, onActio
     const list = append(parent, 'div', { className: 'puppet-runtime-list-rows' });
     for (const row of rows) {
       const item = append(list, 'div', { className: 'puppet-runtime-list-row' });
-      append(item, 'span', { text: rowText(row) });
+      append(item, 'span', { text: rowText(row, brief) });
       if (row.status) statusBadge(item, row.status);
       if (removeAction) {
         const button = append(item, 'button', {
@@ -255,9 +314,46 @@ export function render(sketch, { root, data = {}, me = {}, host = false, onActio
     }
   };
 
+  // Buttons on a screen from data act on its row (removes from, sets status).
+  const screenRow = (element) =>
+    element.rowOf && current?.from === element.rowOf ? currentRow ?? undefined : undefined;
+
   const drawElement = (parent, element) => {
-    const text = (value) => interpolate(value, { data, me, form: values() });
+    const text = (value) =>
+      interpolate(value, { data, me, form: values(), row: current?.from ? currentRow ?? {} : undefined });
     const roles = element.roles ?? [];
+
+    if (element.kind === 'play-view') {
+      const node = append(parent, 'section', { className: 'puppet-runtime-play-view' });
+      const source = text(element.label);
+      if (components['play-view']) {
+        const view = components['play-view'](node, source);
+        mounted.push({ view, label: element.label });
+      } else {
+        append(node, 'pre', { className: 'puppet-runtime-script', text: source });
+      }
+      return;
+    }
+
+    if (element.kind === 'stage-read') {
+      const node = append(parent, 'section', { className: 'puppet-runtime-stage-read' });
+      if (!components['stage-read'] || !currentRow?.id) {
+        append(node, 'p', { className: 'puppet-runtime-empty', text: 'Stage Read is not available here.' });
+        return;
+      }
+      const player = components['stage-read'](node, {
+        text: text(element.label),
+        data: current.from,
+        rowId: currentRow.id,
+        field: element.field,
+        // The line being read is highlighted in a play-view of the same field.
+        onActive: (blockIndex) => {
+          for (const entry of mounted) if (entry.label === element.label) entry.view?.highlight?.(blockIndex);
+        },
+      });
+      mounted.push({ view: player, label: null });
+      return;
+    }
 
     if (element.kind === 'hero') {
       const hero = append(parent, 'section', { className: 'puppet-runtime-hero' });
@@ -322,7 +418,7 @@ export function render(sketch, { root, data = {}, me = {}, host = false, onActio
         text: text(element.label ?? element.kind),
         attrs: { type: 'button' },
       });
-      wireActions(button, element.hook);
+      wireActions(button, element.hook, screenRow(element), element);
       return;
     }
 
@@ -341,7 +437,7 @@ export function render(sketch, { root, data = {}, me = {}, host = false, onActio
         attrs: {
           'data-puppet-field': element.props?.field ?? 'Message',
           'aria-label': element.props?.field ?? 'Message',
-          placeholder: element.label ?? '',
+          placeholder: text(element.label ?? ''),
           rows: '2',
         },
       });
@@ -400,8 +496,14 @@ export function render(sketch, { root, data = {}, me = {}, host = false, onActio
     wireActions(fallback, element.hook);
   };
 
+  function unmount() {
+    for (const entry of mounted) entry.view?.destroy?.();
+    mounted = [];
+  }
+
   function draw() {
     clearTimeout(toastTimer);
+    unmount();
     root.replaceChildren();
     if (!current) {
       append(root, 'p', { className: 'puppet-runtime-empty', text: 'No screens declared.' });
@@ -409,44 +511,64 @@ export function render(sketch, { root, data = {}, me = {}, host = false, onActio
     }
 
     const shell = append(root, 'div', { className: 'puppet-runtime-shell' });
-    const nav = append(shell, 'nav', {
-      className: 'puppet-runtime-tabs',
-      attrs: { 'aria-label': 'App screens' },
-    });
-    for (const screen of screens) {
-      const tab = append(nav, 'button', {
-        className: screen === current ? 'active' : '',
-        text: screen.name,
-        attrs: { type: 'button', 'aria-current': screen === current ? 'page' : 'false' },
+    // The tab bar appears only when the reader has two or more screens with tabs.
+    if (tabbed.length >= 2) {
+      const nav = append(shell, 'nav', {
+        className: 'puppet-runtime-tabs',
+        attrs: { 'aria-label': 'App screens' },
       });
-      if (screen.hostOnly) {
-        append(tab, 'span', { className: 'puppet-runtime-host-only', text: 'only you' });
+      const active = current.from ? tabbed.find(({ name }) => name === root.dataset.puppetBack) : current;
+      for (const screen of tabbed) {
+        const tab = append(nav, 'button', {
+          className: screen === active ? 'active' : '',
+          text: screen.name,
+          attrs: { type: 'button', 'aria-current': screen === current ? 'page' : 'false' },
+        });
+        if (screen.hostOnly) {
+          append(tab, 'span', { className: 'puppet-runtime-host-only', text: 'only you' });
+        }
+        tab.addEventListener('click', () => show(screen, null));
       }
-      tab.addEventListener('click', () => {
-        current = screen;
-        root.dataset.puppetScreen = current.name;
-        draw();
-      });
     }
     const layout = current.props?.layout;
     const content = append(shell, 'main', {
       className: `puppet-runtime-screen${layout ? ` puppet-runtime-layout-${layout}` : ''}`,
     });
+    if (current.from) {
+      const back = append(content, 'button', {
+        className: 'puppet-runtime-button puppet-runtime-back',
+        text: '← Back',
+        attrs: { type: 'button' },
+      });
+      back.addEventListener('click', goBack);
+    }
     current.children?.forEach((element) => drawElement(content, element));
+
+    // A dialog is a panel over the screen, with a close button.
+    if (dialog) {
+      const overlay = append(root, 'div', { className: 'puppet-runtime-dialog', attrs: { role: 'dialog', 'aria-label': dialog.name } });
+      const panel = append(overlay, 'div', { className: 'puppet-runtime-dialog-panel' });
+      const head = append(panel, 'div', { className: 'puppet-runtime-dialog-head' });
+      append(head, 'h2', { text: dialog.name });
+      const close = append(head, 'button', {
+        className: 'puppet-runtime-button puppet-runtime-dialog-close',
+        text: '✕',
+        attrs: { type: 'button', 'aria-label': 'Close' },
+      });
+      close.addEventListener('click', () => runActions([{ type: 'close-self' }]));
+      dialog.children?.forEach((element) => drawElement(panel, element));
+    }
   }
 
   draw();
   return {
     selectScreen(name) {
-      const screen = screens.find((candidate) => candidate.name === name);
-      if (screen) {
-        current = screen;
-        root.dataset.puppetScreen = current.name;
-        draw();
-      }
+      const screen = tabbed.find((candidate) => candidate.name === name);
+      if (screen) show(screen, null);
     },
     destroy() {
       clearTimeout(toastTimer);
+      unmount();
       root.replaceChildren();
     },
   };

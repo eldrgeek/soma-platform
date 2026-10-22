@@ -2,6 +2,8 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 
 import { parse } from '/vendor/puppet/parser.js';
 import { render } from '/vendor/puppet/render.js';
+import { mountPlayView } from '/vendor/soma-play/play-view.js';
+import { mountStageRead } from '/vendor/soma-play/stage-read.js';
 import { createSomaAuthConfig } from '/vendor/soma-signin/somaAuthConfig.js';
 
 const appId = new URLSearchParams(location.search).get('app') || 'sunday-supper';
@@ -118,8 +120,29 @@ function attachMic() {
   }
 }
 
+// The library components the renderer draws (packages/soma-play). Stage Read
+// sends the server a row id and a line number, never the words.
+const components = {
+  'play-view': (node, text) => mountPlayView(node, text),
+  'stage-read': (node, { text, data, rowId, field, onActive }) =>
+    mountStageRead(node, {
+      text,
+      onActive,
+      speak: (line) =>
+        fetch(`/api/app/${encodeURIComponent(appId)}/stage-read`, {
+          method: 'POST',
+          headers: authHeaders({ 'content-type': 'application/json' }),
+          body: JSON.stringify({ data, rowId, field, line }),
+        }),
+    }),
+};
+
+let view;
+
 function draw() {
-  render(sketch, {
+  view?.destroy();
+  view = render(sketch, {
+    components,
     root: appRoot,
     data: liveData,
     me: me(),

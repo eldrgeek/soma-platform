@@ -1,7 +1,7 @@
 # `@soma/puppet-runtime`
 
 The runtime for applications described in Puppet Script. It parses and
-validates Puppet Script v0.1 to v0.3, renders it directly in the browser, and
+validates Puppet Script v0.1 to v0.4, renders it directly in the browser, and
 provides memory and Netlify Blobs stores for versioned descriptions and
 declared application data.
 
@@ -24,7 +24,8 @@ deploy.
 - `add(appId, data, row, author)`
 - `remove(appId, data, rowId, actor)`
 - `setStatus(appId, data, rowId, status, actor)`: host only, `confirmed` or `declined` (v0.3)
-- `privateData(appId)`: the collections an approved version ever declared `read: own` (v0.3)
+- `privateData(appId)`: the collections an approved version ever declared `read: own` or `read: private` (v0.3)
+- `privacyLevels(appId)`: for each such collection, the strictest rule ever approved (v0.4)
 
 `MemoryStore` and `createMemoryStore()` implement that contract in process.
 `BlobsStore` and `createBlobsStore()` implement the same rules over
@@ -57,11 +58,24 @@ redo, and only the host sets a status. The Brain Trust review that shaped it is
 [`docs/grammar-v0.3-review.md`](./docs/grammar-v0.3-review.md), and
 `examples/sunday-supper-v3.puppet` uses every v0.3 word.
 
+### Puppet v0.4: one writer's private work, read and heard
+
+[`GRAMMAR-v0.4.md`](./GRAMMAR-v0.4.md) adds screens that show the row that
+opened them (`screen "Piece" from pieces`, with `{row.field}` and an automatic
+Back), dialogs that are drawn, `read: private` (each person, the host
+included, reads only their own rows), a parse error for any `{token}` the
+renderer will not fill (version 0.4 and later), and two components from
+PlayMaker in [`packages/soma-play`](../soma-play/README.md): `play-view`
+(Diana's script format) and `stage-read` (the scene read aloud, a voice per
+character, through `POST /api/app/:appId/stage-read`). The review that shaped
+it is [`docs/grammar-v0.4-review.md`](./docs/grammar-v0.4-review.md), and
+`examples/monologues.puppet` uses every v0.4 word.
+
 ## Browser renderer
 
 `src/render.js` exports:
 
-- `render(sketch, { root, data, me, host, onAction })`
+- `render(sketch, { root, data, me, host, onAction, components })`
 - `interpolate(template, context)`
 - `mapFormToRow(template, form, me)`
 
@@ -71,7 +85,11 @@ Add, remove and set-status hooks are sent to `onAction`, while field and
 identity tokens are resolved in the browser. Host-only screens are drawn only
 when `host` is true, marked "only you"; a button inside a list or table is
 drawn on every row; a `@date` field is a date picker; a `@select` field with
-`items:` is a choice list.
+`items:` is a choice list. A screen from data shows one row and a Back button,
+a dialog is a panel over the screen, and the tab bar appears only with two or
+more tabbed screens. `components` supplies `play-view` and `stage-read` (the
+page passes `packages/soma-play`'s; without them the renderer draws plain
+text).
 
 ## Run locally
 
@@ -148,7 +166,8 @@ All routes are under `/api/app/:appId`.
 | `GET` | `/data/:name` | Rows in a collection the live version declares; `read: own` gives a person only their own rows |
 | `POST` | `/data/:name` | Add a row that matches an action the sender can see |
 | `PATCH` | `/data/:name/:rowId` | Host sets `{ status }` to `confirmed` or `declined` through a `sets status` action |
-| `DELETE` | `/data/:name/:rowId` | Remove a row as the host, or as its author through a visible `removes from` action while it is `pending` |
+| `DELETE` | `/data/:name/:rowId` | Remove a row as the host, or as its author through a visible `removes from` action while it is `pending`; a `read: private` row only by its author |
+| `POST` | `/stage-read` | Speak one line `{ data, rowId, field, line }` of a row the caller may read, on a screen they can see, within the daily allowance (audio/mpeg) |
 | `GET` | `/feedback` | Host-only list of stored feedback |
 | `POST` | `/feedback` | Store `{ text, page }` plus the verified author in Blobs |
 
@@ -172,7 +191,7 @@ Run the tests with:
 timeout 120 node --test
 ```
 
-The mutation check loosens each server rule on purpose (37 of them, most from
+The mutation check loosens each server rule on purpose (61 of them, most from
 v0.3) and requires a failing test for every one. CI runs it too:
 
 ```sh
@@ -198,6 +217,9 @@ version, `app.js` tells the studio (`postMessage`), and it redraws when the stud
 ## Example apps
 
 - `examples/sunday-supper.puppet` (and `-v2`): the supper app. Unchanged.
+- `examples/monologues.puppet`: every v0.4 word, live as `?app=monologues`
+  (`publicRead`). Each actor's audition pieces are private, even from the
+  host; a piece opens on its own screen as a script page with Stage Read.
 - `examples/sunday-supper-v3.puppet`: the same supper with every v0.3 word,
   live as its own app at `?app=sunday-supper-v3`. Guests ask to bring a guest
   on a Sunday and see only their own requests; Rosa's list (host-only) shows

@@ -6,8 +6,9 @@
   command = "node ../soma-studio/scripts/install.mjs site/public/studio"
   # Netlify skips a build when nothing in this base folder changed, which
   # silently dropped studio-only merges (soma-platform #19, 2026-10-21). Build
-  # when the studio or the speech component it ships changed too. Exit 0 skips.
-  ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- . ../soma-studio ../soma-speech"
+  # when the studio, the speech component or soma-play (Stage Read's server
+  # half) changed too. Exit 0 skips.
+  ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- . ../soma-studio ../soma-speech ../soma-play"
 
 [[redirects]]
   from = "/soma-chip/*"

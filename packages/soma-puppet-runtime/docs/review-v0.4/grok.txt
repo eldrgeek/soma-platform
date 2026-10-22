@@ -1,0 +1,68 @@
+The smallest design is the row screen, `read: private`, a real token error, and server-side Stage Read. `tab: none` can go. `read: private` should stay a separate word.
+
+1. Smallest design
+
+`screen "Scene" from scenes` already never has a tab, and it is the thing round 2 asked for. `tab: none` adds a second kind of tabless page, and the About example is not one of these needs. Drop that word. Keep the rendering rule that a from-screen is not a tab, and that the tab bar appears only when this reader has two or more real tabs.
+
+Do not fold `read: private` into `read: own`. Live approval data is `read: own` so the host can read every row and set status. PlayMaker needs the opposite, including against the host. Redefining `read: own` would break the live case. The "no sharing yet" sentence is right. Do not add roles.
+
+`text` already draws read-only words, so `play-view` can be a format on `text` rather than a new kind. The Times, margins, and cue rules belong to the component, not the grammar. `stage-read` cannot merge into `text`, because the spend check and the read check have to happen on the server.
+
+Drop the `adds to` warning. Any `{token}` the runtime will not fill is a parse error, in text and in `adds to`. A warning stores `{play}` and the old bug comes back on the next list.
+
+2. Ambiguities
+
+"returns a person only their own rows, the host included." One reading is that the host is under the same limit. The other copies v0.3, where the host receives every row. The route table is the line an implementer will code.
+
+"A token in an `adds to` that the runtime will not fill is a warning, and it is stored as typed." Section 2 says `{row.field}` in an `adds to` is a parse error, even though the runtime can fill it. A builder can store the literal `{row.title}`.
+
+"This check applies to descriptions whose version is `"0.2"` or later." A live 0.3 app that still contains `{last_synced}` either fails closed on the runtime upgrade, or only fails when someone republishes it.
+
+"Buttons on it act on its row: `removes from scenes`, and `sets status` on a host-only screen, as in v0.3." Either those are the only row actions, or every button on that screen silently binds the row.
+
+"The text must be a `{row.field}` of the screen's row." It does not say the argument is exactly one token and nothing else. `stage-read "{row.text} more"` has two readings, and only the route body says the words never come from the client.
+
+"A line already spoken once is replayed from a cache and costs nothing." "Once" can be once for that user or once for the app. The route rule is read, then spend, then audio. The cache sentence can be read as skipping both.
+
+"`{row.field}` ... Allowed: inside a `screen ... from Data`." v0.3 says a dialog is not inside the screen that opens it. A builder will put `{row.title}` in a dialog opened from Scene and one reader will allow it.
+
+"Something must open it, a button or a row." A from-screen also "never has a tab," but it is not `tab: none`. A button outside a list can open the first and cannot open the second.
+
+"The first screen is where the app opens." For a non-host, a host-only first screen is not in the description. It is unclear which screen is then first, and whether that screen may omit its tab.
+
+"Privacy only tightens, as in v0.3, in this order: everyone, `read: own`, `read: private`." It does not say whether the latch is the collection's name. Rename, undo to a version that does not declare it, then a new public block with the same name, can be read as a new collection.
+
+"a line in capitals by itself (`OLDER ERIC`) is a character cue" and "`ACT ONE, SCENE TWO`, is a heading." `ACT ONE` alone fits both tests. The grammar does not say the server rejects text that is not a script, so this will be read as a validator.
+
+3. Security and abuse
+
+The client is fully attacker-controlled. "The page sends an address, never the words" is true only if the function ignores extra body fields and loads the field from storage.
+
+The dangerous implementation is to treat `read: private` as `read: own`. The host would then read every writer's rows through `GET /data/:name`, `{Name.count}`, and `POST /stage-read`. Private needs its own filter: signed-in subject from the verified token, author equal to that subject, host included in that test. No author in the body. An unsigned publicRead request returns no private rows. An empty author matches nothing.
+
+v0.3 gives unguessable ids only to `read: own`. Private rows need the same, minted by the server. GET, DELETE, and stage-read of an unreadable row must be the same response as a missing row, for every line number, so a scan cannot confirm that the row exists.
+
+`GET /data/:name` and the audio response must not sit in a shared Netlify cache. The description already varies by host, and the rows now vary by author. Cache key is the caller plus a hash of the line. The read check runs before the cache lookup. A public blob URL for the audio is a bypass. After privacy tightens, an old cache entry still has to pass today's read rule.
+
+The latch has to survive undo, redo, rename, and "remove the block, then declare the name again as public." Otherwise the host publishes that version and the old rows come back as world-readable. Counts are computed after the author filter.
+
+Stage Read can burn the shared ElevenLabs remainder, or speak a line the caller cannot read, in these ways:
+
+The key in `packages/soma-play` would let the browser call ElevenLabs directly and skip the allowance, the cache, and the read rule. The key stays in the function.
+
+The check "the live version has a stage-read of that field" is not a read check. It must be the same author filter as GET, on the stored field, for one in-range line, with a character cap. A missing line, a negative line, or a field that is the whole play must not synthesize the scene.
+
+Allowance check-then-call races. Parallel POSTs can all pass, then all spend. Decrement a shared character balance atomically before the vendor call. The balance is the real remainder shared with PlayMaker, not a second counter. New character names must hash into a fixed voice list. Creating a voice per cue is an open meter. Speaking the caller's own huge rows is allowed by the grammar, so the cap has to be in characters per line, per account, and per app.
+
+Host-only stripping is specified for screens and dialogs. A from-screen or a tabless screen that also says `requires: host` can be missed by a stripper that walks only the tab bar, which hands the host-only text to everyone. DELETE of a private row still needs a `removes from` the caller can see, plus authorship. The author is not a back door around the visible-action rule.
+
+Row values are literal. A play that contains `{me.name}` must not be expanded, and must not be rejected by the token rule.
+
+Ranked changes
+
+1. State the private route as "this caller, host included, receives only rows they authored," with sign-in required even on publicRead apps, and do not implement it on the `read: own` path.
+2. Authorize before any cache or blob read, use a private response cache, and keep the ElevenLabs key only in the function.
+3. Latch privacy on the stored collection across undo, redo, rename, and redeclare, and return the v0.3 not-found answer for every probe.
+4. Make stage-read exactly one `{row.field}`, one bounded line, server-loaded, with an atomic shared character budget and a fixed voice pool.
+5. Drop `tab: none`, make every unfilled token a parse error including `adds to`, and apply that error to newly published descriptions so a live 0.3 app does not go blank on upgrade.
+6. Say that host-only from-screens are stripped, that private delete still needs a visible `removes from`, that counts are filtered, and that `{row.field}` is a parse error in a dialog.
