@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { checks, estimate, filmInfo, filmVoices, parseFilm, spokenLines, toSomaCut, VOICES } from '../src/film.js';
+import { checks, estimate, filmInfo, filmVoices, parseFilm, songTimes, spokenLines, toSomaCut, VOICES } from '../src/film.js';
 import { createVideoReader, readFilm } from '../server/video-read.js';
 import { mountVideoView } from '../src/video-view.js';
 import { mount } from '../../soma-puppet-runtime/test/fake-dom.js';
@@ -112,6 +112,52 @@ test('the AV view puts a visual in the row of the line after it, and highlights 
   assert.equal(container.querySelectorAll('.soma-video-spotlight').length, 0);
   view.update('Title: Next\n\n.ONE\n\nCARD title\nHi');
   assert.ok(container.textContent.includes('Next'));
+});
+
+const SONG = `Title: A Song
+
+.VERSE 1 0:14-0:48
+
+MUSIC file:audio/song.mp3
+
+CARD title
+# A Song
+
+~War is the angry expression of
+~The absence of reason
+
+.CHORUS 0:48 to 1:11
+
+CARD quote
+The heart
+
+~The Compassionate Heart`;
+
+test('a song-clocked script: ~ lines are sung lyrics, never read; heading times are the scene length', () => {
+  const blocks = parseFilm(SONG);
+  const lyrics = blocks.filter((b) => b.type === 'lyric');
+  assert.deepEqual(lyrics.map((b) => b.lines), [['War is the angry expression of', 'The absence of reason'], ['The Compassionate Heart']]);
+  assert.equal(lyrics[0].scene, 1);
+  assert.deepEqual(spokenLines(blocks), []);
+  assert.deepEqual(songTimes('VERSE 1 0:14-0:48'), { start: 14, end: 48 });
+  assert.deepEqual(songTimes('CHORUS 0:48 – 1:11'), { start: 48, end: 71 });
+  assert.equal(songTimes('THE SONG'), null);
+  assert.equal(songTimes('BACKWARDS 1:00-0:30'), null);
+  assert.deepEqual(estimate(blocks), { scenes: [{ title: 'VERSE 1 0:14-0:48', seconds: 34 }, { title: 'CHORUS 0:48 to 1:11', seconds: 23 }], total: 57 });
+  assert.deepEqual(checks(blocks), []);
+  assert.equal(readFilm(SONG).lines.length, 0);
+});
+
+test('the AV view draws sung lines in the sound column, one line each, beside their picture', () => {
+  const container = mount();
+  mountVideoView(container, SONG);
+  const lyric = container.querySelectorAll('.soma-video-lyric');
+  assert.equal(lyric.length, 2);
+  assert.equal(lyric[0].children.length, 2);
+  assert.equal(lyric[0].children[1].textContent, 'The absence of reason');
+  const cells = lyric[0].parent.parent.children;
+  assert.ok(cells[cells.indexOf(lyric[0].parent) - 1].textContent.startsWith('CARD'));
+  assert.ok(container.textContent.includes('about 0:34'));
 });
 
 function memoryCounters() {

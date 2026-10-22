@@ -50,12 +50,13 @@ const isVisual = (line) => VISUALS.includes(firstWord(line));
 const isCue = (line) =>
   /^[A-Z0-9][A-Z0-9 .'&-]*(\s*\([^)]*\))?$/.test(line) && /[A-Z]/.test(line) && line.split(/\s+/).length <= 6 && !isTransition(line);
 const isParen = (line) => /^\(.*\)$/.test(line);
+const isLyric = (line) => line.startsWith('~');
 const stripComment = (line) => line.replace(/\s+#\s.*$/, '');
 
 /**
  * The script as blocks, in order. Each block has a type: 'title' (the title page), 'settings', 'cast',
  * 'scene' (a heading), 'transition', 'speech' (a narrator's turn: character and lines of kind 'words' or
- * 'parenthetical'), 'visual' (kind, args and body lines), 'direction' or 'note'. Every block after the
+ * 'parenthetical'), 'visual' (kind, args and body lines), 'lyric' (sung lines), 'direction' or 'note'. Every block after the
  * first heading carries the number of its scene, from 1.
  */
 export function parseFilm(text) {
@@ -111,6 +112,14 @@ export function parseFilm(text) {
     if (/^\[\[.*\]\]$/.test(line)) {
       push({ type: 'note', text: line.slice(2, -2).trim() });
       i += 1;
+      continue;
+    }
+    if (isLyric(line)) {
+      // Fountain lyrics: lines that start with ~. They are sung on the song's own track, so a reading
+      // never speaks them, and each keeps its own line.
+      const sung = [];
+      while (i < lines.length && isLyric(lines[i].trim())) sung.push(lines[i++].trim().slice(1).trim());
+      push({ type: 'lyric', lines: sung });
       continue;
     }
     if (isVisual(line)) {
@@ -204,14 +213,28 @@ export function visualSeconds(block) {
 }
 
 /**
+ * Where a scene sits in the song, when its heading says so: `.VERSE 1 0:00-0:38` (or `0:00 to 0:38`, or
+ * with an en dash). Returns { start, end } in seconds, or null. In a music video the song is the clock,
+ * so these times are the scene's real length, not an estimate.
+ */
+export function songTimes(heading) {
+  const m = String(heading ?? '').match(/(\d+:\d{2}(?:\.\d+)?)\s*(?:-|–|—|to)\s*(\d+:\d{2}(?:\.\d+)?)/);
+  if (!m) return null;
+  const start = seconds(m[1]);
+  const end = seconds(m[2]);
+  return end > start ? { start, end } : null;
+}
+
+/**
  * About how long each scene runs, in seconds: the longer of its narration (at 2.6 words a second, about
  * 156 words a minute) and its footage laid end to end. The film is the sum. soma-cut's real clock is the
- * spoken audio, so this is a writer's estimate, not the render's length.
+ * spoken audio, so this is a writer's estimate, not the render's length. A heading with song times
+ * (songTimes) is the exception: the scene runs exactly that long.
  */
 export function estimate(blocks) {
   const scenes = [];
   for (const block of blocks) {
-    if (block.type === 'scene') scenes.push({ title: block.text, speech: 0, footage: 0 });
+    if (block.type === 'scene') scenes.push({ title: block.text, speech: 0, footage: 0, song: songTimes(block.text) });
     const current = scenes.at(-1);
     if (!current) continue;
     if (block.type === 'speech') {
@@ -219,7 +242,7 @@ export function estimate(blocks) {
     }
     if (block.type === 'visual' && !block.track) current.footage += visualSeconds(block);
   }
-  const out = scenes.map((s) => ({ title: s.title, seconds: Math.round(Math.max(s.speech, s.footage)) }));
+  const out = scenes.map((s) => ({ title: s.title, seconds: Math.round(s.song ? s.song.end - s.song.start : Math.max(s.speech, s.footage)) }));
   return { scenes: out, total: out.reduce((sum, s) => sum + s.seconds, 0) };
 }
 
