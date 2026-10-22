@@ -33,6 +33,10 @@ CLAUDE: Chris
 SUNO: Charlie
 ```
 
+soma-cut reads voices from a `<film>.cast.json` sidecar instead. That is the one
+deviation from the standard, and `vm-export` resolves it: it writes the script
+without `CAST` and the sidecar beside it.
+
 A music video is clocked by its song, not by narration. Two pieces of
 Fountain carry that:
 
@@ -55,10 +59,6 @@ CARD reveal
 The renderer for such a script is the `kinetic-lyric-video` skill, not
 soma-cut. The first one is The Compassionate Heart
 (`~/Projects/compassionate-heart-video/script.fountain`).
-
-soma-cut reads voices from a `<film>.cast.json` sidecar instead. That is the one
-deviation from the standard, and `vm-export` resolves it: it writes the script
-without `CAST` and the sidecar beside it.
 
 ## Files
 
