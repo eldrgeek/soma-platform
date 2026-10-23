@@ -11,6 +11,7 @@ import {
   copyTrackedTemplateTree,
 } from "./templateProvenance.mjs";
 import { assertCleanPlatformPackages } from "./assertCleanPlatformPackages.mjs";
+import { assertCleanPlatformProvenance } from "./platformProvenance.mjs";
 import { copyManifestSources } from "./copyManifestSources.mjs";
 import { writeKitLock } from "./writeKitLock.mjs";
 import {
@@ -347,6 +348,7 @@ export async function scaffoldReactAppV1(
   }
 
   assertCleanPlatformPackages(platformRoot);
+  assertCleanPlatformProvenance(platformRoot);
   const template = assertCleanTemplateProvenance(appTemplateDir);
 
   mkdirSync(outDir, { recursive: true });

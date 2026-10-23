@@ -15,7 +15,8 @@
     "scaffold": "node bin/soma-scaffold.mjs scaffold examples/legends.soma.json",
     "build-knowledge": "node tools/build-guide-knowledge.mjs",
     "standup-check": "node tools/standup-check.mjs",
-    "test": "node --test test/*.test.mjs"
+    "test": "node --test test/*.test.mjs",
+    "mutation-check-v1-guards": "node scripts/mutation-check-v1-guards.mjs"
   },
   "license": "UNLICENSED",
   "dependencies": {

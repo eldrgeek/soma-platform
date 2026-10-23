@@ -73,21 +73,28 @@ function writeMinimalTemplateTree(dir) {
   );
 }
 
-function wireTemplateOrigin(templateDir) {
-  runGit(templateDir, ["remote", "add", "origin", "https://github.com/test/soma-app-template.git"]);
-  runGit(templateDir, ["update-ref", "refs/remotes/origin/main", "HEAD"]);
-  runGit(templateDir, ["symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main"]);
+const TEMPLATE_GITHUB_ORIGIN = "https://github.com/test/soma-app-template.git";
+
+function wireTemplateOrigin(templateDir, bareDir) {
+  runGit(templateDir, ["remote", "add", "origin", TEMPLATE_GITHUB_ORIGIN]);
+  runGit(templateDir, ["config", `url.${bareDir}.insteadOf`, TEMPLATE_GITHUB_ORIGIN]);
+  runGit(templateDir, ["push", "-u", "origin", "main"]);
 }
 
 function createCleanTemplateRepo() {
+  const repoRoot = mkdtempSync(join(tmpdir(), "soma-template-root-"));
+  const bareDir = join(repoRoot, "origin.git");
+  runGit(repoRoot, ["init", "--bare", bareDir]);
+  runGit(bareDir, ["symbolic-ref", "HEAD", "refs/heads/main"]);
+
   const templateDir = mkdtempSync(join(tmpdir(), "soma-template-"));
   runGit(templateDir, ["init"]);
   writeMinimalTemplateTree(templateDir);
   runGit(templateDir, ["add", "."]);
   runGit(templateDir, ["commit", "-m", "template seed"]);
   runGit(templateDir, ["branch", "-M", "main"]);
-  wireTemplateOrigin(templateDir);
-  return { templateDir };
+  wireTemplateOrigin(templateDir, bareDir);
+  return { templateDir, bareDir, repoRoot };
 }
 
 function runConformance(repositoryRoot) {
@@ -121,8 +128,13 @@ async function scaffoldDisposable({ templateDir }) {
   return outDir;
 }
 
+function cleanupTemplateFixture({ templateDir, repoRoot }) {
+  rmSync(templateDir, { recursive: true, force: true });
+  if (repoRoot) rmSync(repoRoot, { recursive: true, force: true });
+}
+
 test("v1 disposable app passes local conformance", async () => {
-  const { templateDir } = createCleanTemplateRepo();
+  const { templateDir, repoRoot } = createCleanTemplateRepo();
   const outDir = await scaffoldDisposable({ templateDir });
   try {
     assert.ok(existsSync(join(outDir, "soma-kit.lock.json")));
@@ -130,12 +142,12 @@ test("v1 disposable app passes local conformance", async () => {
     assert.equal(reportPassed(report), true);
   } finally {
     rmSync(outDir, { recursive: true, force: true });
-    rmSync(templateDir, { recursive: true, force: true });
+    cleanupTemplateFixture({ templateDir, repoRoot });
   }
 });
 
 test("conformance fails C13 when a host field changes in soma-app.json", async () => {
-  const { templateDir } = createCleanTemplateRepo();
+  const { templateDir, repoRoot } = createCleanTemplateRepo();
   const outDir = await scaffoldDisposable({ templateDir });
   try {
     const manifest = JSON.parse(readFileSync(join(outDir, "soma-app.json"), "utf8"));
@@ -151,12 +163,12 @@ test("conformance fails C13 when a host field changes in soma-app.json", async (
     assert.match(result.stdout, /contract_sha256/);
   } finally {
     rmSync(outDir, { recursive: true, force: true });
-    rmSync(templateDir, { recursive: true, force: true });
+    cleanupTemplateFixture({ templateDir, repoRoot });
   }
 });
 
 test("conformance fails C5 when an effect action loses its UI binding", async () => {
-  const { templateDir } = createCleanTemplateRepo();
+  const { templateDir, repoRoot } = createCleanTemplateRepo();
   const outDir = await scaffoldDisposable({ templateDir });
   try {
     const manifest = JSON.parse(readFileSync(join(outDir, "soma-app.json"), "utf8"));
@@ -171,12 +183,12 @@ test("conformance fails C5 when an effect action loses its UI binding", async ()
     assert.match(result.stdout, /^C5 fail:/m);
   } finally {
     rmSync(outDir, { recursive: true, force: true });
-    rmSync(templateDir, { recursive: true, force: true });
+    cleanupTemplateFixture({ templateDir, repoRoot });
   }
 });
 
 test("conformance fails C13 when a vendored file byte changes", async () => {
-  const { templateDir } = createCleanTemplateRepo();
+  const { templateDir, repoRoot } = createCleanTemplateRepo();
   const outDir = await scaffoldDisposable({ templateDir });
   try {
     appendFileSync(join(outDir, "vendor", "soma", "actions", "index.mjs"), " ");
@@ -190,12 +202,12 @@ test("conformance fails C13 when a vendored file byte changes", async () => {
     assert.match(result.stdout, /packages\.@soma\/actions\.sha256/);
   } finally {
     rmSync(outDir, { recursive: true, force: true });
-    rmSync(templateDir, { recursive: true, force: true });
+    cleanupTemplateFixture({ templateDir, repoRoot });
   }
 });
 
 test("dirty template checkout is refused", () => {
-  const { templateDir } = createCleanTemplateRepo();
+  const { templateDir, repoRoot } = createCleanTemplateRepo();
   try {
     writeFileSync(join(templateDir, "dirty.txt"), "x\n");
     assert.throws(
@@ -203,12 +215,12 @@ test("dirty template checkout is refused", () => {
       /uncommitted or untracked files/,
     );
   } finally {
-    rmSync(templateDir, { recursive: true, force: true });
+    cleanupTemplateFixture({ templateDir, repoRoot });
   }
 });
 
 test("template commit not on default branch is refused", () => {
-  const { templateDir } = createCleanTemplateRepo();
+  const { templateDir, repoRoot } = createCleanTemplateRepo();
   try {
     runGit(templateDir, ["checkout", "-b", "feature"]);
     writeFileSync(join(templateDir, "feature-only.txt"), "x\n");
@@ -219,12 +231,12 @@ test("template commit not on default branch is refused", () => {
       /is not on origin\/main/,
     );
   } finally {
-    rmSync(templateDir, { recursive: true, force: true });
+    cleanupTemplateFixture({ templateDir, repoRoot });
   }
 });
 
 test("conformance fails when soma-kit.lock.json is missing", async () => {
-  const { templateDir } = createCleanTemplateRepo();
+  const { templateDir, repoRoot } = createCleanTemplateRepo();
   const outDir = await scaffoldDisposable({ templateDir });
   try {
     rmSync(join(outDir, "soma-kit.lock.json"));
@@ -237,6 +249,6 @@ test("conformance fails when soma-kit.lock.json is missing", async () => {
     assert.match(result.stdout, /^C13 fail:/m);
   } finally {
     rmSync(outDir, { recursive: true, force: true });
-    rmSync(templateDir, { recursive: true, force: true });
+    cleanupTemplateFixture({ templateDir, repoRoot });
   }
 });
