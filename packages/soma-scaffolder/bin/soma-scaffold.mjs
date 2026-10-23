@@ -12,6 +12,7 @@ import { migrateSpecV0 } from "../src/migrate-spec.mjs";
 import { scaffold } from "../src/scaffold.mjs";
 import { scaffoldReactApp } from "../src/scaffoldReactApp.mjs";
 import { provision } from "../src/provision.mjs";
+import { formatRefusalStderr, isScaffoldRefusal } from "../src/scaffoldRefusal.mjs";
 
 const args = process.argv.slice(2);
 const execute = args.includes("--execute");
@@ -101,4 +102,11 @@ if (cmd === "provision") {
 }
 }
 
-await main();
+main().catch((err) => {
+  if (isScaffoldRefusal(err)) {
+    process.stderr.write(formatRefusalStderr(err));
+    process.exit(1);
+  }
+  console.error(err);
+  process.exit(1);
+});

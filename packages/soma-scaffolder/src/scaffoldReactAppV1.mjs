@@ -5,7 +5,6 @@ import {
   writeFileSync,
 } from "node:fs";
 import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
 import {
   assertCleanTemplateProvenance,
   copyTrackedTemplateTree,
@@ -17,12 +16,11 @@ import { writeKitLock } from "./writeKitLock.mjs";
 import { writeDiscoveryFiles } from "@soma/discovery";
 import {
   resolveAppTemplateDir,
+  resolvePlatformRoot,
   readSomaPlatformCommit,
   vendorPackageSrc,
 } from "./scaffoldReactApp.mjs";
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const SOMA_PLATFORM_ROOT = join(__dirname, "..", "..", "..");
+import { REFUSAL_FIX, ScaffoldRefusal } from "./scaffoldRefusal.mjs";
 
 export const VENDORED_TICKETS_DIR = "vendor/soma/tickets";
 export const VENDORED_METER_DIR = "vendor/soma/meter";
@@ -217,7 +215,7 @@ export default function SignIn() {
   );
 }
 
-function wireTicketsAndMeterV1(outDir, { platformRoot = SOMA_PLATFORM_ROOT } = {}) {
+function wireTicketsAndMeterV1(outDir, { platformRoot = resolvePlatformRoot() } = {}) {
   const commit = readSomaPlatformCommit(platformRoot);
   vendorPackageSrc(
     join(platformRoot, "packages", "soma-tickets"),
@@ -330,18 +328,21 @@ export async function scaffoldReactAppV1(
     outDir,
     manifestDir,
     appTemplateDir = resolveAppTemplateDir(),
-    platformRoot = SOMA_PLATFORM_ROOT,
+    platformRoot = resolvePlatformRoot(),
   } = {},
 ) {
   if (manifest?.schema_version !== "soma.app/1") {
     throw new Error("scaffoldReactAppV1 requires schema_version soma.app/1");
   }
   if (!existsSync(appTemplateDir)) {
-    throw new Error(`scaffoldReactAppV1: source template not found at ${appTemplateDir}`);
+    throw new ScaffoldRefusal(
+      `scaffoldReactAppV1: source template not found at ${appTemplateDir}`,
+      { fix: REFUSAL_FIX.missingTemplate },
+    );
   }
   if (!outDir) outDir = join(process.cwd(), `${manifest.app.id}-soma`);
   if (existsSync(outDir)) {
-    throw new Error(`scaffoldReactAppV1: outDir already exists: ${outDir}`);
+    throw new ScaffoldRefusal(`scaffoldReactAppV1: outDir already exists: ${outDir}`);
   }
 
   if (!manifestDir) {
@@ -351,6 +352,10 @@ export async function scaffoldReactAppV1(
   assertCleanPlatformPackages(platformRoot);
   assertCleanPlatformProvenance(platformRoot);
   const template = assertCleanTemplateProvenance(appTemplateDir);
+
+  if (process.env.SOMA_SCAFFOLD_TEST_UNEXPECTED_ERROR === "1") {
+    throw new Error("deliberate unexpected failure for CLI tests");
+  }
 
   mkdirSync(outDir, { recursive: true });
   copyTrackedTemplateTree(appTemplateDir, outDir);

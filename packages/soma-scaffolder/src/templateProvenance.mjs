@@ -8,6 +8,7 @@ import {
   gitOk,
   resolveDefaultBranch,
 } from "./gitProvenance.mjs";
+import { REFUSAL_FIX, ScaffoldRefusal } from "./scaffoldRefusal.mjs";
 
 function parseGithubRepository(remoteUrl) {
   const normalized = String(remoteUrl)
@@ -29,7 +30,7 @@ function resolveLockRepository(rawRemoteUrl) {
   if (/^file:\/\/\/[^\s\u0000-\u001F\u007F]+$/.test(remote)) {
     return remote;
   }
-  throw new Error(
+  throw new ScaffoldRefusal(
     `template provenance: origin URL must be github.com or file://; got: ${rawRemoteUrl}`,
   );
 }
@@ -41,15 +42,16 @@ function resolveLockRepository(rawRemoteUrl) {
  */
 export function assertCleanTemplateProvenance(templateDir) {
   if (!gitOk(templateDir, ["rev-parse", "--git-dir"])) {
-    throw new Error(
+    throw new ScaffoldRefusal(
       `template provenance: ${templateDir} is not a git repository`,
     );
   }
 
   const status = git(templateDir, ["status", "--porcelain"]);
   if (status.length > 0) {
-    throw new Error(
+    throw new ScaffoldRefusal(
       "template provenance: template checkout has uncommitted or untracked files",
+      { fix: REFUSAL_FIX.templateDirty },
     );
   }
 
@@ -57,7 +59,7 @@ export function assertCleanTemplateProvenance(templateDir) {
   try {
     remoteUrl = git(templateDir, ["config", "--get", "remote.origin.url"]);
   } catch {
-    throw new Error(
+    throw new ScaffoldRefusal(
       "template provenance: template has no git remote named origin",
     );
   }
@@ -78,8 +80,9 @@ export function assertCleanTemplateProvenance(templateDir) {
     { label: "template provenance" },
   );
   if (!onOrigin) {
-    throw new Error(
+    throw new ScaffoldRefusal(
       `template provenance: commit ${commit} is not on origin/${defaultBranch}; push and merge it, then scaffold. A lock records only a published commit.`,
+      { fix: REFUSAL_FIX.templateNotOnOrigin },
     );
   }
 
@@ -94,7 +97,7 @@ export function assertCleanTemplateProvenance(templateDir) {
 export function copyTrackedTemplateTree(templateDir, outDir) {
   const tracked = git(templateDir, ["ls-files", "-z"]).split("\0").filter(Boolean);
   if (tracked.length === 0) {
-    throw new Error("template provenance: template has no tracked files");
+    throw new ScaffoldRefusal("template provenance: template has no tracked files");
   }
   for (const rel of tracked) {
     const src = join(templateDir, rel);

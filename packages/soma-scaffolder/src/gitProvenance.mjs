@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { REFUSAL_FIX, ScaffoldRefusal } from "./scaffoldRefusal.mjs";
 
 export function git(cwd, args) {
   return execFileSync("git", args, {
@@ -38,7 +39,7 @@ export function assertGitAncestor(cwd, ancestor, descendant, { label }) {
       return false;
     }
     const detail = String(err?.message ?? err).split("\n")[0];
-    throw new Error(`${label}: git merge-base --is-ancestor failed: ${detail}`);
+    throw new ScaffoldRefusal(`${label}: git merge-base --is-ancestor failed: ${detail}`);
   }
   return true;
 }
@@ -57,7 +58,7 @@ export function resolveDefaultBranch(cwd) {
   if (gitOk(cwd, ["show-ref", "--verify", "--quiet", "refs/remotes/origin/master"])) {
     return "master";
   }
-  throw new Error(
+  throw new ScaffoldRefusal(
     "no fetched origin — set refs/remotes/origin/HEAD or origin/main or origin/master",
   );
 }
@@ -72,18 +73,19 @@ export function assertOriginUrlNotRewritten(cwd, { label }) {
   try {
     rawUrl = git(cwd, ["config", "--get", "remote.origin.url"]);
   } catch {
-    throw new Error(`${label}: no git remote named origin`);
+    throw new ScaffoldRefusal(`${label}: no git remote named origin`);
   }
   let resolvedUrl;
   try {
     resolvedUrl = git(cwd, ["remote", "get-url", "origin"]);
   } catch (err) {
     const detail = String(err?.message ?? err).split("\n")[0];
-    throw new Error(`${label}: cannot read origin URL: ${detail}`);
+    throw new ScaffoldRefusal(`${label}: cannot read origin URL: ${detail}`);
   }
   if (rawUrl !== resolvedUrl) {
-    throw new Error(
-      `${label}: origin URL is rewritten by url.*.insteadOf (stored ${rawUrl}, resolved ${resolvedUrl}); remove insteadOf rules so provenance matches fetch`,
+    throw new ScaffoldRefusal(
+      `${label}: origin URL is rewritten by url.*.insteadOf (stored ${rawUrl}, resolved ${resolvedUrl})`,
+      { fix: REFUSAL_FIX.insteadOf },
     );
   }
 }
@@ -101,7 +103,7 @@ export function fetchOrigin(cwd, { label }) {
       timeout: 60_000,
     });
   } catch (err) {
-    throw new Error(
+    throw new ScaffoldRefusal(
       `${label}: git fetch origin failed: ${String(err.message).split("\n")[0]}`,
     );
   }
@@ -118,7 +120,7 @@ function notOnOriginMessage(label, commit, defaultBranch) {
  */
 export function assertHeadOnOriginDefaultBranch(cwd, { label, fetch = true }) {
   if (!gitOk(cwd, ["rev-parse", "--git-dir"])) {
-    throw new Error(`${label}: ${cwd} is not a git repository`);
+    throw new ScaffoldRefusal(`${label}: ${cwd} is not a git repository`);
   }
 
   assertOriginUrlNotRewritten(cwd, { label });
@@ -132,11 +134,17 @@ export function assertHeadOnOriginDefaultBranch(cwd, { label, fetch = true }) {
   try {
     defaultBranch = resolveDefaultBranch(cwd);
   } catch (err) {
-    throw new Error(`${label}: ${err.message}`);
+    throw new ScaffoldRefusal(`${label}: ${err.message}`);
   }
 
   const onOrigin = assertGitAncestor(cwd, commit, `origin/${defaultBranch}`, { label });
   if (!onOrigin) {
-    throw new Error(notOnOriginMessage(label, commit, defaultBranch));
+    const fix =
+      label === "soma-platform"
+        ? REFUSAL_FIX.platformNotOnOrigin
+        : label === "template provenance"
+          ? REFUSAL_FIX.templateNotOnOrigin
+          : null;
+    throw new ScaffoldRefusal(notOnOriginMessage(label, commit, defaultBranch), { fix });
   }
 }

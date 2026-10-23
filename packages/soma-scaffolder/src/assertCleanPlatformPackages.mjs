@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { REFUSAL_FIX, ScaffoldRefusal } from "./scaffoldRefusal.mjs";
 export const V1_KIT_PACKAGES = [
   "soma-tickets",
   "soma-meter",
@@ -31,15 +32,16 @@ export function assertCleanPlatformPackages(
       ).trim();
     } catch (err) {
       // A git failure is not a clean tree: refuse rather than skip the gate.
-      throw new Error(
+      throw new ScaffoldRefusal(
         `soma-platform: cannot read git status for ${rel} in ${platformRoot}: ${String(err.message).split("\n")[0]}`,
       );
     }
     if (status.length > 0) dirty.push(rel);
   }
   if (dirty.length > 0) {
-    throw new Error(
-      `soma-platform has uncommitted changes in kit packages (commit or stash before scaffolding):\n${dirty.map((p) => `  - ${p}`).join("\n")}`,
+    throw new ScaffoldRefusal(
+      `soma-platform has uncommitted changes in kit packages:\n${dirty.map((p) => `  - ${p}`).join("\n")}`,
+      { fix: REFUSAL_FIX.dirtyPlatform },
     );
   }
 }

@@ -19,9 +19,18 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { homedir } from "node:os";
 import { buildValues, fill, removeLineContaining, removeBlock } from "./scaffold.mjs";
+import { REFUSAL_FIX, ScaffoldRefusal } from "./scaffoldRefusal.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 export const SOMA_PLATFORM_ROOT = join(__dirname, "..", "..", "..");
+
+/** Platform root for vendoring: explicit option, then SOMA_PLATFORM_ROOT env, then monorepo root. */
+export function resolvePlatformRoot(explicit) {
+  if (explicit !== undefined && explicit !== null) return explicit;
+  const fromEnv = process.env.SOMA_PLATFORM_ROOT;
+  if (fromEnv) return fromEnv;
+  return SOMA_PLATFORM_ROOT;
+}
 
 /** Template dir: explicit/env, then soma-platform sibling, then ~/Projects/soma-app-template. */
 export function resolveAppTemplateDir(explicit) {
@@ -515,7 +524,7 @@ export async function scaffoldReactApp(
     manifestDir,
     appTemplateDir = DEFAULT_APP_TEMPLATE,
     affordancesTemplatesDir = DEFAULT_AFFORDANCES_TEMPLATES,
-    platformRoot = SOMA_PLATFORM_ROOT,
+    platformRoot = resolvePlatformRoot(),
   } = {},
 ) {
   if (doc?.schema_version === "soma.app/1") {
@@ -524,21 +533,23 @@ export async function scaffoldReactApp(
       outDir,
       manifestDir,
       appTemplateDir,
-      platformRoot,
+      platformRoot: resolvePlatformRoot(platformRoot),
     });
     return { outDir: res.outDir, unresolved: [] };
   }
 
   const app = doc.soma_app;
   if (!existsSync(appTemplateDir)) {
-    throw new Error(
-      `scaffoldReactApp: source template not found at ${appTemplateDir}. ` +
-        `Expected ~/Projects/soma-app-template to exist as a sibling of soma-platform.`,
+    throw new ScaffoldRefusal(
+      `scaffoldReactApp: source template not found at ${appTemplateDir}`,
+      { fix: REFUSAL_FIX.missingTemplate },
     );
   }
   if (!outDir) outDir = join(process.cwd(), `${app.slug}-soma`);
   if (existsSync(outDir)) {
-    throw new Error(`scaffoldReactApp: outDir already exists: ${outDir} (refusing to overwrite)`);
+    throw new ScaffoldRefusal(
+      `scaffoldReactApp: outDir already exists: ${outDir} (refusing to overwrite)`,
+    );
   }
 
   copyTemplateTree(appTemplateDir, outDir);
