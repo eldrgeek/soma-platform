@@ -12,6 +12,7 @@ on:
       - 'packages/soma-scaffolder/**'
       - 'packages/soma-actions/**'
       - 'packages/soma-discovery/**'
+      - 'packages/soma-meter/**'
       - '.github/workflows/kit.yml'
   push:
     branches:
@@ -22,6 +23,7 @@ on:
       - 'packages/soma-scaffolder/**'
       - 'packages/soma-actions/**'
       - 'packages/soma-discovery/**'
+      - 'packages/soma-meter/**'
       - '.github/workflows/kit.yml'
   workflow_dispatch:
 
@@ -71,4 +73,11 @@ jobs:
         run: timeout 5m npm install --no-package-lock
       - name: soma-actions — test
         working-directory: packages/soma-actions
+        run: timeout 10m npm test
+
+      - name: soma-meter — install
+        working-directory: packages/soma-meter
+        run: timeout 5m npm install --no-package-lock
+      - name: soma-meter — test
+        working-directory: packages/soma-meter
         run: timeout 10m npm test
