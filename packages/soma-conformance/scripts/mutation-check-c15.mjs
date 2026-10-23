@@ -23,29 +23,50 @@ if (!baseline) {
 }
 
 const original = readFileSync(c15Path, "utf8");
-const mutant = original.replace(
-  "index.html: missing feedback chip script tag",
-  "index.html: missing feedback chip script tag IGNORED",
-);
 
-if (mutant === original) {
-  console.error("mutation-check-c15: could not apply script-tag mutation");
-  process.exit(1);
-}
-
-writeFileSync(c15Path, mutant);
+const mutants = [
+  {
+    name: "script-tag check",
+    apply: (source) =>
+      source.replace(
+        "index.html: missing feedback chip script tag",
+        "index.html: missing feedback chip script tag IGNORED",
+      ),
+    mustCatchTest: /missing feedback chip script tag/,
+  },
+  {
+    name: "missing feedback_chip must fail not not_run",
+    apply: (source) =>
+      source.replace(
+        '["soma-kit.lock.json has no feedback_chip (v1 apps must ship the chip)"]',
+        '["soma-kit.lock.json has no feedback_chip IGNORED"]',
+      ),
+    mustCatchTest: /has no feedback_chip section/,
+  },
+];
 
 let exitCode = 1;
-try {
-  const passed = runTests();
-  if (!passed) {
-    console.log("mutation-check-c15: caught mutant in C15 script-tag check");
-    exitCode = 0;
-  } else {
-    console.error("mutation-check-c15: mutant was not caught by C15 tests");
+for (const mutant of mutants) {
+  const mutated = mutant.apply(original);
+  if (mutated === original) {
+    console.error(`mutation-check-c15: could not apply ${mutant.name} mutation`);
+    process.exit(1);
   }
-} finally {
-  writeFileSync(c15Path, original);
+
+  writeFileSync(c15Path, mutated);
+  try {
+    const passed = runTests();
+    if (!passed) {
+      console.log(`mutation-check-c15: caught mutant (${mutant.name})`);
+      exitCode = 0;
+    } else {
+      console.error(`mutation-check-c15: mutant was not caught (${mutant.name})`);
+      exitCode = 1;
+      break;
+    }
+  } finally {
+    writeFileSync(c15Path, original);
+  }
 }
 
 process.exit(exitCode);

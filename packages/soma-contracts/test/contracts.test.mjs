@@ -398,6 +398,12 @@ function minimalLock(overrides = {}) {
         },
       ],
     },
+    feedback_chip: {
+      widget_files: {
+        "public/vendor/soma-feedback/soma-feedback.js": "e".repeat(64),
+        "public/vendor/soma-feedback/soma-feedback.css": "f".repeat(64),
+      },
+    },
     packages: {
       "@soma/actions": {
         version: "1.0.0",

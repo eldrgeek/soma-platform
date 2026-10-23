@@ -15,6 +15,12 @@
       }
     ]
   },
+  "feedback_chip": {
+    "widget_files": {
+      "public/vendor/soma-feedback/soma-feedback.js": "8f9784e94b86eb3d1e7624a193c23fe9f05d2f2c40032f950fcb84859eb770bd",
+      "public/vendor/soma-feedback/soma-feedback.css": "77a92f174129bf34ebfa6363df45ec542d9d642d8592a94607623cee4c736e43"
+    }
+  },
   "packages": {
     "@soma/actions": {
       "version": "1.0.0",

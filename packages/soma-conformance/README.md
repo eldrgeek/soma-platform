@@ -20,8 +20,8 @@ slice makes no network or database calls.
 - **C15 (local)** checks the vendored feedback chip: `index.html` loads the
   widget script (with `data-no-google` and `data-site` set to the manifest app
   id), `public/vendor/soma-feedback/*` files exist, and their SHA-256 hashes match
-  `soma-kit.lock.json` `feedback_chip.widget_files`. Repositories whose lock
-  predates `feedback_chip` report `not_run`.
+  `soma-kit.lock.json` `feedback_chip.widget_files`. A missing or unreadable
+  lock, or a lock without `feedback_chip`, fails C15.
 
 Every C-table check not implemented here is still emitted as `not_run` with
 the reason `not built in M1 slice 2`; omitted coverage is never reported as a

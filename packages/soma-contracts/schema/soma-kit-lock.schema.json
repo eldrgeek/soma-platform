@@ -9,6 +9,7 @@
     "template",
     "contract_sha256",
     "guide",
+    "feedback_chip",
     "packages"
   ],
   "additionalProperties": false,
