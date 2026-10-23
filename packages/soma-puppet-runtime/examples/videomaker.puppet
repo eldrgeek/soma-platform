@@ -1,4 +1,4 @@
-puppet "VideoMaker" version "0.6"
+puppet "VideoMaker" version "0.7"
 
 app "VideoMaker" {
   promise: "Write a video script, hear each narrator in their own voice, and hand it to the renderer."
@@ -19,6 +19,11 @@ screen "My videos" {
   field "Script" @multiline
   button "Start the script" @primary -> adds to scripts { title: "{form.Title}", logline: "{form.What it is about}", text: "{form.Script}" } ; toast "Started. Open it to write and hear it."
   button "How to write a video script" @ghost -> opens dialog "How to write a video script"
+}
+
+screen "Storyboards" {
+  hero { title: "Storyboards", subtitle: "A video as scene cards you can change, and the cuts made from them." }
+  video-storyboards
 }
 
 screen "Voices" {

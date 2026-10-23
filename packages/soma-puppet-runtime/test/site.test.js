@@ -446,6 +446,8 @@ test('static browser parser, renderer and soma-play components mirror the packag
     ['../../soma-video/src/jobs.js', '../site/public/vendor/soma-video/jobs.js'],
     ['../../soma-video/src/video-assets.js', '../site/public/vendor/soma-video/video-assets.js'],
     ['../../soma-video/src/video-jobs.js', '../site/public/vendor/soma-video/video-jobs.js'],
+    ['../../soma-video/src/storyboard.js', '../site/public/vendor/soma-video/storyboard.js'],
+    ['../../soma-video/src/video-storyboard.js', '../site/public/vendor/soma-video/video-storyboard.js'],
   ];
   for (const [source, browser] of pairs) {
     assert.equal(

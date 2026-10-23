@@ -1,5 +1,5 @@
 /* Puppet Script v0.5 parser + validator. Deliberately no framework dependency. */
-  const KINDS=new Set('navbar sidebar toolbar hero button link field card list table text label image avatar badge tabs host-panel composer toast xbox spacer region row stack play-view stage-read video-view video-read script-editor video-assets video-jobs'.split(' '));
+  const KINDS=new Set('navbar sidebar toolbar hero button link field card list table text label image avatar badge tabs host-panel composer toast xbox spacer region row stack play-view stage-read video-view video-read script-editor video-assets video-jobs video-storyboards'.split(' '));
   const ROLES=new Set('@primary @secondary @danger @ghost @voice @ai @inert @required @multiline @select @toggle @text @date @top @bottom @left @right @main @center @overlay @top-right @bottom-right @modal'.split(' '));
   const ACTIONS=/^(opens (screen|dialog) "[^"]+"|closes (self|dialog "[^"]+")|back|toast "[^"]+"|starts host "[^"]+"|sets field "[^"]+" = "[^"]+"|sets status "[^"]+"|adds to stub [\w-]+ \{.*\}|adds to [\w-]+ \{.*\}|removes from [\w-]+|goto story "[^"]+"|no-op)$/;
   const STATE_WHERE=new Set('localStorage sessionStorage database memory url'.split(' '));
@@ -73,6 +73,7 @@
   const V05=new Set(['video-view','video-read','script-editor']);
   /* v0.6 words (VideoMaker studio): video-assets and video-jobs, each on one field of a row. */
   const V06=new Set(['video-assets','video-jobs']);
+  /* v0.7 word (VideoMaker storyboards): video-storyboards, the storyboards the reader may open, on a screen not from data. */
   function v04(root,errors,warnings){
     const version=parseFloat(root.meta?.version),level=Number.isNaN(version)||version>=0.4?errors:version>=0.2?warnings:null;
     root.screens.forEach((s,index)=>{if(!s.from)return;if(!root.data[s.from])errors.push({line:s.line,message:`Screen "${s.name}" shows a row of ${s.from}, which is not declared data`});if(index===0)errors.push({line:s.line,message:`Screen "${s.name}" shows one row, so it cannot be where the app opens; put another screen first`})});
@@ -92,6 +93,7 @@
         if(el.kind==='stage-read'){const m=String(el.label??'').match(/^\{row\.([\w-]+)\}$/);if(!m||!o.from)errors.push({line:el.line,message:'stage-read reads one field of a row: write stage-read "{row.text}" on a screen from your data'});else el.field=m[1]}
         if(V05.has(el.kind)){if(!(version>=0.5))errors.push({line:el.line,message:`${el.kind} is a Puppet v0.5 element; write version "0.5"`});if(el.kind==='video-view'&&el.label==null)errors.push({line:el.line,message:'video-view needs its text in quotes, usually video-view "{row.text}"'});
           if(el.kind!=='video-view'){const m=String(el.label??'').match(/^\{row\.([\w-]+)\}$/);if(!m||!o.from)errors.push({line:el.line,message:`${el.kind} works on one field of a row: write ${el.kind} "{row.text}" on a screen from your data`});else{el.field=m[1];if(el.kind==='script-editor'&&m[1]==='status')errors.push({line:el.line,message:'script-editor may not change status; only the host sets it'})}}}
+        if(el.kind==='video-storyboards'){if(!(version>=0.7))errors.push({line:el.line,message:'video-storyboards is a Puppet v0.7 element; write version "0.7"'});if(o.from)errors.push({line:el.line,message:'video-storyboards shows every storyboard the reader may open, so it goes on a screen that is not from data'})}
         if(V06.has(el.kind)){if(!(version>=0.6))errors.push({line:el.line,message:`${el.kind} is a Puppet v0.6 element; write version "0.6"`});const m=String(el.label??'').match(/^\{row\.([\w-]+)\}$/);if(!m||!o.from)errors.push({line:el.line,message:`${el.kind} works on one field of a row: write ${el.kind} "{row.text}" on a screen from your data`});else el.field=m[1]}
       }}
     for(const s of root.screens)if(s.from&&!opened.has(s.name))errors.push({line:s.line,message:`Nothing opens screen "${s.name}"; open it from a list or table of ${s.from}`});

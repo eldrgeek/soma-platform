@@ -13,5 +13,6 @@ export const JOB_STEPS = [
   { step: 'sync', label: 'Send the assets', about: 'Upload the pictures, cards and song from the project folder.' },
 ];
 export const STEP_NAMES = JOB_STEPS.map((s) => s.step);
-export const JOB_STATUSES = ['queued', 'running', 'done', 'failed'];
+/** held (v0.7): a storyboard job someone other than the host asked for, waiting for the host to let it run. */
+export const JOB_STATUSES = ['held', 'queued', 'running', 'done', 'failed'];
 export const MAX_NOTE = 4000;

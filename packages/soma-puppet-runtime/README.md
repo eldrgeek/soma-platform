@@ -82,6 +82,13 @@ its text, through `PUT /api/app/:appId/data/:name/:rowId`). The two video
 components are in [`packages/soma-video`](../soma-video/README.md); the screen
 layout `writer` puts the editor beside the view.
 
+[`GRAMMAR-v0.6.md`](./GRAMMAR-v0.6.md) adds VideoMaker's "Make it" panel and
+asset board (`video-jobs`, `video-assets`), and
+[`GRAMMAR-v0.7.md`](./GRAMMAR-v0.7.md) adds `video-storyboards`: a video's
+storyboard as scene cards that the host and the artists the host names can
+change, with cuts that know when they need rendering again. An artist's request
+to the Mac waits until the host lets it run.
+
 ## Browser renderer
 
 `src/render.js` exports:
