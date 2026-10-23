@@ -1,6 +1,7 @@
 import { cpSync, existsSync, lstatSync, mkdirSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { referencedSourcePaths, validateSourcePath } from "@soma/contracts";
+import { REFUSAL_FIX, ScaffoldRefusal } from "./scaffoldRefusal.mjs";
 
 function copyFile(src, dest) {
   mkdirSync(dirname(dest), { recursive: true });
@@ -13,10 +14,14 @@ function copyFile(src, dest) {
  */
 function isDirectoryNoLinks(path) {
   const st = lstatSync(path);
-  if (st.isSymbolicLink()) throw new Error(`manifest source is a symlink (refused): ${path}`);
+  if (st.isSymbolicLink()) {
+    throw new ScaffoldRefusal(`manifest source is a symlink (refused): ${path}`, {
+      fix: REFUSAL_FIX.symlinkManifestSource,
+    });
+  }
   if (st.isDirectory()) return true;
   if (st.isFile()) return false;
-  throw new Error(`manifest source is not a regular file or directory (refused): ${path}`);
+  throw new ScaffoldRefusal(`manifest source is not a regular file or directory (refused): ${path}`);
 }
 
 function copyTree(src, dest) {
@@ -77,8 +82,9 @@ export function copyManifestSources(manifestDir, outDir, manifest) {
   }
 
   if (missing.length > 0) {
-    throw new Error(
+    throw new ScaffoldRefusal(
       `manifest source paths missing beside the spec:\n${missing.map((p) => `  - ${p}`).join("\n")}`,
+      { fix: REFUSAL_FIX.missingManifestSource },
     );
   }
 }
