@@ -6,6 +6,8 @@ import { DAYS, guestSource, parse, walk } from '../../src/parser.js';
 import { createStageReader, DEFAULT_LIMITS } from '../../../soma-play/server/stage-read.js';
 import { createVideoReader, VIDEO_LIMITS } from '../../../soma-video/server/video-read.js';
 import { createVideoStudio } from '../../../soma-video/server/studio.js';
+import { BoardError, createBoardStore } from '../../../soma-video/server/boards.js';
+import { BOARD_STEP_NAMES, jobBrief, roleOf } from '../../../soma-video/src/storyboard.js';
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { PuppetParseError, STATUSES, stricter } from '../../src/store.js';
 import { createIdentityVerifier, HttpError } from '../lib/auth.mjs';
@@ -186,6 +188,7 @@ export function createApiHandler({
   stageReader,
   videoReader,
   videoStudio,
+  videoBoards,
   teamKey = '',
 }) {
   // Seeding is two writes, propose then approve. If a request stops between
@@ -236,15 +239,24 @@ export function createApiHandler({
       // Puppet v0.6: the team on Mike's Mac (the VideoMaker worker) signs with the SOMA Studio team
       // key, not as a person. It reads the open jobs with the script each one is for, reports on a job,
       // and stores the assets it made. Nothing else answers to the key.
-      const teamMatch = route.match(/^video-team\/(jobs|assets)(?:\/(.*))?$/);
+      const teamMatch = route.match(/^video-team\/(jobs|assets|boards)(?:\/(.*))?$/);
       if (teamMatch) {
         if (!videoStudio) throw new HttpError(503, 'The video studio is not configured');
         if (!keyMatches(request.headers.get('x-studio-team-key'), teamKey)) throw new HttpError(401, 'The team key is required');
         const [, kind, rest = ''] = teamMatch;
         if (kind === 'jobs' && request.method === 'GET' && !rest) {
           const jobs = await videoStudio.listJobs(appId, { open: true });
+          // v0.7: storyboard jobs go only to a worker that says it knows them (?boards=1), so an older worker
+          // leaves them queued instead of failing them for want of a script.
+          const withBoards = url.searchParams.get('boards') === '1';
           const out = [];
           for (const job of jobs) {
+            if (job.board) {
+              if (!withBoards || !videoBoards) continue;
+              const board = await videoBoards.get(appId, job.board);
+              out.push({ ...job, title: board?.title ?? '', board: board ?? null, brief: board ? jobBrief(board, job) : '' });
+              continue;
+            }
             const rows = await store.list(appId, job.data, {});
             const row = rows.find((candidate) => candidate.id === job.rowId);
             out.push({ ...job, title: row?.title ?? '', text: typeof row?.[job.field] === 'string' ? row[job.field] : null });
@@ -268,6 +280,30 @@ export function createApiHandler({
             return json(await videoStudio.putAsset(appId, name, rowId, file, bytes, { ...meta, type: request.headers.get('content-type') }), 201);
           }
           if (request.method === 'DELETE') return json(await videoStudio.removeAsset(appId, name, rowId, file));
+        }
+        // v0.7: the team seeds a storyboard (PUT the whole board; its owner is the app's host), sends its
+        // files, and reports on it with ops (new pictures, a render, the song).
+        const boardPath = kind === 'boards' && rest.match(/^([^/]+)(?:\/files\/([^/]+))?$/);
+        if (boardPath) {
+          if (!videoBoards) throw new HttpError(503, 'Storyboards are not configured');
+          const [, boardId, file] = boardPath.map((part) => (part === undefined ? part : decodeURIComponent(part)));
+          if (file && request.method === 'PUT') {
+            const bytes = new Uint8Array(await request.arrayBuffer());
+            return json(await videoBoards.putFile(appId, boardId, file, bytes, { type: request.headers.get('content-type') }), 201);
+          }
+          if (!file && request.method === 'GET') {
+            const board = await videoBoards.get(appId, boardId);
+            if (!board) throw new HttpError(404, `Unknown board: ${boardId}`);
+            return json(board);
+          }
+          if (!file && request.method === 'PUT') {
+            const input = await body(request);
+            return json(await videoBoards.put(appId, { ...input, id: boardId }, { owner: config.hostId, by: 'the team' }), 201);
+          }
+          if (!file && request.method === 'POST') {
+            const { ops } = await body(request);
+            return json((await videoBoards.change(appId, boardId, ops, { by: { name: 'the team' }, role: 'team' })).board);
+          }
         }
         throw new HttpError(404, 'Unknown team route');
       }
@@ -479,6 +515,97 @@ export function createApiHandler({
         throw new HttpError(404, 'Unknown API route');
       }
 
+      // Puppet v0.7: storyboards. Checks in order: signed in; a video-storyboards element on a screen the
+      // reader can see; then the reader's role on the board (roleOf): its owner and the app's host may do
+      // anything, its artists (by the email they sign in with) may view and change it, and anyone else is
+      // answered as if it did not exist. Only the host starts a board. A job asked by anyone but the host
+      // waits (held) until the host lets it run, because it runs with Claude Code on the host's Mac.
+      const boardMatch = route.match(/^video-boards(?:\/([^/]+)(?:\/(files|jobs)(?:\/([^/]+))?)?)?$/);
+      if (boardMatch) {
+        if (!videoBoards || !videoStudio) throw new HttpError(503, 'Storyboards are not configured');
+        const [, boardId, kind, item] = boardMatch.map((part) => (part === undefined ? part : decodeURIComponent(part)));
+        const reader = await signedIn();
+        const sketch = await liveSketch(store, appId);
+        const boardsOffered = [...sketch.screens, ...sketch.dialogs].some(
+          (owner) => (!owner.hostOnly || reader.id === config.hostId) && walk(owner.children).some((element) => element.kind === 'video-storyboards'),
+        );
+        if (!boardsOffered) throw new HttpError(404, 'No storyboards here');
+        const roleIn = (board) => roleOf(board, reader, { hostId: config.hostId });
+        const by = { id: reader.id, name: reader.name, email: reader.email };
+        try {
+          if (!boardId) {
+            if (request.method === 'GET') {
+              const boards = (await videoBoards.list(appId)).filter(roleIn);
+              return json(boards.map((board) => ({
+                id: board.id, title: board.title, role: roleIn(board), scenes: board.scenes.length, cuts: board.cuts.length,
+                updatedAt: board.updatedAt, updatedBy: board.updatedBy,
+              })));
+            }
+            if (request.method === 'POST') {
+              requireHost(config, reader); // only the host starts a board
+              const input = await body(request);
+              if (typeof input.title !== 'string' || Object.keys(input).some((key) => !['title', 'project'].includes(key))) {
+                throw new HttpError(400, 'Body must be { "title": "...", "project": "..." }');
+              }
+              return json(await videoBoards.put(appId, { title: input.title, project: input.project ?? '', scenes: [], cuts: [] }, { owner: reader.id, by: reader.name }), 201);
+            }
+            throw new HttpError(404, 'Unknown API route');
+          }
+          const board = await videoBoards.get(appId, boardId);
+          const role = board ? roleIn(board) : null;
+          if (!role) throw new HttpError(404, `Unknown board: ${boardId}`);
+          if (!kind && request.method === 'GET') return json({ ...board, role });
+          if (!kind && request.method === 'PATCH') {
+            const input = await body(request);
+            if (!Array.isArray(input.ops) || Object.keys(input).length !== 1) throw new HttpError(400, 'Body must be { "ops": [...] }');
+            const { board: next, added } = await videoBoards.change(appId, boardId, input.ops, { by, role });
+            return json({ ...next, role, added });
+          }
+          if (!kind && request.method === 'DELETE') {
+            if (role !== 'owner') throw new HttpError(403, 'Only the board\'s owner may delete it');
+            return json(await videoBoards.remove(appId, boardId));
+          }
+          if (kind === 'files' && item && request.method === 'GET') {
+            const found = await videoBoards.getFile(appId, boardId, item);
+            if (!found) throw new HttpError(404, `Unknown file: ${item}`);
+            return new Response(found.bytes, {
+              status: 200,
+              headers: { 'content-type': found.metadata?.type ?? 'application/octet-stream', 'cache-control': 'private, max-age=3600' },
+            });
+          }
+          if (kind === 'jobs' && !item && request.method === 'GET') {
+            return json(await videoStudio.listJobs(appId, { board: boardId }));
+          }
+          if (kind === 'jobs' && !item && request.method === 'POST') {
+            const input = await body(request);
+            const { step, scene, cut, note = '' } = input;
+            if (typeof step !== 'string' || Object.keys(input).some((key) => !['step', 'scene', 'cut', 'note'].includes(key))) {
+              throw new HttpError(400, 'Body must be { "step": "...", "scene"?: "...", "cut"?: "...", "note"?: "..." }');
+            }
+            if (!BOARD_STEP_NAMES.includes(step)) throw new HttpError(400, `A storyboard job's step is one of ${BOARD_STEP_NAMES.join(', ')}`);
+            if (step === 'render' ? !board.cuts.some((c) => c.id === cut) : !board.scenes.some((s) => s.id === scene)) {
+              throw new HttpError(400, step === 'render' ? 'Name a cut on this board' : 'Name a scene on this board');
+            }
+            return json(await videoStudio.createBoardJob(appId, {
+              board: boardId, ...(step === 'render' ? { cut } : { scene }), step, note, by: reader.name || reader.id,
+              held: reader.id !== config.hostId,
+            }), 201);
+          }
+          if (kind === 'jobs' && item && request.method === 'POST') {
+            requireHost(config, reader); // only the host lets a job run on the Mac
+            const input = await body(request);
+            if (typeof input.release !== 'boolean' || Object.keys(input).length !== 1) throw new HttpError(400, 'Body must be { "release": true or false }');
+            const job = (await videoStudio.listJobs(appId, { board: boardId })).find((candidate) => candidate.id === item);
+            if (!job) throw new HttpError(404, `Unknown job: ${item}`);
+            return json(await videoStudio.decideJob(appId, item, { release: input.release, by: reader.name || reader.id }));
+          }
+        } catch (error) {
+          if (error instanceof BoardError) throw new HttpError(400, error.message);
+          throw error;
+        }
+        throw new HttpError(404, 'Unknown API route');
+      }
+
       const dataMatch = route.match(/^data\/([^/]+)(?:\/([^/]+))?$/);
       if (dataMatch) {
         const name = decodeURIComponent(dataMatch[1]);
@@ -651,6 +778,8 @@ export function createApiFunction({
       }),
       // Puppet v0.6: VideoMaker's assets and jobs, and the team key the Mac's worker signs with.
       videoStudio: createVideoStudio({ blobs: getStoreImpl({ name: 'soma-video-studio', consistency: 'strong' }) }),
+      // Puppet v0.7: storyboards, in the same store.
+      videoBoards: createBoardStore({ blobs: getStoreImpl({ name: 'soma-video-studio', consistency: 'strong' }) }),
       teamKey: env.STUDIO_TEAM_KEY ?? '',
     })(request);
   };

@@ -8,6 +8,7 @@ import { mountVideoView } from '/vendor/soma-video/video-view.js';
 import { mountVideoRead } from '/vendor/soma-video/video-read.js';
 import { mountVideoAssets } from '/vendor/soma-video/video-assets.js';
 import { mountVideoJobs } from '/vendor/soma-video/video-jobs.js';
+import { mountStoryboards } from '/vendor/soma-video/video-storyboard.js';
 import { createSomaAuthConfig } from '/vendor/soma-signin/somaAuthConfig.js';
 
 const appId = new URLSearchParams(location.search).get('app') || 'sunday-supper';
@@ -147,7 +148,40 @@ async function fetchAsset(data, rowId, name) {
   return response.blob();
 }
 
+// Puppet v0.7: storyboards. The open board is in the address (&board=…), so a board has a link of its
+// own to send to an artist.
+const boardsPath = (id = '', rest = '') => `video-boards${id ? `/${encodeURIComponent(id)}` : ''}${rest}`;
+const storyboardApi = {
+  listBoards: () => api(boardsPath()),
+  createBoard: (input) => api(boardsPath(), { method: 'POST', body: input }),
+  getBoard: (id) => api(boardsPath(id)),
+  changeBoard: (id, ops) => api(boardsPath(id), { method: 'PATCH', body: { ops } }),
+  listJobs: (id) => api(boardsPath(id, '/jobs')),
+  createJob: (id, job) => api(boardsPath(id, '/jobs'), { method: 'POST', body: job }),
+  decideJob: (id, jobId, release) => api(boardsPath(id, `/jobs/${encodeURIComponent(jobId)}`), { method: 'POST', body: { release } }),
+  async fetchFile(id, name) {
+    const response = await fetch(`/api/app/${encodeURIComponent(appId)}/${boardsPath(id, `/files/${encodeURIComponent(name)}`)}`, { headers: authHeaders() });
+    if (!response.ok) throw new Error(`Could not load ${name} (${response.status})`);
+    return response.blob();
+  },
+};
+
+function writeBoard(id) {
+  const params = new URLSearchParams(location.search);
+  if (id) params.set('board', id);
+  else params.delete('board');
+  const next = `${location.pathname}?${params}`;
+  if (next !== `${location.pathname}${location.search}`) history.replaceState(null, '', next);
+}
+
 const components = {
+  'video-storyboards': (node, { host }) =>
+    mountStoryboards(node, {
+      api: storyboardApi,
+      host,
+      initial: new URLSearchParams(location.search).get('board'),
+      onOpen: writeBoard,
+    }),
   'video-assets': (node, { text, data, rowId }) => {
     const board = mountVideoAssets(node, {
       text,

@@ -18,6 +18,8 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const API = 'site/functions/api.mjs';
 const PLAY = '../soma-play/server/stage-read.js';
 const STUDIO = '../soma-video/server/studio.js';
+const BOARDS = '../soma-video/server/boards.js';
+const STORYBOARD = '../soma-video/src/storyboard.js';
 
 const MUTANTS = [
   // 1. Host-only screens
@@ -115,6 +117,22 @@ const MUTANTS = [
   [STUDIO, '        if (open && !', '        if (false && !', 'finished jobs are handed to the team again'],
   [STUDIO, ' || done > total) {', ') {', 'progress past the end is stored'],
   [STUDIO, "          ...(progress !== undefined ? { progress: cleanProgress(progress) } : {}),\n", '', 'progress is dropped'],
+  // v0.7 storyboards: who may open, change and run a board, and the team's part.
+  [API, "        if (!boardsOffered) throw new HttpError(404, 'No storyboards here');\n", '', 'storyboards without the element that offers them'],
+  [API, '          if (!role) throw new HttpError(404, `Unknown board: ${boardId}`);\n', '', 'anyone signed in opens a board'],
+  [API, '.filter(roleIn);', ';', 'every board is listed to anyone'],
+  [API, '              requireHost(config, reader); // only the host starts a board\n', '', 'anyone starts a board'],
+  [API, '            requireHost(config, reader); // only the host lets a job run on the Mac\n', '', 'an artist lets a job run on the Mac'],
+  [API, '              held: reader.id !== config.hostId,', '              held: false,', "an artist's job runs without the host"],
+  [API, "            if (role !== 'owner') throw new HttpError(403", "            if (false) throw new HttpError(403", 'an artist deletes a board'],
+  [API, "              if (!withBoards || !videoBoards) continue;", "              if (!videoBoards) continue;", 'an older worker is handed storyboard jobs'],
+  [API, "            return json(await videoBoards.put(appId, { ...input, id: boardId }, { owner: config.hostId, by: 'the team' }), 201);", "            return json(await videoBoards.put(appId, { ...input, id: boardId }, { owner: input.owner, by: 'the team' }), 201);", 'a seeded board names its own owner'],
+  [STORYBOARD, "      if (role !== 'owner') bad('Only the board\\'s owner chooses its artists');", '', 'an artist chooses the artists'],
+  [STORYBOARD, "      if (role !== 'team') bad('Only the team on the Mac sends pictures');", '', 'anyone sends pictures'],
+  [STORYBOARD, "  if (who.email && board.artists.includes(String(who.email).toLowerCase())) return 'artist';", "  if (who.email) return 'artist';", 'anyone with an email is an artist'],
+  [STUDIO, "        if (job.status === 'held') throw", '        if (false) throw', 'the worker runs a held job'],
+  [STUDIO, "      if (job.status !== 'held') throw", '      if (false) throw', 'a finished job is let run again'],
+  [BOARDS, "      if (!ASSET_TYPES.has(type)) throw new BoardError", "      if (false) throw new BoardError", 'a board file of any type is stored'],
 ];
 
 // The site's functions import their neighbours in packages/ (soma-studio,

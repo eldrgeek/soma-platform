@@ -434,6 +434,18 @@ export function render(sketch, { root, data = {}, me = {}, host = false, onActio
       return;
     }
 
+    // Puppet v0.7 (VideoMaker): the storyboards the reader may open, and the open one, drawn by the
+    // soma-video component. It reaches its own routes; nothing here depends on a row.
+    if (element.kind === 'video-storyboards') {
+      const node = append(parent, 'section', { className: 'puppet-runtime-video-storyboards' });
+      if (!components['video-storyboards']) {
+        append(node, 'p', { className: 'puppet-runtime-empty', text: 'Storyboards are not available here.' });
+        return;
+      }
+      mounted.push({ view: components['video-storyboards'](node, { host }), label: null });
+      return;
+    }
+
     if (element.kind === 'script-editor') {
       const node = append(parent, 'section', { className: 'puppet-runtime-script-editor' });
       if (!currentRow?.id) {

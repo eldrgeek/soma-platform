@@ -11,11 +11,16 @@
  * Storage is one Netlify Blobs store:
  *   assets/<app>/<data>/<rowId>/<name>   the file, with metadata { type, size, kind, section, caption, ... }
  *   jobs/<app>/<jobId>                   JSON { id, data, rowId, field, step, note, by, status, log, report, ... }
+ *                                        or, for a storyboard (v0.7), { id, board, scene?, cut?, step, note, by, status, ... }
+ *
+ * A storyboard job asked by someone other than the host starts 'held': it runs on the host's Mac with
+ * Claude Code's full reach, so the host lets it run (releaseJob) or declines it first.
  *
  * Written 2026-10-22 by Claude Opus 5.5 (CCc) for Mike Wolf, bead sp-h3i.
  */
 
 import { JOB_STATUSES, JOB_STEPS, MAX_NOTE, STEP_NAMES } from '../src/jobs.js';
+import { BOARD_STEP_NAMES } from '../src/storyboard.js';
 
 export { JOB_STATUSES, JOB_STEPS, MAX_NOTE, STEP_NAMES };
 
@@ -106,12 +111,41 @@ export function createVideoStudio({ blobs, now = () => new Date(), id = () => `j
       return job;
     },
 
-    async listJobs(app, { rowId, open } = {}) {
+    /** A storyboard's job (v0.7): queued, or held when the host did not ask for it. The caller has checked who may ask. */
+    async createBoardJob(app, { board, scene, cut, step, note = '', by, held = false }) {
+      if (!BOARD_STEP_NAMES.includes(step)) throw new Error(`A storyboard job's step is one of ${BOARD_STEP_NAMES.join(', ')}`);
+      if (typeof note !== 'string' || note.length > MAX_NOTE) throw new Error(`A note is text of at most ${MAX_NOTE} characters`);
+      const at = now().toISOString();
+      const job = {
+        id: id(), app, board, ...(scene ? { scene } : {}), ...(cut ? { cut } : {}), step, note: note.trim(), by,
+        status: held ? 'held' : 'queued', log: [], report: '', createdAt: at, updatedAt: at,
+      };
+      await blobs.setJSON(jobKey(app, job.id), job);
+      return job;
+    },
+
+    /** The host's answer to a held job: let it run (queued) or decline it (failed, with who declined). */
+    async decideJob(app, jobId, { release, by }) {
+      const stored = await blobs.getWithMetadata(jobKey(app, jobId), { type: 'json', consistency: 'strong' });
+      const job = stored?.data;
+      if (!job) throw new Error(`Unknown job: ${jobId}`);
+      if (job.status !== 'held') throw new Error(`Job ${jobId} is ${job.status}, not waiting for the host`);
+      const at = now().toISOString();
+      const next = release
+        ? { ...job, status: 'queued', log: [...job.log, `Let run by ${by} at ${at.slice(11, 16)} UTC.`], updatedAt: at }
+        : { ...job, status: 'failed', report: `Not run: declined by ${by}.`, updatedAt: at };
+      const { modified } = await blobs.setJSON(jobKey(app, jobId), next, stored.etag ? { onlyIfMatch: stored.etag } : {});
+      if (modified === false) throw new Error(`Job ${jobId} changed; try again`);
+      return next;
+    },
+
+    async listJobs(app, { rowId, board, open } = {}) {
       const out = [];
       for (const key of await listKeys(`jobs/${segment(app)}/`)) {
         const job = await blobs.get(key, { type: 'json', consistency: 'strong' });
         if (!job) continue;
         if (rowId && job.rowId !== rowId) continue;
+        if (board && job.board !== board) continue;
         if (open && !['queued', 'running'].includes(job.status)) continue;
         out.push(job);
       }
@@ -125,6 +159,7 @@ export function createVideoStudio({ blobs, now = () => new Date(), id = () => `j
         if (!stored?.data) throw new Error(`Unknown job: ${jobId}`);
         const job = stored.data;
         if (['done', 'failed'].includes(job.status)) throw new Error(`Job ${jobId} is already ${job.status}`);
+        if (job.status === 'held') throw new Error(`Job ${jobId} is waiting for the host`);
         if (status !== undefined && !JOB_STATUSES.includes(status)) throw new Error(`A status is one of ${JOB_STATUSES.join(', ')}`);
         const next = {
           ...job,
