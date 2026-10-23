@@ -41,9 +41,14 @@ if (!original.includes(MUTANT_FROM)) {
   console.error("STALE: could not find refusal handler in bin to mutate");
   process.exit(2);
 }
-await writeFile(binPath, original.replace(MUTANT_FROM, MUTANT_TO));
-const caught = !(await cliRefusalPass());
-await writeFile(binPath, original);
+
+let caught = false;
+try {
+  await writeFile(binPath, original.replace(MUTANT_FROM, MUTANT_TO));
+  caught = !(await cliRefusalPass());
+} finally {
+  await writeFile(binPath, original);
+}
 
 if (!caught) {
   console.error("mutation-check: mutant survived (cli-refusal tests did not catch disabled handler)");

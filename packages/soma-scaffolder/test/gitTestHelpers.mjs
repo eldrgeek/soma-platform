@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { cpSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { V1_KIT_PACKAGES } from "../src/assertCleanPlatformPackages.mjs";
@@ -68,6 +68,43 @@ export function copyKitPackagesFromMonorepo(monorepoRoot, platformRoot) {
 /**
  * @param {{ monorepoRoot?: string }} [options]
  */
+/**
+ * Copy soma-scaffolder into a temp platform so the CLI's default SOMA_PLATFORM_ROOT
+ * (three levels above src/) is that platform, not the developer's checkout.
+ * @param {string} platformRoot
+ * @param {string} scaffolderRoot absolute path to packages/soma-scaffolder in the real monorepo
+ */
+export function installScaffolderInPlatform(platformRoot, scaffolderRoot) {
+  const dest = join(platformRoot, "packages", "soma-scaffolder");
+  mkdirSync(dest, { recursive: true });
+  cpSync(join(scaffolderRoot, "bin"), join(dest, "bin"), { recursive: true });
+  cpSync(join(scaffolderRoot, "src"), join(dest, "src"), { recursive: true });
+  cpSync(join(scaffolderRoot, "package.json"), join(dest, "package.json"));
+  const nmSrc = join(scaffolderRoot, "node_modules");
+  const nmDest = join(dest, "node_modules");
+  if (!existsSync(nmSrc)) {
+    throw new Error(`installScaffolderInPlatform: missing ${nmSrc} (run npm install in soma-scaffolder)`);
+  }
+  if (existsSync(nmDest)) rmSync(nmDest, { recursive: true, force: true });
+  symlinkSync(nmSrc, nmDest, "dir");
+  return join(dest, "bin", "soma-scaffold.mjs");
+}
+
+/** Patch the platform-local scaffolder copy so scaffold throws a plain Error after provenance gates. */
+export function patchCopiedScaffolderThrowBeforeDiscovery(platformRoot) {
+  const v1Path = join(platformRoot, "packages", "soma-scaffolder", "src", "scaffoldReactAppV1.mjs");
+  const marker = "await writeDiscoveryFiles(";
+  let src = readFileSync(v1Path, "utf8");
+  if (!src.includes(marker)) {
+    throw new Error("patchCopiedScaffolderThrowBeforeDiscovery: expected writeDiscoveryFiles call");
+  }
+  src = src.replace(
+    marker,
+    "throw new Error('deliberate discovery failure for CLI stack test');\n  await writeDiscoveryFiles(",
+  );
+  writeFileSync(v1Path, src);
+}
+
 export function createCleanPlatformRepo({ monorepoRoot = null } = {}) {
   const repoRoot = mkdtempSync(join(tmpdir(), "soma-platform-root-"));
   const bareDir = initBareOrigin(repoRoot);
