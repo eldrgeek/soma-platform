@@ -73,3 +73,20 @@ test("OpenAPI documents common error schema and bearer authentication", async ()
   assert.ok(openapi.components.securitySchemes.somaAgentBearer);
   assert.match(openapi.info.description, /Rate limits use platform-derived/);
 });
+
+test("discovery documents name no identity origin until the broker ships", async () => {
+  const manifest = readManifest();
+  const { somaApp, llms, files } = await generateDiscoveryFromRepository(
+    manifest,
+    fixtureRoot,
+  );
+  assert.equal(somaApp.identity?.pairing, "not_available");
+  assert.equal(somaApp.identity?.origin, undefined);
+  assert.equal(somaApp.identity?.oauth_authorization_server, undefined);
+  assert.doesNotMatch(llms, /mike-wolf\.com/i);
+  const combined = Object.values(files)
+    .map((bytes) => bytes.toString("utf8"))
+    .join("\n");
+  assert.doesNotMatch(combined, /mike-wolf\.com/i);
+  assert.doesNotMatch(combined, /https:\/\/id\./i);
+});

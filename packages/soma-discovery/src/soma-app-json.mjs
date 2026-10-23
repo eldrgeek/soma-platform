@@ -1,7 +1,4 @@
-import {
-  DISCOVERY_SCHEMA_VERSION,
-  SOMA_IDENTITY_ORIGIN,
-} from "./constants.mjs";
+import { DISCOVERY_SCHEMA_VERSION } from "./constants.mjs";
 import { compileActionRecord } from "./actions.mjs";
 
 function publicKnowledgePath(sourcePath) {
@@ -54,12 +51,7 @@ export function buildSomaAppJsonDocument(manifest, resolvedActions) {
       knowledge,
     },
     identity: {
-      origin: SOMA_IDENTITY_ORIGIN,
-      oauth_authorization_server:
-        `${SOMA_IDENTITY_ORIGIN}/.well-known/oauth-authorization-server`,
-      device_authorization: `${SOMA_IDENTITY_ORIGIN}/agents/device-code`,
-      token: `${SOMA_IDENTITY_ORIGIN}/agents/token`,
-      jwks: `${SOMA_IDENTITY_ORIGIN}/.well-known/jwks.json`,
+      pairing: "not_available",
     },
     api: {
       base_path: "/api/soma/v1",
