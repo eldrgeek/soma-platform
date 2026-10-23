@@ -86,6 +86,8 @@ soma-cut. The first one is The Compassionate Heart
 | `src/storyboard.js` | The storyboard model: `cleanBoard`, `applyOps`, `roleOf`, `cutState`, `jobBrief`, `parseRanges`. Shared by the page, the server and the seed. |
 | `src/video-storyboard.js` | `mountStoryboards(container, { api, host, initial, onOpen })`. |
 | `server/boards.js` | `createBoardStore({ blobs })`: boards and their files in Netlify Blobs (`soma-video-studio`), changes retried on the etag. |
+| `src/video-editor.js` | `mountVideoEditor(container, { board, api, host, objectUrl, onBoard, onClose })`: the v4 editor (script, preview, inspector, timeline with waveform); `layoutScenes`, `frameAt`, `captionAt`, `motionAt`, `songPeaks`. |
+| `src/board-script.js` | A storyboard as the v4 editor's script and back: `boardToScript`, `readScript`, `scriptToOps`, `opBatches`, `timeText`. |
 | `src/notes.js` | An artist's notes as written (email, text, the notes box) read against a board: `parseNotes`, `notesOps`, `notesToRedo`, `redoQueue`. |
 | `bin/vm-board-notes.mjs` | Notes that arrived by email or text, on the Mac: shows where each lands; `--send` puts them on the cards and asks for one held batch. |
 | `bin/vm-board-seed.mjs` | A storyboard from a song project's album, timings, cuts and renders; `--upload` sends it with the team key. |
@@ -138,6 +140,58 @@ session) instead of one job per card.
 
 The gate is unchanged: a batch asked for by anyone but the host, and **every** batch sent with the team
 key, is held until the host presses "Let it run", because it runs with Claude Code's full reach on the Mac.
+
+### The editor (v4, 2026-10-23)
+
+"Script and timeline" on an open storyboard opens it in the editor (`src/video-editor.js`), across the full width
+of the screen, with a Full screen button. "← Cards" goes back. Nothing about the board, its routes, its jobs or
+the "Let it run" gate changed, and there is no new Puppet word: it is a second view inside `video-storyboards`.
+
+- **Script** (left): the board as Fountain (below). It saves itself a moment after typing stops; a problem names
+  its line and nothing saves until it is fixed; gaps and overlaps are named but saved. The playing scene's lines
+  are lit, and clicking a line moves the playhead there (a lyric line to its own moment).
+- **Preview** (middle): an animatic drawn in the browser (each scene's picture with its motion, the transition
+  into it, its lyric as a caption, over the song). **Last render** plays the cut's real video.
+- **Scene** (right): motion, transition, prompt, redo note; Redo with note, Reroll, Keep, Add scene after (takes
+  the second half of the scene's time); earlier pictures.
+- **Timeline** (bottom): pictures with a transition chip on each seam, captions, motion, the song's waveform
+  (decoded in the browser from the board's song), notes, and the whole song as a strip above. Click a chip or a
+  motion to change it, drag a seam to retime two scenes, drag the ruler or the waveform to scrub. Space plays.
+- The timeline is the board in song order. The cut chosen at the top sets the picture's shape, what Render
+  renders and which scenes are lit; a short's own shot order and lengths are still set on the cards.
+
+#### The editor's script
+
+Mike asked for a v4 "modeled after Descript or some other editing platform", with "the script is editable text".
+The design and a working mockup: https://claude.ai/artifact/KfXhTG7i5WM5izRT1aCRgh. The first piece is the model:
+a board written as Fountain that a person types in, read back as the same ops the cards send
+(`src/board-script.js`), so the script is a view of the board, never a second copy.
+
+```
+Title: Example Song
+
+.INTRO 0:00-0:18.12
+SHOT e01 motion: in
+~Morning comes in sideways
+[[redo: warmer light]]
+
+DISSOLVE TO:
+
+.VERSE 1 0:18.12-0:24
+SHOT e02
+~Every cup still on the table
+```
+
+- A heading is a scene and its stretch of the song; `SHOT <id>` names its card. A heading with no SHOT line (or a
+  pasted copy of one) is a new scene; a deleted heading removes the scene.
+- Scenes gain two fields that change what a render shows, so either makes the cut out of date:
+  **`motion`** (`in out panl panr up down`, the music-video renderer's words) and **`transition`**, how the scene
+  comes in (`cut dissolve fade wipe push`, soma-cut's vocabulary, written as `DISSOLVE TO:`, `FADE TO BLACK.` ...).
+  Blank means the renderer's choice. A render brief lists the ones set and asks the renderer to name any it cannot do.
+- `[[redo: ...]]` is a redo note and marks the scene redo; deleting it puts the scene back to keep. Other lines under
+  a heading (a CARD, a narrator) are kept on the scene as `extra`.
+- A script with a problem (half-typed times, an unknown motion, words before the first heading) sends nothing, so
+  a heading caught mid-edit never deletes a scene.
 
 ## Render a script
 

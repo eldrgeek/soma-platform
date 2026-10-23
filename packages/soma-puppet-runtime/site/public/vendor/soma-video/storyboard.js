@@ -20,6 +20,10 @@
 
 export const SCENE_STATUSES = ['keep', 'redo', 'new'];
 export const ASPECTS = ['9x16', '16x9'];
+/** How a scene's picture moves (the music-video renderer's words); '' leaves it to the renderer. */
+export const MOTIONS = ['in', 'out', 'panl', 'panr', 'up', 'down'];
+/** How a scene comes in from the one before (soma-cut's vocabulary, SCRIPT-FORMAT.md §5); '' is the renderer's default. */
+export const TRANSITIONS = ['cut', 'dissolve', 'fade', 'wipe', 'push'];
 export const ASPECT_LABEL = { '9x16': '9:16', '16x9': '16:9' };
 /** What a storyboard asks the team on the Mac to do. Each is a job (server/studio.js). */
 export const BOARD_STEPS = [
@@ -46,9 +50,13 @@ const SCENE_FIELDS = {
   start: (v) => seconds(v),
   end: (v) => seconds(v),
   refs: (v) => refs(v),
+  motion: (v) => (v === '' || MOTIONS.includes(v) ? v : bad(`A motion is one of ${MOTIONS.join(', ')}`)),
+  transition: (v) => (v === '' || TRANSITIONS.includes(v) ? v : bad(`A transition is one of ${TRANSITIONS.join(', ')}`)),
+  // Script lines the board has no field for (a CARD, a narrator), kept on their scene so the editor loses nothing.
+  extra: (v) => text(v, LIMITS.text),
 };
 /** Fields that change what a render shows. A change to one of them makes the scene's cuts stale. */
-const VISIBLE = new Set(['lyric', 'start', 'end']);
+const VISIBLE = new Set(['lyric', 'start', 'end', 'motion', 'transition', 'extra']);
 
 export class BoardError extends Error {
   constructor(message) {
@@ -114,7 +122,7 @@ export const rangesText = (ranges) => (ranges ?? []).map(([a, b]) => `${clockOf(
 function cleanScene(raw, at) {
   const scene = {
     id: id(raw.id, 'A scene id'),
-    section: '', lyric: '', shot: '', prompt: '', refs: [], start: null, end: null, status: 'keep', note: '', noteBy: text(String(raw.noteBy ?? ''), LIMITS.short),
+    section: '', lyric: '', shot: '', prompt: '', refs: [], start: null, end: null, motion: '', transition: '', extra: '', status: 'keep', note: '', noteBy: text(String(raw.noteBy ?? ''), LIMITS.short),
     pictures: {}, source: {}, history: [], changedAt: raw.changedAt ?? at, updatedAt: at,
   };
   for (const [field, check] of Object.entries(SCENE_FIELDS)) if (raw[field] !== undefined) scene[field] = check(raw[field]);
@@ -238,7 +246,7 @@ const cutOf = (board, cutId) => board.cuts.find((c) => c.id === cutId) ?? bad(`N
 /**
  * The board after the ops, made by `by` ({ id, name }) in `role` ('owner', 'artist' or 'team'). Refuses
  * (BoardError) the whole list when one op is wrong. Ops:
- *   { op: 'set', scene, field, value }        field: status, note, prompt, lyric, section, shot, start, end, refs
+ *   { op: 'set', scene, field, value }        field: status, note, prompt, lyric, section, shot, start, end, refs, motion, transition, extra
  *   { op: 'move', scene, to }                 to: the scene's new index on the board
  *   { op: 'add-after', after, scene: {...} }  after: a scene id, or null for the start; returns the new id in board.added
  *   { op: 'remove', scene }                   a scene, and its shots in every cut
@@ -279,7 +287,7 @@ export function applyOps(board, ops, { by = {}, role, at = new Date().toISOStrin
       if (index === 0 && change.after != null) bad(`No scene ${change.after} on this board`);
       const before = next.scenes[index - 1];
       const fields = { ...(change.scene ?? {}) };
-      for (const key of Object.keys(fields)) if (!['lyric', 'prompt', 'refs', 'section', 'shot', 'start', 'end', 'note'].includes(key)) bad(`A new scene has no field ${key}`);
+      for (const key of Object.keys(fields)) if (!['lyric', 'prompt', 'refs', 'section', 'shot', 'start', 'end', 'note', 'motion', 'transition', 'extra'].includes(key)) bad(`A new scene has no field ${key}`);
       const scene = cleanScene({
         id: nextSceneId(next, change.after ?? null),
         section: before?.section ?? '', refs: before?.refs ?? [], start: before?.end ?? null, end: next.scenes[index]?.start ?? null,
@@ -370,12 +378,24 @@ export function cutState(board, cut) {
 /** Seconds of song a cut uses. */
 export const cutLength = (cut) => (cut.audio ?? []).reduce((sum, [a, b]) => sum + (b - a), 0);
 
+/** The motion and transitions people set in the editor, for a render: one line per scene that has either. */
+function onScreen(board, shots) {
+  const set = shots.map((s) => board.scenes.find((x) => x.id === s.scene)).filter((s) => s && (s.motion || s.transition));
+  if (!set.length) return [];
+  return [
+    'Motion and transitions set on the board (use these; a scene not listed is the renderer\'s choice. If the renderer',
+    'cannot do one, render without it and name it in your report):',
+    ...set.map((s) => `  ${s.id}: ${[s.motion && `motion ${s.motion}`, s.transition && `comes in by ${s.transition}`].filter(Boolean).join(', ')}`),
+  ];
+}
+
 /** What the team needs to know about one scene, headed by what to make of it. */
 function sceneLines(scene, what = 'Scene') {
   const out = [
     `${what}: ${scene.id}.`,
     `Section: ${scene.section || '(none)'}. Lyric line: ${scene.lyric || '(none)'}. Song time: ${clockOf(scene.start) || '?'} to ${clockOf(scene.end) || '?'}.`,
     `Shot: ${scene.shot || '(any)'}. Reference photos: ${scene.refs.join(', ') || '(none)'}.`,
+    ...(scene.motion || scene.transition ? [`On screen: motion ${scene.motion || '(renderer\'s choice)'}, comes in by ${scene.transition || '(renderer\'s default)'}.`] : []),
     `Prompt: ${scene.prompt || '(none yet: write one that fits the lyric and the scenes around it)'}`,
   ];
   if (scene.note) out.push(`Redo note from ${scene.noteBy || 'the artist'}: ${scene.note}`);
@@ -441,6 +461,7 @@ export function jobBrief(board, job) {
       `Scenes, in order: ${shots.map((s) => (s.seconds ? `${s.scene} (${s.seconds}s)` : s.scene)).join(', ')}.`,
       `Song: ${rangesText(cut.audio) || 'the whole song'}.`,
       ...(cut.spec ? [`The cut's spec (the renderer's own settings, kept from before): ${JSON.stringify(cut.spec)}`] : []),
+      ...onScreen(board, shots),
       '',
       'Use the picture each scene has now on the board (its "source" for this aspect) and the renderer this project',
       'already uses for a cut of this kind; update that renderer\'s input from the board, never by hand.',

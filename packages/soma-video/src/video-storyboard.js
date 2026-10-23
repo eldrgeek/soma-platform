@@ -23,6 +23,9 @@
  * host: whether the reader is the app's host (starts boards, lets held jobs run).
  * initial: a board id to open; onOpen(id or null) is told when the reader opens or leaves a board.
  *
+ * v4 (2026-10-23): "Script and timeline" opens the board in the editor (video-editor.js), the same board as a
+ * script, a preview, the song's waveform and a timeline across the full width. "← Cards" comes back here.
+ *
  * Written 2026-10-23 by Claude Opus 5.5 (CCc) for Mike Wolf.
  */
 import { ago } from './video-jobs.js';
@@ -30,6 +33,7 @@ import {
   ASPECT_LABEL, ASPECTS, BOARD_STEPS, clockOf, cutLength, cutScenes, cutState, parseClock, parseRanges, rangesText, SCENE_STATUSES,
 } from './storyboard.js';
 import { jobScenes, parseNotes, redoQueue } from './notes.js';
+import { mountVideoEditor } from './video-editor.js';
 
 const STYLE_ID = 'soma-video-storyboard-style';
 const CSS = `
@@ -126,7 +130,8 @@ export function mountStoryboards(container, { api, host = false, initial = null,
   const message = el(document, 'p', 'svs-msg');
   message.setAttribute('role', 'status');
   const body = el(document, 'div');
-  root.append(body, message);
+  const editorHost = el(document, 'div');
+  root.append(body, editorHost, message);
 
   let board = null;
   let jobs = [];
@@ -137,6 +142,7 @@ export function mountStoryboards(container, { api, host = false, initial = null,
   let editingCut = null;
   let playing = null;
   let audio = null;
+  let editor = null;
   const urls = new Map();
   const seenOpen = new Set();
   const say = (text) => { message.textContent = text; };
@@ -244,6 +250,7 @@ export function mountStoryboards(container, { api, host = false, initial = null,
 
   // ---------- the list of boards ----------
   async function showList() {
+    closeEditor(false);
     stop();
     board = null;
     editingCut = null;
@@ -294,14 +301,34 @@ export function mountStoryboards(container, { api, host = false, initial = null,
     await loadJobs();
   }
 
+  function openEditor() {
+    stop();
+    body.hidden = true;
+    editor = mountVideoEditor(editorHost, {
+      board, api, host, objectUrl, document, window,
+      onBoard: (next) => { board = next; },
+      onClose: () => closeEditor(true),
+    });
+  }
+
+  function closeEditor(redraw) {
+    if (!editor) return;
+    board = editor.board ?? board;
+    editor.destroy();
+    editor = null;
+    body.hidden = false;
+    if (redraw) draw();
+  }
+
   function draw() {
-    if (!board) return;
+    if (!board || editor) return;
     stop();
     body.replaceChildren();
     const bar = el(document, 'div', 'svs-bar');
     bar.append(button('← All storyboards', () => showList()));
     const title = el(document, 'h2', 'svs-grow', board.title);
     bar.append(title);
+    bar.append(button('Script and timeline', () => openEditor(), 'svs-btn svs-primary'));
     for (const a of ASPECTS) {
       const toggle = button(ASPECT_LABEL[a], () => { aspect = a; draw(); });
       toggle.setAttribute('aria-pressed', String(a === aspect));
@@ -711,7 +738,8 @@ export function mountStoryboards(container, { api, host = false, initial = null,
         const fresh = await api.getBoard(board.id);
         if (fresh.version !== board.version) {
           board = fresh;
-          draw();
+          if (editor) editor.update(fresh);
+          else draw();
         }
         await loadJobs();
       } catch (error) {
@@ -734,6 +762,7 @@ export function mountStoryboards(container, { api, host = false, initial = null,
     update() {},
     destroy() {
       gone = true;
+      closeEditor(false);
       stop();
       window?.clearTimeout?.(timer);
       for (const pending of urls.values()) pending.then((url) => url && window?.URL?.revokeObjectURL?.(url));
