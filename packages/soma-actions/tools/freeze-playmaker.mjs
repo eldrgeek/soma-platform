@@ -13,6 +13,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const packageRootForImport = packageRoot.replace(/\\/g, "/");
 const playmakerArg = process.argv[2];
 const PLAYMAKER_COMMIT = "9ebc364c";
 const fixtureDir = join(packageRoot, "fixtures", `playmaker-${PLAYMAKER_COMMIT}`);
@@ -44,6 +45,8 @@ import { COMMAND_CATALOGUE } from '${pmRoot}/src/agent-portal/catalogue.ts';
 import { validateCommandArgs, commandArgsJsonSchema } from '${pmRoot}/src/agent-portal/validation.ts';
 import { WORKFLOWS, workflowCommands, compareInvocations } from '${pmRoot}/src/agent-portal/workflows.ts';
 import { createCommandRegistry } from '${pmRoot}/src/agent-portal/registry.ts';
+import { REGISTRY_CASE_SCRIPTS } from '${packageRootForImport}/tools/registry-scripts.mjs';
+import { runRegistryScript } from '${packageRootForImport}/test/support/registry-script.mjs';
 
 const PLAYMAKER_COMMIT = '${PLAYMAKER_COMMIT}';
 const FROZEN_AT = '${frozenAt}';
@@ -182,74 +185,20 @@ writeJson('workflows.json', { workflows: WORKFLOWS, workflowSnapshots });
 
 const registryCases = [];
 
-function captureRegistryCase(id, run) {
+for (const caseDef of REGISTRY_CASE_SCRIPTS) {
   installDeterministicHarness();
   const registry = createCommandRegistry();
   registry.clearAudit();
-  const outcome = run(registry);
+  const { invoke, stepResults } = await runRegistryScript(registry, caseDef.script);
   registryCases.push({
-    id,
-    invoke: outcome.invoke,
+    id: caseDef.id,
+    script: caseDef.script,
+    invoke,
+    stepResults,
     audit: registry.audit(),
     auditLength: registry.audit().length,
   });
 }
-
-captureRegistryCase('unknown-command', (registry) => {
-  const invoke = registry.invoke('no.such.command', {});
-  return { invoke };
-});
-
-captureRegistryCase('invalid-args', (registry) => {
-  const invoke = registry.invoke('play.rename', { title: 42 });
-  return { invoke };
-});
-
-captureRegistryCase('impl-throws', (registry) => {
-  registry.provide({
-    'play.newScene': {
-      run: () => {
-        throw new Error('boom');
-      },
-    },
-  });
-  const invoke = registry.invoke('play.newScene', {});
-  return { invoke };
-});
-
-captureRegistryCase('successful-impl', (registry) => {
-  registry.provide({
-    'edit.undo': {
-      run: () => ({ done: true }),
-    },
-  });
-  const invoke = registry.invoke('edit.undo', {});
-  return { invoke };
-});
-
-captureRegistryCase('truncation-300-char', (registry) => {
-  registry.provide({
-    'note.save': {
-      run: () => true,
-    },
-  });
-  const body = 'x'.repeat(300);
-  const invoke = registry.invoke('note.save', { body, sceneId: 's1' });
-  return { invoke };
-});
-
-captureRegistryCase('audit-limit-501', (registry) => {
-  registry.provide({
-    'play.newScene': {
-      run: () => undefined,
-    },
-  });
-  let last;
-  for (let i = 0; i < 501; i += 1) {
-    last = registry.invoke('play.newScene', {});
-  }
-  return { invoke: last };
-});
 
 writeJson('registry-invoke.json', { registryCases });
 
