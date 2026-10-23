@@ -70,13 +70,16 @@ export function boardToScript(board) {
 
 /**
  * The script as scenes, without the board: { title, scenes: [{ line, id, section, start, end, motion,
- * transition, lyric, note, redo, extra }], problems: [{ line, message }], lineScene: [scene index per line] }.
+ * transition, lyric, note, redo, extra }], problems: [{ line, message }] (nothing is saved while there are any),
+ * warnings: [{ line, message }] (gaps and overlaps, saved anyway), lineScene: [scene index per line] }.
  * Line numbers count from 1. A transition line belongs to the scene it leads into.
  */
 export function readScript(text) {
   const lines = String(text ?? '').replace(/\r/g, '').split('\n');
   const scenes = [];
   const problems = [];
+  // Gaps and overlaps are saved (retiming two scenes passes through one) but named, so they are not forgotten.
+  const warnings = [];
   const lineScene = [];
   let title = null;
   let pending = '';
@@ -149,10 +152,10 @@ export function readScript(text) {
   for (let i = 1; i < scenes.length; i += 1) {
     const [a, b] = [scenes[i - 1], scenes[i]];
     if (a.end == null || b.start == null) continue;
-    if (b.start < a.end - 0.005) problem(b.line - 1, `This scene starts at ${timeText(b.start)}, before the one above ends (${timeText(a.end)})`);
-    else if (b.start > a.end + 0.005) problem(b.line - 1, `Nothing is on screen from ${timeText(a.end)} to ${timeText(b.start)}`);
+    if (b.start < a.end - 0.005) warnings.push({ line: b.line, message: `This scene starts at ${timeText(b.start)}, before the one above ends (${timeText(a.end)})` });
+    else if (b.start > a.end + 0.005) warnings.push({ line: b.line, message: `Nothing is on screen from ${timeText(a.end)} to ${timeText(b.start)}` });
   }
-  return { title, scenes, problems, lineScene };
+  return { title, scenes, problems, warnings, lineScene };
 }
 
 /**
@@ -162,7 +165,7 @@ export function readScript(text) {
  */
 export function scriptToOps(board, text, { role = 'owner', by = {}, at } = {}) {
   const read = readScript(text);
-  if (read.problems.length) return { ops: [], problems: read.problems, board };
+  if (read.problems.length) return { ops: [], problems: read.problems, warnings: read.warnings, board };
   const ops = [];
   let next = board;
   const run = (op) => {
@@ -203,7 +206,7 @@ export function scriptToOps(board, text, { role = 'owner', by = {}, at } = {}) {
     }
     before = id;
   });
-  return { ops, problems: [], board: next };
+  return { ops, problems: [], warnings: read.warnings, board: next };
 }
 
 /** Ops in the batches the board routes take (applyOps takes 1 to 50 at a time). */

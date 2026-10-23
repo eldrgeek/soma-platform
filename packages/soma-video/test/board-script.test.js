@@ -110,11 +110,16 @@ test('a script with a problem sends nothing, so a half-typed heading never delet
   assert.match(scriptToOps(b, `stray words\n${boardToScript(b)}`).problems[0].message, /not part of any scene/);
 });
 
-test('gaps and overlaps are named against their line', () => {
-  const { problems } = readScript('.A 0:00-0:10\n\n.B 0:12-0:20\n\n.C 0:19-0:30');
-  assert.deepEqual(problems.map((p) => p.line), [3, 5]);
-  assert.match(problems[0].message, /Nothing is on screen from 0:10 to 0:12/);
-  assert.match(problems[1].message, /before the one above ends/);
+test('gaps and overlaps are named against their line, and still saved', () => {
+  const { problems, warnings } = readScript('.A 0:00-0:10\n\n.B 0:12-0:20\n\n.C 0:19-0:30');
+  assert.deepEqual(problems, []);
+  assert.deepEqual(warnings.map((p) => p.line), [3, 5]);
+  assert.match(warnings[0].message, /Nothing is on screen from 0:10 to 0:12/);
+  assert.match(warnings[1].message, /before the one above ends/);
+  const b = board();
+  const { ops, warnings: w } = scriptToOps(b, edit(boardToScript(b), '.Verse 1 0:24-0:30', '.Verse 1 0:25-0:30'));
+  assert.deepEqual(ops, [{ op: 'set', scene: 'e03', field: 'start', value: 25 }]);
+  assert.match(w[0].message, /Nothing is on screen from 0:24 to 0:25/);
 });
 
 test('each line knows its scene; a transition belongs to the scene it leads into', () => {
