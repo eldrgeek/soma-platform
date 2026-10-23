@@ -63,6 +63,25 @@
         }
       }
     },
+    "feedback_chip": {
+      "type": "object",
+      "required": ["widget_files"],
+      "additionalProperties": false,
+      "properties": {
+        "widget_files": {
+          "type": "object",
+          "required": [
+            "public/vendor/soma-feedback/soma-feedback.js",
+            "public/vendor/soma-feedback/soma-feedback.css"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "public/vendor/soma-feedback/soma-feedback.js": { "$ref": "#/$defs/sha256" },
+            "public/vendor/soma-feedback/soma-feedback.css": { "$ref": "#/$defs/sha256" }
+          }
+        }
+      }
+    },
     "packages": {
       "type": "object",
       "propertyNames": {

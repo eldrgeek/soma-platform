@@ -17,6 +17,11 @@ slice makes no network or database calls.
 - **C13 (local)** checks the canonical contract hash, all referenced source
   paths, and vendored package hashes from `soma-kit.lock.json`. Guide integrity
   over the network and template-commit provenance report `not_run`.
+- **C15 (local)** checks the vendored feedback chip: `index.html` loads the
+  widget script (with `data-no-google` and `data-site` set to the manifest app
+  id), `public/vendor/soma-feedback/*` files exist, and their SHA-256 hashes match
+  `soma-kit.lock.json` `feedback_chip.widget_files`. Repositories whose lock
+  predates `feedback_chip` report `not_run`.
 
 Every C-table check not implemented here is still emitted as `not_run` with
 the reason `not built in M1 slice 2`; omitted coverage is never reported as a

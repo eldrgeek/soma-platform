@@ -24,6 +24,7 @@ import {
   runGit,
   wireFileOriginToBare,
 } from "./gitTestHelpers.mjs";
+import { writeMinimalV1ReactTemplateTree } from "./minimalV1ReactTemplate.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SCAFFOLDER_ROOT = join(__dirname, "..");
@@ -35,42 +36,13 @@ const CONFORM_CLI = join(SCAFFOLDER_ROOT, "..", "soma-conformance", "bin", "soma
 // export-app-schema / erase-app-schema are one-line prose stubs (not executable handlers);
 // conformance only needs repository-relative paths with stable bytes for C13 contract hashing.
 
-function writeMinimalTemplateTree(dir) {
-  writeFileSync(
-    join(dir, "package.json"),
-    JSON.stringify({ name: "soma-app-template", private: true }, null, 2) + "\n",
-  );
-  writeFileSync(join(dir, "index.html"), "<!doctype html><html><head><title>T</title></head><body></body></html>\n");
-  const appConfig = `export const APP_ID = 'template';\nexport const APP_NAME = 'Template';\n`;
-  mkdirSync(join(dir, "src", "lib"), { recursive: true });
-  mkdirSync(join(dir, "netlify", "functions", "lib"), { recursive: true });
-  writeFileSync(join(dir, "src", "lib", "appConfig.ts"), appConfig);
-  writeFileSync(join(dir, "netlify", "functions", "lib", "appConfig.ts"), appConfig);
-  writeFileSync(
-    join(dir, "src", "lib", "hostPair.ts"),
-    `export const hostPair = {
-  human: { name: '(unassigned — name your human host here)' },
-  ai: { name: 'Guide', avatar: '🤖' },
-};\n`,
-  );
-  writeFileSync(join(dir, "src", "lib", "supabase.ts"), "export const supabase = {} as any;\n");
-  writeFileSync(
-    join(dir, "src", "lib", "lastLocation.ts"),
-    "export async function fetchLastLocation() { return null; }\n",
-  );
-  writeFileSync(
-    join(dir, "netlify", "functions", "lib", "supabaseAdmin.ts"),
-    "export function adminEnv() { throw new Error('no env'); }\n",
-  );
-}
-
 function createCleanTemplateRepo() {
   const repoRoot = mkdtempSync(join(tmpdir(), "soma-template-root-"));
   const bareDir = initBareOrigin(repoRoot);
 
   const templateDir = mkdtempSync(join(tmpdir(), "soma-template-"));
   runGit(templateDir, ["init"]);
-  writeMinimalTemplateTree(templateDir);
+  writeMinimalV1ReactTemplateTree(templateDir);
   runGit(templateDir, ["add", "."]);
   runGit(templateDir, ["commit", "-m", "template seed"]);
   runGit(templateDir, ["branch", "-M", "main"]);

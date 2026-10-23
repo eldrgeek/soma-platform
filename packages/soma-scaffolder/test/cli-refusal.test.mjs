@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -17,30 +17,11 @@ import {
   toFileOriginUrl,
   wireFileOriginToBare,
 } from "./gitTestHelpers.mjs";
+import { writeMinimalV1ReactTemplateTree } from "./minimalV1ReactTemplate.mjs";
 
 const SCAFFOLDER_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const MONOREPO_ROOT = join(SCAFFOLDER_ROOT, "..", "..");
 const FIXTURE_MANIFEST = join(SCAFFOLDER_ROOT, "test", "fixtures", "v1-disposable", "soma-app.json");
-
-function writeMinimalTemplateTree(dir) {
-  writeFileSync(
-    join(dir, "package.json"),
-    JSON.stringify({ name: "soma-app-template", private: true }, null, 2) + "\n",
-  );
-  writeFileSync(join(dir, "index.html"), "<!doctype html><html><head><title>T</title></head><body></body></html>\n");
-  mkdirSync(join(dir, "src", "lib"), { recursive: true });
-  mkdirSync(join(dir, "netlify", "functions", "lib"), { recursive: true });
-  const appConfig = `export const APP_ID = 'template';\nexport const APP_NAME = 'Template';\n`;
-  writeFileSync(join(dir, "src", "lib", "appConfig.ts"), appConfig);
-  writeFileSync(join(dir, "netlify", "functions", "lib", "appConfig.ts"), appConfig);
-  writeFileSync(
-    join(dir, "src", "lib", "hostPair.ts"),
-    `export const hostPair = {
-  human: { name: '(unassigned — name your human host here)' },
-  ai: { name: 'Guide', avatar: '🤖' },
-};\n`,
-  );
-}
 
 function createCleanTemplateRepo() {
   const repoRoot = mkdtempSync(join(tmpdir(), "soma-template-root-"));
@@ -48,7 +29,7 @@ function createCleanTemplateRepo() {
 
   const templateDir = mkdtempSync(join(tmpdir(), "soma-template-"));
   runGit(templateDir, ["init"]);
-  writeMinimalTemplateTree(templateDir);
+  writeMinimalV1ReactTemplateTree(templateDir);
   runGit(templateDir, ["add", "."]);
   runGit(templateDir, ["commit", "-m", "template seed"]);
   runGit(templateDir, ["branch", "-M", "main"]);

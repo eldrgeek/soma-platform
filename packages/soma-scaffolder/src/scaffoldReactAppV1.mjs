@@ -1,4 +1,5 @@
 import {
+  cpSync,
   existsSync,
   mkdirSync,
   readFileSync,
@@ -72,6 +73,7 @@ declare module "@vendor/soma/signin/somaAuthConfig.js";
 declare module "@vendor/soma/signin/somaKnownDevice.js";
 declare module "@vendor/soma/signin/react/AuthProvider";
 declare module "@vendor/soma/signin/react/SomaAuth";
+declare module "@vendor/soma/feedback/index.js";
 `,
   );
   writeFile(
@@ -215,7 +217,85 @@ export default function SignIn() {
   );
 }
 
-function wireTicketsAndMeterV1(outDir, { platformRoot = SOMA_PLATFORM_ROOT } = {}) {
+function htmlAttr(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function injectFeedbackChipIndexHtmlV1(outDir, appId) {
+  const full = join(outDir, "index.html");
+  if (!existsSync(full)) {
+    throw new Error(`wireFeedbackV1: missing ${full}`);
+  }
+  const block = `
+    <!-- SOMA App Standard §8 — feedback chip (vendored widget + @soma/feedback hooks). -->
+    <link rel="stylesheet" href="/vendor/soma-feedback/soma-feedback.css">
+    <script src="/vendor/soma-feedback/soma-feedback.js"
+            data-no-google
+            data-label="Feedback"
+            data-site="${htmlAttr(appId)}" defer></script>
+`;
+  let html = readFileSync(full, "utf8");
+  if (html.includes("/vendor/soma-feedback/soma-feedback.js")) return;
+  if (!html.includes("</body>")) {
+    throw new Error(`wireFeedbackV1: no </body> in ${full}; cannot add the feedback chip`);
+  }
+  html = html.replace("</body>", `${block}  </body>`);
+  writeFileSync(full, html);
+}
+
+function rewriteMainTsxForFeedbackV1(outDir) {
+  const full = join(outDir, "src/main.tsx");
+  if (!existsSync(full)) {
+    throw new Error(`wireFeedbackV1: missing ${full}; cannot install the feedback hooks`);
+  }
+  let src = readFileSync(full, "utf8");
+  if (src.includes("installSomaFeedbackHooks")) return;
+  const anchor = /createRoot\(document\.getElementById\('root'\)!\)/;
+  if (!anchor.test(src)) {
+    throw new Error(
+      `wireFeedbackV1: no createRoot(document.getElementById('root')!) in ${full}; cannot install the feedback hooks`,
+    );
+  }
+  src =
+    `import { installSomaFeedbackHooks } from '@vendor/soma/feedback/index.js';\n` +
+    `import { supabase } from '@/lib/supabase';\n` +
+    src.replace(
+      anchor,
+      "installSomaFeedbackHooks({ supabase });\n\ncreateRoot(document.getElementById('root')!)",
+    );
+  writeFileSync(full, src);
+}
+
+function wireFeedbackV1(outDir, appId, { platformRoot = SOMA_PLATFORM_ROOT } = {}) {
+  const commit = readSomaPlatformCommit(platformRoot);
+  const feedbackPkg = join(platformRoot, "packages", "soma-feedback");
+  vendorPackageSrc(
+    feedbackPkg,
+    join(outDir, VENDORED_FEEDBACK_DIR),
+    "soma-feedback",
+    commit,
+  );
+
+  const widgetSrc = join(feedbackPkg, "widget");
+  const widgetDest = join(outDir, FEEDBACK_WIDGET_DIR);
+  mkdirSync(widgetDest, { recursive: true });
+  for (const file of ["soma-feedback.css", "soma-feedback.js"]) {
+    const from = join(widgetSrc, file);
+    if (!existsSync(from)) {
+      throw new Error(`wireFeedbackV1: missing widget asset ${from}`);
+    }
+    cpSync(from, join(widgetDest, file));
+  }
+
+  rewriteMainTsxForFeedbackV1(outDir);
+  injectFeedbackChipIndexHtmlV1(outDir, appId);
+}
+
+function wireTicketsAndMeterV1(outDir, { platformRoot = SOMA_PLATFORM_ROOT, appId } = {}) {
   const commit = readSomaPlatformCommit(platformRoot);
   vendorPackageSrc(
     join(platformRoot, "packages", "soma-tickets"),
@@ -247,6 +327,8 @@ import { supabase } from './supabase';
 export const tickets = createTickets({ supabase, app: APP_ID });
 `,
   );
+
+  wireFeedbackV1(outDir, appId, { platformRoot });
 
   writeFile(
     outDir,
@@ -356,7 +438,7 @@ export async function scaffoldReactAppV1(
   mkdirSync(outDir, { recursive: true });
   copyTrackedTemplateTree(appTemplateDir, outDir);
   copyManifestSources(manifestDir, outDir, manifest);
-  wireTicketsAndMeterV1(outDir, { platformRoot });
+  wireTicketsAndMeterV1(outDir, { platformRoot, appId: manifest.app.id });
   wireSignInAuthV1(outDir);
   patchTsconfigForVendor(outDir);
   patchViteForVendor(outDir);

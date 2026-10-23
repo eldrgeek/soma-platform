@@ -12,6 +12,24 @@ import {
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SCAFFOLDER_ROOT = join(__dirname, "..");
 
+const FEEDBACK_WIDGET_LOCK_PATHS = [
+  "public/vendor/soma-feedback/soma-feedback.js",
+  "public/vendor/soma-feedback/soma-feedback.css",
+];
+
+function feedbackChipLockSection(outDir) {
+  const widget_files = {};
+  for (const rel of FEEDBACK_WIDGET_LOCK_PATHS) {
+    const full = join(outDir, rel);
+    if (!existsSync(full)) {
+      throw new Error(`writeKitLock: missing feedback chip widget file ${rel}`);
+    }
+    const bytes = readFileSync(full);
+    widget_files[rel] = createHash("sha256").update(bytes).digest("hex");
+  }
+  return { widget_files };
+}
+
 function readPackageVersion(platformRoot, unscopedName) {
   const pkgPath = join(platformRoot, "packages", `soma-${unscopedName}`, "package.json");
   if (existsSync(pkgPath)) {
@@ -88,6 +106,7 @@ export async function writeKitLock({
     template,
     contract_sha256,
     guide: guideAssetsFromPlatform(platformRoot),
+    feedback_chip: feedbackChipLockSection(outDir),
     packages,
   };
 

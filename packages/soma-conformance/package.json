@@ -18,7 +18,8 @@
   ],
   "scripts": {
     "test": "node --test test/*.test.mjs",
-    "mutation-check": "node scripts/mutation-check.mjs"
+    "mutation-check": "node scripts/mutation-check.mjs",
+    "mutation-check-c15": "node scripts/mutation-check-c15.mjs"
   },
   "dependencies": {
     "@soma/contracts": "file:../soma-contracts",
