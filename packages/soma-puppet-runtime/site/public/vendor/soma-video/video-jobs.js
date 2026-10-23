@@ -6,7 +6,7 @@
  * One button per step (JOB_STEPS in jobs.js) and a box to ask the team anything in words. Each request
  * becomes a job that the VideoMaker worker on the Mac runs with Claude Code, in the script's project
  * folder, with the estate's skills (kinetic-lyric-video, image-panel). The list below shows each job's
- * state, the last lines of its log and, when it ends, the team's report. While a job is open the panel
+ * state, how far a long step has got, the last lines of its log and, when it ends, the team's report. While a job is open the panel
  * asks again every 10 seconds; onDone() runs when a job finishes, so the page can load new assets.
  *
  * Written 2026-10-22 by Claude Opus 5.5 (CCc) for Mike Wolf, bead sp-h3i.
@@ -35,6 +35,9 @@ const CSS = `
 .svj-status { font: 600 11px/1.6 ui-monospace, Menlo, monospace; padding: 0 6px; border-radius: 4px; background: #e8edf5; }
 .svj-status-running { background: #fff1c2; } .svj-status-done { background: #d9f2df; } .svj-status-failed { background: #fbd9d9; }
 .svj-note { margin: 2px 0 0; font-size: 13px; white-space: pre-wrap; }
+.svj-progress { height: 8px; border-radius: 999px; background: #e8edf5; overflow: hidden; margin: 6px 0 2px; }
+.svj-progress span { display: block; height: 100%; background: #6b4fa0; transition: width .6s ease; }
+.svj-progress-label { margin: 0; font-size: 12px; color: #44506a; }
 .svj-log { margin: 4px 0 0; font: 12px/1.45 ui-monospace, Menlo, monospace; color: #44506a; white-space: pre-wrap; background: #f4f6fa; border-radius: 4px; padding: 4px 6px; }
 .svj-job details { margin-top: 4px; font-size: 13px; } .svj-job details div { white-space: pre-wrap; margin-top: 4px; }
 `;
@@ -121,6 +124,18 @@ export function mountVideoJobs(container, { listJobs, createJob, onDone = () => 
       head.append(el(document, 'b', '', label(job.step)), el(document, 'span', `svj-status svj-status-${job.status}`, job.status), el(document, 'span', 'svj-when', ago(job.updatedAt || job.createdAt)));
       item.append(head);
       if (job.note) item.append(el(document, 'p', 'svj-note', job.note));
+      if (isOpen(job) && job.progress?.total) {
+        // How far a long step has got, posted by the worker (for a render: parts of the film built).
+        const { label, done, total } = job.progress;
+        const percent = Math.round((done / total) * 100);
+        const bar = el(document, 'div', 'svj-progress');
+        bar.setAttribute('role', 'progressbar');
+        bar.setAttribute('aria-valuenow', String(percent));
+        const fill = el(document, 'span');
+        fill.style.width = `${percent}%`;
+        bar.append(fill);
+        item.append(bar, el(document, 'p', 'svj-progress-label', `${label || 'Working'}: ${done} of ${total} (${percent}%)`));
+      }
       if (job.log?.length && isOpen(job)) item.append(el(document, 'pre', 'svj-log', job.log.slice(-4).join('\n')));
       if (job.report) {
         const details = el(document, 'details');
