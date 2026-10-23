@@ -86,6 +86,7 @@ soma-cut. The first one is The Compassionate Heart
 | `src/storyboard.js` | The storyboard model: `cleanBoard`, `applyOps`, `roleOf`, `cutState`, `jobBrief`, `parseRanges`. Shared by the page, the server and the seed. |
 | `src/video-storyboard.js` | `mountStoryboards(container, { api, host, initial, onOpen })`. |
 | `server/boards.js` | `createBoardStore({ blobs })`: boards and their files in Netlify Blobs (`soma-video-studio`), changes retried on the etag. |
+| `src/board-script.js` | A storyboard as the v4 editor's script and back: `boardToScript`, `readScript`, `scriptToOps`, `opBatches`, `timeText`. |
 | `src/notes.js` | An artist's notes as written (email, text, the notes box) read against a board: `parseNotes`, `notesOps`, `notesToRedo`, `redoQueue`. |
 | `bin/vm-board-notes.mjs` | Notes that arrived by email or text, on the Mac: shows where each lands; `--send` puts them on the cards and asks for one held batch. |
 | `bin/vm-board-seed.mjs` | A storyboard from a song project's album, timings, cuts and renders; `--upload` sends it with the team key. |
@@ -138,6 +139,39 @@ session) instead of one job per card.
 
 The gate is unchanged: a batch asked for by anyone but the host, and **every** batch sent with the team
 key, is held until the host presses "Let it run", because it runs with Claude Code's full reach on the Mac.
+
+### The editor's script (v4, 2026-10-23)
+
+Mike asked for a v4 "modeled after Descript or some other editing platform", with "the script is editable text".
+The design and a working mockup: https://claude.ai/artifact/KfXhTG7i5WM5izRT1aCRgh. The first piece is the model:
+a board written as Fountain that a person types in, read back as the same ops the cards send
+(`src/board-script.js`), so the script is a view of the board, never a second copy.
+
+```
+Title: Example Song
+
+.INTRO 0:00-0:18.12
+SHOT e01 motion: in
+~Morning comes in sideways
+[[redo: warmer light]]
+
+DISSOLVE TO:
+
+.VERSE 1 0:18.12-0:24
+SHOT e02
+~Every cup still on the table
+```
+
+- A heading is a scene and its stretch of the song; `SHOT <id>` names its card. A heading with no SHOT line (or a
+  pasted copy of one) is a new scene; a deleted heading removes the scene.
+- Scenes gain two fields that change what a render shows, so either makes the cut out of date:
+  **`motion`** (`in out panl panr up down`, the music-video renderer's words) and **`transition`**, how the scene
+  comes in (`cut dissolve fade wipe push`, soma-cut's vocabulary, written as `DISSOLVE TO:`, `FADE TO BLACK.` ...).
+  Blank means the renderer's choice. A render brief lists the ones set and asks the renderer to name any it cannot do.
+- `[[redo: ...]]` is a redo note and marks the scene redo; deleting it puts the scene back to keep. Other lines under
+  a heading (a CARD, a narrator) are kept on the scene as `extra`.
+- A script with a problem (half-typed times, an unknown motion, words before the first heading) sends nothing, so
+  a heading caught mid-edit never deletes a scene.
 
 ## Render a script
 
