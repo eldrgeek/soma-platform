@@ -18,6 +18,7 @@ const [cmd, specPath, outDir] = args.filter((a) => a !== "--execute");
 
 function die(msg) { console.error(msg); process.exit(1); }
 
+async function main() {
 if (!cmd || !["validate", "migrate-spec", "scaffold", "react-app", "provision"].includes(cmd) || !specPath) {
   die(
     "usage:\n" +
@@ -62,7 +63,7 @@ if (errors.length) {
 }
 console.log("✓ spec valid");
 
-if (doc.schema_version === "soma.app/1" && cmd !== "validate") {
+if (doc.schema_version === "soma.app/1" && cmd !== "validate" && cmd !== "react-app") {
   die(`soma.app/1 ${cmd} generation is not implemented in this contract-only slice`);
 }
 
@@ -74,10 +75,13 @@ if (cmd === "scaffold") {
 }
 
 if (cmd === "react-app") {
-  const res = scaffoldReactApp(doc, { outDir });
-  console.log(`✓ react-app scaffolded ${doc.soma_app.slug} → ${res.outDir}`);
+  const res = await scaffoldReactApp(doc, { outDir });
+  const slug = doc.schema_version === "soma.app/1" ? doc.app.id : doc.soma_app.slug;
+  console.log(`✓ react-app scaffolded ${slug} → ${res.outDir}`);
   console.log(`  run: cd ${res.outDir} && npm install && npm run dev`);
-  if (res.unresolved.length) console.log(`  ⚠ ${res.unresolved.length} unresolved guide-config placeholder(s): ${res.unresolved.join(", ")}`);
+  if (res.unresolved.length) {
+    console.log(`  ⚠ ${res.unresolved.length} unresolved guide-config placeholder(s): ${res.unresolved.join(", ")}`);
+  }
 }
 
 if (cmd === "provision") {
@@ -93,3 +97,6 @@ if (cmd === "provision") {
     console.log(`\n  dry-run: review ${res.scriptPath}, then run it (or re-run with --execute for instructions).`);
   }
 }
+}
+
+await main();

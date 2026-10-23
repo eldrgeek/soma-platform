@@ -21,7 +21,7 @@ import { homedir } from "node:os";
 import { buildValues, fill, removeLineContaining, removeBlock } from "./scaffold.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const SOMA_PLATFORM_ROOT = join(__dirname, "..", "..", "..");
+export const SOMA_PLATFORM_ROOT = join(__dirname, "..", "..", "..");
 
 /** Template dir: explicit/env, then soma-platform sibling, then ~/Projects/soma-app-template. */
 export function resolveAppTemplateDir(explicit) {
@@ -82,7 +82,7 @@ function writeFile(outDir, rel, content) {
   return rel;
 }
 
-function readSomaPlatformCommit(platformRoot = SOMA_PLATFORM_ROOT) {
+export function readSomaPlatformCommit(platformRoot = SOMA_PLATFORM_ROOT) {
   try {
     return execSync("git rev-parse HEAD", { cwd: platformRoot, encoding: "utf8" }).trim();
   } catch {
@@ -100,7 +100,7 @@ Do not edit these files in place — update soma-platform and re-scaffold, or re
 }
 
 /** Copy package src/ (+ sql/schema.sql beside it) into the generated app. */
-function vendorPackageSrc(pkgRoot, destDir, packageDirName, commit) {
+export function vendorPackageSrc(pkgRoot, destDir, packageDirName, commit) {
   const srcDir = join(pkgRoot, "src");
   const schemaSql = join(pkgRoot, "sql", "schema.sql");
   if (!existsSync(srcDir)) {
@@ -508,15 +508,31 @@ function setupDoc(app, unresolved) {
   return lines.join("\n");
 }
 
-export function scaffoldReactApp(
+export async function scaffoldReactApp(
   doc,
   {
     outDir,
     appTemplateDir = DEFAULT_APP_TEMPLATE,
     affordancesTemplatesDir = DEFAULT_AFFORDANCES_TEMPLATES,
     platformRoot = SOMA_PLATFORM_ROOT,
+    conformanceBundleDir = null,
+    skipKitLock = false,
+    skipTemplateProvenance = false,
   } = {},
 ) {
+  if (doc?.schema_version === "soma.app/1") {
+    const { scaffoldReactAppV1 } = await import("./scaffoldReactAppV1.mjs");
+    const res = await scaffoldReactAppV1(doc, {
+      outDir,
+      appTemplateDir,
+      platformRoot,
+      conformanceBundleDir,
+      skipKitLock,
+      skipTemplateProvenance,
+    });
+    return { outDir: res.outDir, unresolved: [] };
+  }
+
   const app = doc.soma_app;
   if (!existsSync(appTemplateDir)) {
     throw new Error(

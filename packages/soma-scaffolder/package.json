@@ -19,6 +19,7 @@
   },
   "license": "UNLICENSED",
   "dependencies": {
+    "@soma/conformance": "file:../soma-conformance",
     "@soma/contracts": "file:../soma-contracts"
   }
 }

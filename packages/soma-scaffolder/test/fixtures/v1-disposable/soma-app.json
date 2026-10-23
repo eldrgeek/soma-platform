@@ -1,0 +1,199 @@
+{
+  "$schema": "./vendor/soma/soma-app-v1.schema.json",
+  "schema_version": "soma.app/1",
+  "app": {
+    "id": "veric-coaching",
+    "name": "V'Eric Coaching",
+    "tier": "prototype",
+    "origins": {
+      "production": "https://veric-coaching.netlify.app",
+      "staging": "https://preview--veric-coaching.netlify.app"
+    },
+    "repository": "eldrgeek/veric-coaching"
+  },
+  "hosts": {
+    "human": {
+      "id": "eric",
+      "name": "Eric",
+      "role": "Human host",
+      "escalation_url": "/contact",
+      "expected_response": "Within two working days"
+    },
+    "ai": {
+      "id": "veric",
+      "name": "V'Eric",
+      "role": "AI host",
+      "persona": "personas/veric.md"
+    }
+  },
+  "guide": {
+    "ask": {
+      "knowledge": ["knowledge/host-pair.md"],
+      "page_context": false,
+      "web": false
+    },
+    "voice": {
+      "enabled": false
+    }
+  },
+  "identity": {
+    "subject": "pairwise",
+    "admission": "open",
+    "profile_fields": ["display_name", "locale"]
+  },
+  "concepts": [
+    {
+      "id": "soma:host-pair",
+      "version": "1",
+      "title": "Who hosts this app",
+      "tell": "knowledge/host-pair.md",
+      "show": "meet-the-hosts"
+    }
+  ],
+  "questions": [
+    {
+      "id": "veric-coaching:coaching-goal",
+      "schema_version": "1",
+      "portable": false
+    }
+  ],
+  "actions": [
+    {
+      "id": "coaching.inspect-agenda",
+      "version": "1",
+      "kind": "observe",
+      "required_scopes": ["agenda:read"],
+      "required_role": "member",
+      "surfaces": ["ui", "guide", "remote"],
+      "input_schema": "schemas/inspect-agenda.input.json",
+      "output_schema": "schemas/inspect-agenda.output.json",
+      "executor": { "kind": "rpc", "name": "inspect_agenda" },
+      "effects": []
+    },
+    {
+      "id": "coaching.save-reflection",
+      "version": "1",
+      "kind": "effect",
+      "risk": "consequential",
+      "effect_target": "database",
+      "required_scopes": ["reflection:write"],
+      "required_role": "member",
+      "surfaces": ["ui", "guide", "remote"],
+      "input_schema": "schemas/save-reflection.input.json",
+      "output_schema": "schemas/reflection.output.json",
+      "executor": { "kind": "rpc", "name": "save_reflection" },
+      "effects": ["Creates a private reflection"]
+    },
+    {
+      "id": "coaching.notify-host",
+      "version": "1",
+      "kind": "effect",
+      "risk": "reversible",
+      "effect_target": "external",
+      "required_scopes": ["notification:write"],
+      "required_role": "member",
+      "surfaces": ["ui", "guide"],
+      "input_schema": "schemas/save-reflection.input.json",
+      "output_schema": "schemas/reflection.output.json",
+      "executor": {
+        "kind": "external",
+        "provider": "notification-provider",
+        "operation": "notify-host"
+      },
+      "effects": ["Sends a host notification"],
+      "timeout_seconds": 10,
+      "recovery": "provider-idempotency-key"
+    },
+    {
+      "id": "coaching.erase-reflection",
+      "version": "1",
+      "kind": "effect",
+      "risk": "irreversible",
+      "effect_target": "database",
+      "required_scopes": ["reflection:erase"],
+      "required_role": "member",
+      "surfaces": ["ui"],
+      "input_schema": "schemas/save-reflection.input.json",
+      "output_schema": "schemas/reflection.output.json",
+      "executor": { "kind": "rpc", "name": "erase_reflection" },
+      "effects": ["Permanently erases a private reflection"],
+      "cool_off_seconds": 30
+    }
+  ],
+  "workflows": [
+    {
+      "id": "meet-the-hosts",
+      "steps": [
+        {
+          "target": "[data-soma=human-host]",
+          "text": "Eric is the human host."
+        },
+        {
+          "target": "[data-soma=ai-host]",
+          "text": "V'Eric is the AI host."
+        }
+      ]
+    }
+  ],
+  "ai_visitors": {
+    "enabled": true,
+    "default_grant_minutes": 60,
+    "maximum_standing_risk": "reversible",
+    "stranger_test_action": "coaching.inspect-agenda"
+  },
+  "promises": [
+    {
+      "id": "identity.no-name-before-consent",
+      "text": "This app will not receive your name until you choose to continue.",
+      "check": "identity/no-name-before-consent"
+    },
+    {
+      "id": "actions.no-silent-success",
+      "text": "Every action will show a result or failure.",
+      "check": "actions/receipt-required"
+    }
+  ],
+  "data_flows": [
+    {
+      "vendor": "Anthropic",
+      "what": "Questions typed to the Guide's Ask",
+      "why": "Answer from the app's declared knowledge",
+      "secret_env": "ANTHROPIC_API_KEY",
+      "retention_days": "undeclared"
+    }
+  ],
+  "data_stores": [
+    {
+      "id": "app-database",
+      "owner": "veric-coaching",
+      "kind": "database",
+      "data_classes": ["answers", "reflections", "receipts"],
+      "export": "vendor/soma/handlers/export-app-schema",
+      "erase": "vendor/soma/handlers/erase-app-schema",
+      "retention": "Until the person leaves the app",
+      "lawful_exception": false
+    }
+  ],
+  "legal": {
+    "operator": "Mike-ratified entity",
+    "privacy": "/privacy",
+    "terms": "/terms",
+    "data_export": "/settings/export",
+    "app_forget": "/settings/leave",
+    "agent_revocation": "/settings/agents"
+  },
+  "credits": {
+    "page": "/credits",
+    "require_artifact_byline": true
+  },
+  "dependencies": {
+    "identity_broker": {
+      "required": true,
+      "fallback": "public-pages-and-knowledge-search"
+    },
+    "guide_cdn": {
+      "required": false,
+      "fallback": "/help"
+    }
+  }
+}
