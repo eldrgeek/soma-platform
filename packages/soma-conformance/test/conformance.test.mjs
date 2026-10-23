@@ -23,7 +23,7 @@ import {
 const testDirectory = dirname(fileURLToPath(import.meta.url));
 const fixture = join(testDirectory, "fixtures", "minimal-app");
 const cli = join(testDirectory, "..", "bin", "soma-conform.mjs");
-const builtChecks = new Set(["C1", "C3", "C4", "C5", "C13", "C14"]);
+const builtChecks = new Set(["C1", "C3", "C4", "C5", "C13", "C14", "C15"]);
 
 function copyFixture(t) {
   const parent = mkdtempSync(join(tmpdir(), "soma-conformance-"));
@@ -107,9 +107,6 @@ test("minimal app passes the static checks and discloses all omitted coverage", 
   for (const result of report.checks) {
     if (builtChecks.has(result.id)) {
       assert.equal(result.result, "pass", result.reasons.join("\n"));
-    } else if (result.id === "C15") {
-      assert.equal(result.result, "not_run");
-      assert.match(result.reasons.join("\n"), /feedback_chip/);
     } else {
       assert.deepEqual(result, {
         id: result.id,
