@@ -4,12 +4,27 @@
   "registryCases": [
     {
       "id": "unknown-command",
+      "script": [
+        {
+          "op": "invoke",
+          "command": "no.such.command",
+          "args": {}
+        }
+      ],
       "invoke": {
         "ok": false,
         "command": "no.such.command",
         "auditId": "audit:00000000-0000-4000-8000-000000000001",
         "error": "Unknown command: no.such.command."
       },
+      "stepResults": [
+        {
+          "ok": false,
+          "command": "no.such.command",
+          "auditId": "audit:00000000-0000-4000-8000-000000000001",
+          "error": "Unknown command: no.such.command."
+        }
+      ],
       "audit": [
         {
           "auditId": "audit:00000000-0000-4000-8000-000000000001",
@@ -30,12 +45,29 @@
     },
     {
       "id": "invalid-args",
+      "script": [
+        {
+          "op": "invoke",
+          "command": "play.rename",
+          "args": {
+            "title": 42
+          }
+        }
+      ],
       "invoke": {
         "ok": false,
         "command": "play.rename",
         "auditId": "audit:00000000-0000-4000-8000-000000000001",
         "error": "Argument \"title\" must be a string."
       },
+      "stepResults": [
+        {
+          "ok": false,
+          "command": "play.rename",
+          "auditId": "audit:00000000-0000-4000-8000-000000000001",
+          "error": "Argument \"title\" must be a string."
+        }
+      ],
       "audit": [
         {
           "auditId": "audit:00000000-0000-4000-8000-000000000001",
@@ -57,13 +89,134 @@
       "auditLength": 1
     },
     {
+      "id": "no-impl",
+      "script": [
+        {
+          "op": "invoke",
+          "command": "play.rename",
+          "args": {
+            "title": "Hi"
+          }
+        }
+      ],
+      "invoke": {
+        "ok": false,
+        "command": "play.rename",
+        "auditId": "audit:00000000-0000-4000-8000-000000000001",
+        "unavailable": "Command \"play.rename\" is unavailable on this page."
+      },
+      "stepResults": [
+        {
+          "ok": false,
+          "command": "play.rename",
+          "auditId": "audit:00000000-0000-4000-8000-000000000001",
+          "unavailable": "Command \"play.rename\" is unavailable on this page."
+        }
+      ],
+      "audit": [
+        {
+          "auditId": "audit:00000000-0000-4000-8000-000000000001",
+          "at": "2026-06-01T12:00:00.000Z",
+          "command": "play.rename",
+          "args": {
+            "title": "Hi"
+          },
+          "actor": {
+            "kind": "ai",
+            "via": "in-page"
+          },
+          "userId": null,
+          "playId": null,
+          "ok": false,
+          "unavailable": "Command \"play.rename\" is unavailable on this page."
+        }
+      ],
+      "auditLength": 1
+    },
+    {
+      "id": "impl-unavailable",
+      "script": [
+        {
+          "op": "provide",
+          "impls": {
+            "play.newScene": {
+              "kind": "unavailable",
+              "reason": "Scene editor is closed."
+            }
+          }
+        },
+        {
+          "op": "invoke",
+          "command": "play.newScene",
+          "args": {}
+        }
+      ],
+      "invoke": {
+        "ok": false,
+        "command": "play.newScene",
+        "auditId": "audit:00000000-0000-4000-8000-000000000001",
+        "unavailable": "Scene editor is closed."
+      },
+      "stepResults": [
+        null,
+        {
+          "ok": false,
+          "command": "play.newScene",
+          "auditId": "audit:00000000-0000-4000-8000-000000000001",
+          "unavailable": "Scene editor is closed."
+        }
+      ],
+      "audit": [
+        {
+          "auditId": "audit:00000000-0000-4000-8000-000000000001",
+          "at": "2026-06-01T12:00:00.000Z",
+          "command": "play.newScene",
+          "args": {},
+          "actor": {
+            "kind": "ai",
+            "via": "in-page"
+          },
+          "userId": null,
+          "playId": null,
+          "ok": false,
+          "unavailable": "Scene editor is closed."
+        }
+      ],
+      "auditLength": 1
+    },
+    {
       "id": "impl-throws",
+      "script": [
+        {
+          "op": "provide",
+          "impls": {
+            "play.newScene": {
+              "kind": "throw",
+              "message": "boom"
+            }
+          }
+        },
+        {
+          "op": "invoke",
+          "command": "play.newScene",
+          "args": {}
+        }
+      ],
       "invoke": {
         "ok": false,
         "command": "play.newScene",
         "auditId": "audit:00000000-0000-4000-8000-000000000001",
         "error": "boom"
       },
+      "stepResults": [
+        null,
+        {
+          "ok": false,
+          "command": "play.newScene",
+          "auditId": "audit:00000000-0000-4000-8000-000000000001",
+          "error": "boom"
+        }
+      ],
       "audit": [
         {
           "auditId": "audit:00000000-0000-4000-8000-000000000001",
@@ -84,6 +237,24 @@
     },
     {
       "id": "successful-impl",
+      "script": [
+        {
+          "op": "provide",
+          "impls": {
+            "edit.undo": {
+              "kind": "return",
+              "value": {
+                "done": true
+              }
+            }
+          }
+        },
+        {
+          "op": "invoke",
+          "command": "edit.undo",
+          "args": {}
+        }
+      ],
       "invoke": {
         "ok": true,
         "command": "edit.undo",
@@ -92,6 +263,17 @@
           "done": true
         }
       },
+      "stepResults": [
+        null,
+        {
+          "ok": true,
+          "command": "edit.undo",
+          "auditId": "audit:00000000-0000-4000-8000-000000000001",
+          "result": {
+            "done": true
+          }
+        }
+      ],
       "audit": [
         {
           "auditId": "audit:00000000-0000-4000-8000-000000000001",
@@ -110,13 +292,204 @@
       "auditLength": 1
     },
     {
+      "id": "async-resolve",
+      "script": [
+        {
+          "op": "provide",
+          "impls": {
+            "edit.redo": {
+              "kind": "async-resolve",
+              "value": {
+                "redone": true
+              }
+            }
+          }
+        },
+        {
+          "op": "invoke",
+          "command": "edit.redo",
+          "args": {}
+        }
+      ],
+      "invoke": {
+        "ok": true,
+        "command": "edit.redo",
+        "auditId": "audit:00000000-0000-4000-8000-000000000001",
+        "result": {
+          "redone": true
+        }
+      },
+      "stepResults": [
+        null,
+        {
+          "ok": true,
+          "command": "edit.redo",
+          "auditId": "audit:00000000-0000-4000-8000-000000000001",
+          "result": {
+            "redone": true
+          }
+        }
+      ],
+      "audit": [
+        {
+          "auditId": "audit:00000000-0000-4000-8000-000000000001",
+          "at": "2026-06-01T12:00:00.000Z",
+          "command": "edit.redo",
+          "args": {},
+          "actor": {
+            "kind": "ai",
+            "via": "in-page"
+          },
+          "userId": null,
+          "playId": null,
+          "ok": true
+        }
+      ],
+      "auditLength": 1
+    },
+    {
+      "id": "async-reject-error",
+      "script": [
+        {
+          "op": "provide",
+          "impls": {
+            "import.goToStart": {
+              "kind": "async-reject-error",
+              "message": "async boom"
+            }
+          }
+        },
+        {
+          "op": "invoke",
+          "command": "import.goToStart",
+          "args": {}
+        }
+      ],
+      "invoke": {
+        "ok": false,
+        "command": "import.goToStart",
+        "auditId": "audit:00000000-0000-4000-8000-000000000001",
+        "error": "async boom"
+      },
+      "stepResults": [
+        null,
+        {
+          "ok": false,
+          "command": "import.goToStart",
+          "auditId": "audit:00000000-0000-4000-8000-000000000001",
+          "error": "async boom"
+        }
+      ],
+      "audit": [
+        {
+          "auditId": "audit:00000000-0000-4000-8000-000000000001",
+          "at": "2026-06-01T12:00:00.000Z",
+          "command": "import.goToStart",
+          "args": {},
+          "actor": {
+            "kind": "ai",
+            "via": "in-page"
+          },
+          "userId": null,
+          "playId": null,
+          "ok": false,
+          "error": "async boom"
+        }
+      ],
+      "auditLength": 1
+    },
+    {
+      "id": "async-reject-non-error",
+      "script": [
+        {
+          "op": "provide",
+          "impls": {
+            "file.exportFountain": {
+              "kind": "async-reject-value",
+              "value": {
+                "code": "E_BUSY"
+              }
+            }
+          }
+        },
+        {
+          "op": "invoke",
+          "command": "file.exportFountain",
+          "args": {}
+        }
+      ],
+      "invoke": {
+        "ok": false,
+        "command": "file.exportFountain",
+        "auditId": "audit:00000000-0000-4000-8000-000000000001",
+        "error": "{\"code\":\"E_BUSY\"}"
+      },
+      "stepResults": [
+        null,
+        {
+          "ok": false,
+          "command": "file.exportFountain",
+          "auditId": "audit:00000000-0000-4000-8000-000000000001",
+          "error": "{\"code\":\"E_BUSY\"}"
+        }
+      ],
+      "audit": [
+        {
+          "auditId": "audit:00000000-0000-4000-8000-000000000001",
+          "at": "2026-06-01T12:00:00.000Z",
+          "command": "file.exportFountain",
+          "args": {},
+          "actor": {
+            "kind": "ai",
+            "via": "in-page"
+          },
+          "userId": null,
+          "playId": null,
+          "ok": false,
+          "error": "{\"code\":\"E_BUSY\"}"
+        }
+      ],
+      "auditLength": 1
+    },
+    {
       "id": "truncation-300-char",
+      "script": [
+        {
+          "op": "provide",
+          "impls": {
+            "note.save": {
+              "kind": "return",
+              "value": true
+            }
+          }
+        },
+        {
+          "op": "invoke",
+          "command": "note.save",
+          "args": {
+            "body": {
+              "repeatChar": "x",
+              "repeat": 300
+            },
+            "sceneId": "s1"
+          }
+        }
+      ],
       "invoke": {
         "ok": true,
         "command": "note.save",
         "auditId": "audit:00000000-0000-4000-8000-000000000001",
         "result": true
       },
+      "stepResults": [
+        null,
+        {
+          "ok": true,
+          "command": "note.save",
+          "auditId": "audit:00000000-0000-4000-8000-000000000001",
+          "result": true
+        }
+      ],
       "audit": [
         {
           "auditId": "audit:00000000-0000-4000-8000-000000000001",
@@ -139,11 +512,35 @@
     },
     {
       "id": "audit-limit-501",
+      "script": [
+        {
+          "op": "provide",
+          "impls": {
+            "play.newScene": {
+              "kind": "undefined"
+            }
+          }
+        },
+        {
+          "op": "invoke",
+          "command": "play.newScene",
+          "args": {},
+          "repeat": 501
+        }
+      ],
       "invoke": {
         "ok": true,
         "command": "play.newScene",
         "auditId": "audit:00000000-0000-4000-8000-000000000501"
       },
+      "stepResults": [
+        null,
+        {
+          "ok": true,
+          "command": "play.newScene",
+          "auditId": "audit:00000000-0000-4000-8000-000000000501"
+        }
+      ],
       "audit": [
         {
           "auditId": "audit:00000000-0000-4000-8000-000000000002",
@@ -6647,6 +7044,92 @@
         }
       ],
       "auditLength": 500
+    },
+    {
+      "id": "withdraw-unavailable-audit",
+      "script": [
+        {
+          "op": "provide",
+          "impls": {
+            "play.newScene": {
+              "kind": "unavailable",
+              "reason": "Modal open."
+            }
+          }
+        },
+        {
+          "op": "invoke",
+          "command": "play.newScene",
+          "args": {}
+        },
+        {
+          "op": "withdraw",
+          "auditIdFromStep": 1
+        },
+        {
+          "op": "withdraw",
+          "auditIdFromStep": 1
+        },
+        {
+          "op": "provide",
+          "impls": {
+            "edit.undo": {
+              "kind": "return",
+              "value": null
+            }
+          }
+        },
+        {
+          "op": "invoke",
+          "command": "edit.undo",
+          "args": {}
+        },
+        {
+          "op": "withdraw",
+          "auditIdFromStep": 5
+        }
+      ],
+      "invoke": {
+        "ok": true,
+        "command": "edit.undo",
+        "auditId": "audit:00000000-0000-4000-8000-000000000002",
+        "result": null
+      },
+      "stepResults": [
+        null,
+        {
+          "ok": false,
+          "command": "play.newScene",
+          "auditId": "audit:00000000-0000-4000-8000-000000000001",
+          "unavailable": "Modal open."
+        },
+        true,
+        false,
+        null,
+        {
+          "ok": true,
+          "command": "edit.undo",
+          "auditId": "audit:00000000-0000-4000-8000-000000000002",
+          "result": null
+        },
+        false
+      ],
+      "audit": [
+        {
+          "auditId": "audit:00000000-0000-4000-8000-000000000002",
+          "at": "2026-06-01T12:00:00.000Z",
+          "command": "edit.undo",
+          "args": {},
+          "actor": {
+            "kind": "ai",
+            "via": "in-page"
+          },
+          "userId": null,
+          "playId": null,
+          "ok": true
+        }
+      ],
+      "auditLength": 1
     }
   ]
 }

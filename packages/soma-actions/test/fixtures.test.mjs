@@ -10,8 +10,10 @@ import {
   validateCommandArgs,
   workflowCommands,
 } from "../src/index.mjs";
+import { REGISTRY_CASE_SCRIPTS } from "../tools/registry-scripts.mjs";
 import { installDeterministicHarness } from "./support/deterministic.mjs";
 import { playmakerAfterSchemaValidate } from "./support/play-import-script.mjs";
+import { runRegistryScript } from "./support/registry-script.mjs";
 
 const packageRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const fixtureDir = join(packageRoot, "fixtures", "playmaker-9ebc364c");
@@ -96,61 +98,35 @@ test("workflow compareInvocations missing and extra steps", () => {
   }
 });
 
-test("registry invoke and audit match frozen PlayMaker cases", () => {
+test("registry invoke and audit match frozen PlayMaker cases", async () => {
   const catalogue = buildCatalogue();
   const { registryCases } = loadFixture("registry-invoke.json");
+  const fixtureById = new Map(registryCases.map((entry) => [entry.id, entry]));
 
-  for (const caseEntry of registryCases) {
+  for (const caseDef of REGISTRY_CASE_SCRIPTS) {
+    const caseEntry = fixtureById.get(caseDef.id);
+    assert.ok(caseEntry, `missing frozen registry case ${caseDef.id}`);
+    assert.deepEqual(caseEntry.script, caseDef.script, `${caseDef.id} script drift`);
+
     const restore = installDeterministicHarness();
     const registry = createCommandRegistry(catalogue, {
       afterSchemaValidate: playmakerAfterSchemaValidate,
     });
     registry.clearAudit();
 
-    let invoke;
-    if (caseEntry.id === "impl-throws") {
-      registry.provide({
-        "play.newScene": {
-          run: () => {
-            throw new Error("boom");
-          },
-        },
-      });
-      invoke = registry.invoke("play.newScene", {});
-    } else if (caseEntry.id === "successful-impl") {
-      registry.provide({
-        "edit.undo": {
-          run: () => ({ done: true }),
-        },
-      });
-      invoke = registry.invoke("edit.undo", {});
-    } else if (caseEntry.id === "truncation-300-char") {
-      registry.provide({
-        "note.save": {
-          run: () => true,
-        },
-      });
-      invoke = registry.invoke("note.save", { body: "x".repeat(300), sceneId: "s1" });
-    } else if (caseEntry.id === "audit-limit-501") {
-      registry.provide({
-        "play.newScene": {
-          run: () => undefined,
-        },
-      });
-      for (let i = 0; i < 501; i += 1) {
-        invoke = registry.invoke("play.newScene", {});
-      }
-    } else if (caseEntry.id === "unknown-command") {
-      invoke = registry.invoke("no.such.command", {});
-    } else if (caseEntry.id === "invalid-args") {
-      invoke = registry.invoke("play.rename", { title: 42 });
-    } else {
-      assert.fail(`unhandled registry case ${caseEntry.id}`);
-    }
+    const { invoke, stepResults } = await runRegistryScript(registry, caseDef.script);
 
-    assert.deepEqual(invoke, caseEntry.invoke);
-    assert.deepEqual(registry.audit(), caseEntry.audit);
-    assert.equal(registry.audit().length, caseEntry.auditLength);
+    assert.deepEqual(invoke, caseEntry.invoke, caseDef.id);
+    assert.deepEqual(stepResults, caseEntry.stepResults, caseDef.id);
+    assert.deepEqual(registry.audit(), caseEntry.audit, caseDef.id);
+    assert.equal(registry.audit().length, caseEntry.auditLength, caseDef.id);
     restore();
+  }
+
+  for (const caseEntry of registryCases) {
+    assert.ok(
+      REGISTRY_CASE_SCRIPTS.some((def) => def.id === caseEntry.id),
+      `fixture case ${caseEntry.id} has no replay script`,
+    );
   }
 });
