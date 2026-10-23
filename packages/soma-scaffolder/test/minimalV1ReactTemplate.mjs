@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 /**
@@ -14,6 +14,15 @@ export function writeMinimalV1ReactTemplateTree(dir, { viteBuild = false } = {})
         name: "soma-app-template",
         private: true,
         type: "module",
+        devDependencies: {
+          typescript: "^5.7.0",
+          ...(viteBuild
+            ? {
+                vite: "^6.0.0",
+                "@vitejs/plugin-react": "^4.3.4",
+              }
+            : {}),
+        },
         ...(viteBuild
           ? {
               scripts: { build: "vite build" },
@@ -21,11 +30,6 @@ export function writeMinimalV1ReactTemplateTree(dir, { viteBuild = false } = {})
                 react: "^18.3.1",
                 "react-dom": "^18.3.1",
                 "@supabase/supabase-js": "^2.49.1",
-              },
-              devDependencies: {
-                vite: "^6.0.0",
-                "@vitejs/plugin-react": "^4.3.4",
-                typescript: "^5.7.0",
               },
             }
           : {}),
@@ -59,7 +63,10 @@ export function writeMinimalV1ReactTemplateTree(dir, { viteBuild = false } = {})
   );
   writeFileSync(
     join(dir, "netlify", "functions", "lib", "supabaseAdmin.ts"),
-    "export function adminEnv() { throw new Error('no env'); }\n",
+    `export function adminEnv(): { url: string; serviceKey: string } {
+  throw new Error('no env');
+}
+`,
   );
 
   writeFileSync(
@@ -71,6 +78,36 @@ createRoot(document.getElementById('root')!).render(<App />);
 `,
   );
   writeFileSync(join(dir, "src", "App.tsx"), "export default function App() { return null; }\n");
+
+  writeFileSync(
+    join(dir, "tsconfig.json"),
+    JSON.stringify(
+      {
+        files: [],
+        references: [{ path: "./tsconfig.functions.json" }],
+      },
+      null,
+      2,
+    ) + "\n",
+  );
+  writeFileSync(
+    join(dir, "tsconfig.functions.json"),
+    JSON.stringify(
+      {
+        compilerOptions: {
+          target: "ES2022",
+          module: "ESNext",
+          moduleResolution: "bundler",
+          strict: true,
+          noEmit: true,
+          paths: { "@vendor/*": ["./vendor/*"] },
+        },
+        include: ["netlify/functions/**/*.ts"],
+      },
+      null,
+      2,
+    ) + "\n",
+  );
 
   if (viteBuild) {
     writeFileSync(
@@ -89,17 +126,9 @@ export default defineConfig({
 });
 `,
     );
-    writeFileSync(
-      join(dir, "tsconfig.json"),
-      JSON.stringify(
-        {
-          files: [],
-          references: [{ path: "./tsconfig.app.json" }],
-        },
-        null,
-        2,
-      ) + "\n",
-    );
+    const rootTs = JSON.parse(readFileSync(join(dir, "tsconfig.json"), "utf8"));
+    rootTs.references.push({ path: "./tsconfig.app.json" });
+    writeFileSync(join(dir, "tsconfig.json"), `${JSON.stringify(rootTs, null, 2)}\n`);
     writeFileSync(
       join(dir, "tsconfig.app.json"),
       JSON.stringify(
