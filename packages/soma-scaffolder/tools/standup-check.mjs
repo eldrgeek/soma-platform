@@ -78,10 +78,11 @@ try {
   const doc = loadSpec(LEGENDS_SPEC);
 
   const scaffoldStart = Date.now();
-  scaffoldReactApp(doc, {
+  await scaffoldReactApp(doc, {
     outDir: workDir,
     appTemplateDir: templateDir,
     platformRoot: PLATFORM_ROOT,
+    skipTemplateProvenance: true,
   });
   result.scaffold_s = elapsedSeconds(scaffoldStart);
 
