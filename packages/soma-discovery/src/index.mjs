@@ -10,7 +10,9 @@ import { DISCOVERY_FILE_PATHS, FORBIDDEN_ROUTE_MARKERS } from "./constants.mjs";
 import { buildLlmsTxt } from "./llms-txt.mjs";
 import { buildOpenApiDocument } from "./openapi.mjs";
 import { buildSomaAppJsonDocument } from "./soma-app-json.mjs";
-import { stableJsonBytes, stableTextBytes } from "./serialize.mjs";
+import { sortValue, stableJsonBytes, stableTextBytes } from "./serialize.mjs";
+
+export { sortValue };
 
 const MAX_SOURCE_BYTES = 50 * 1024 * 1024;
 
