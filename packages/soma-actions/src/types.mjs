@@ -85,24 +85,50 @@
 /**
  * Idempotency input for effect receipts (storage-free interface).
  * @typedef {Object} IdempotencyInput
- * @property {string} idempotencyKey
- * @property {string} requestFingerprint
+ * @property {string} idempotency_key
+ * @property {string} request_fingerprint
  */
 
 /**
- * @typedef {'accepted' | 'duplicate' | 'rejected' | 'completed' | 'failed'} ReceiptStatus
+ * Kit action receipt lifecycle (docs/kit/10-plan.md §2.4 action_receipts).
+ * @typedef {
+ *   'prepared'
+ *   | 'approval_required'
+ *   | 'approved'
+ *   | 'running'
+ *   | 'succeeded'
+ *   | 'failed'
+ *   | 'refused'
+ *   | 'expired'
+ *   | 'undone'
+ * } ReceiptStatus
  */
 
 /**
  * @typedef {Object} ActionReceipt
- * @property {string} receiptId
- * @property {string} actionId
+ * @property {string} receipt_id
+ * @property {string} action_id
+ * @property {string} action_version
+ * @property {string} idempotency_key
+ * @property {string} request_fingerprint
+ * @property {string} actor_id
+ * @property {string} principal
+ * @property {string} [grant_ref]
+ * @property {string} authorization_version
+ * @property {EffectRisk} [declared_risk]
+ * @property {EffectRisk} [effective_risk]
  * @property {ReceiptStatus} status
- * @property {string} idempotencyKey
- * @property {string} requestFingerprint
- * @property {string} at
- * @property {string} [error]
- * @property {unknown} [result]
+ * @property {string} [resource_version]
+ * @property {string} [effect_summary]
+ * @property {string} [output_ref]
+ * @property {string} [undo_of]
+ * @property {string} [cool_off_started_at]
+ * @property {string} [expires_at]
+ * @property {string} created_at
+ * @property {string} [completed_at]
+ * @property {string} [payload_sha256]
+ * @property {string} [signing_key_id]
+ * @property {string} [signature]
  */
 
 /**

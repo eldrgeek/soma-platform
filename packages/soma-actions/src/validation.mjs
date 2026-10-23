@@ -16,7 +16,7 @@ function isFiniteNumber(value) {
  */
 export function validateCommandArgs(spec, args, afterSchema) {
   if (!args || typeof args !== "object" || Array.isArray(args)) {
-    return "Arguments must be an array.";
+    return "Arguments must be an object.";
   }
   const schema = spec.args;
   for (const [name, def] of Object.entries(schema)) {

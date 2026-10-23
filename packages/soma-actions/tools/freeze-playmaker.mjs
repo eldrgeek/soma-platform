@@ -13,12 +13,26 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const playmakerRoot = resolve(process.argv[2] ?? "");
+const playmakerArg = process.argv[2];
 const PLAYMAKER_COMMIT = "9ebc364c";
 const fixtureDir = join(packageRoot, "fixtures", `playmaker-${PLAYMAKER_COMMIT}`);
 
-if (!playmakerRoot) {
+if (!playmakerArg || !String(playmakerArg).trim()) {
   console.error("Usage: node tools/freeze-playmaker.mjs /path/to/playmaker");
+  process.exit(1);
+}
+
+const playmakerRoot = resolve(playmakerArg);
+
+let frozenAt;
+try {
+  frozenAt = execFileSync(
+    "git",
+    ["-C", playmakerRoot, "show", "-s", "--format=%cI", PLAYMAKER_COMMIT],
+    { encoding: "utf8" },
+  ).trim();
+} catch {
+  console.error(`freeze-playmaker: cannot resolve PlayMaker commit ${PLAYMAKER_COMMIT} under ${playmakerRoot}`);
   process.exit(1);
 }
 
@@ -32,10 +46,11 @@ import { WORKFLOWS, workflowCommands, compareInvocations } from '${pmRoot}/src/a
 import { createCommandRegistry } from '${pmRoot}/src/agent-portal/registry.ts';
 
 const PLAYMAKER_COMMIT = '${PLAYMAKER_COMMIT}';
+const FROZEN_AT = '${frozenAt}';
 const outDir = '${fixtureDir.replace(/\\/g, "\\\\")}';
 
 function meta() {
-  return { playmakerCommit: PLAYMAKER_COMMIT, frozenAt: new Date().toISOString() };
+  return { playmakerCommit: PLAYMAKER_COMMIT, frozenAt: FROZEN_AT };
 }
 
 function writeJson(name, body) {
@@ -103,7 +118,7 @@ pushCase('view.dialog', { dialog: 'not-a-dialog' }, 'string-invalid-enum');
 // boolean
 pushCase('view.showPageBreaks', { enabled: true }, 'boolean-valid-1');
 pushCase('view.showPageBreaks', { enabled: false }, 'boolean-valid-2');
-pushCase('view.showPageBreaks', { enabled: true }, 'boolean-valid-3');
+pushCase('landing.toggleRail', { open: true }, 'boolean-valid-3');
 pushCase('view.showPageBreaks', { enabled: 'yes' }, 'boolean-invalid-1');
 pushCase('view.showPageBreaks', {}, 'boolean-invalid-2');
 pushCase('view.showPageBreaks', { enabled: 1 }, 'boolean-invalid-3');

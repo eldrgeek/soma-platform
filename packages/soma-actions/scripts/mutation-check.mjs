@@ -34,14 +34,17 @@ if (mutant === original) {
 
 writeFileSync(validationPath, mutant);
 
+let exitCode = 1;
 try {
   const passed = runTests();
   if (!passed) {
     console.log("mutation-check: caught mutant in src/validation.mjs (non-object args message)");
-    process.exit(0);
+    exitCode = 0;
+  } else {
+    console.error("mutation-check: mutant was not caught by fixture tests");
   }
-  console.error("mutation-check: mutant was not caught by fixture tests");
-  process.exit(1);
 } finally {
   writeFileSync(validationPath, original);
 }
+
+process.exit(exitCode);

@@ -1,6 +1,6 @@
 {
   "playmakerCommit": "9ebc364c",
-  "frozenAt": "2026-10-23T07:32:54.103Z",
+  "frozenAt": "2026-10-22T13:37:15-04:00",
   "validationCases": [
     {
       "commandId": "play.rename",
@@ -68,10 +68,10 @@
       "error": null
     },
     {
-      "commandId": "view.showPageBreaks",
+      "commandId": "landing.toggleRail",
       "label": "boolean-valid-3",
       "args": {
-        "enabled": true
+        "open": true
       },
       "error": null
     },
