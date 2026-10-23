@@ -1,0 +1,739 @@
+{
+  "playmakerCommit": "9ebc364c",
+  "frozenAt": "2026-10-23T07:32:54.102Z",
+  "jsonSchemaByCommand": {
+    "play.newScene": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {}
+    },
+    "play.importScript": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "fileName": {
+          "type": "string",
+          "description": "Source file name when text is sent alone."
+        },
+        "text": {
+          "type": "string",
+          "description": "Script text to import (one file)."
+        },
+        "files": {
+          "type": "array",
+          "description": "One or more files as { fileName, text } objects (combined in order)."
+        },
+        "notes": {
+          "type": "array",
+          "description": "PDF reviewer notes ({ page, comment, anchorQuote, author, … }) riding with the import."
+        }
+      }
+    },
+    "play.importGoogleDoc": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "html": {
+          "type": "string",
+          "description": "Google Doc HTML export."
+        },
+        "title": {
+          "type": "string",
+          "description": "Optional document title."
+        },
+        "sourceUrl": {
+          "type": "string",
+          "description": "Optional source URL for the PlayMaker Source line."
+        }
+      },
+      "required": [
+        "html"
+      ]
+    },
+    "import.goToStart": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {}
+    },
+    "play.rename": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "New play title."
+        }
+      },
+      "required": [
+        "title"
+      ]
+    },
+    "format.insertElement": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "element": {
+          "type": "string",
+          "description": "Script element to insert.",
+          "enum": [
+            "sceneHeading",
+            "action",
+            "parenthetical",
+            "transition",
+            "pageBreak",
+            "note",
+            "bold",
+            "italic",
+            "underline"
+          ]
+        }
+      },
+      "required": [
+        "element"
+      ]
+    },
+    "format.setPlayStyle": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "styleId": {
+          "type": "string",
+          "description": "Play style id.",
+          "enum": [
+            "generic",
+            "diana-wyenn"
+          ]
+        }
+      },
+      "required": [
+        "styleId"
+      ]
+    },
+    "insert.cue": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Character name."
+        }
+      },
+      "required": [
+        "name"
+      ]
+    },
+    "note.save": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sceneId": {
+          "type": "string",
+          "description": "Optional scene id for note attachment."
+        },
+        "body": {
+          "type": "string",
+          "description": "Note body."
+        }
+      },
+      "required": [
+        "body"
+      ]
+    },
+    "edit.undo": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {}
+    },
+    "edit.redo": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {}
+    },
+    "file.exportFountain": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {}
+    },
+    "file.exportMarks": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {}
+    },
+    "file.exportGoogleDoc": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {}
+    },
+    "file.sendAsPdf": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {}
+    },
+    "mark.accept": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "markId": {
+          "type": "string",
+          "description": "Mark id to accept."
+        }
+      },
+      "required": [
+        "markId"
+      ]
+    },
+    "mark.reject": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "markId": {
+          "type": "string",
+          "description": "Mark id to keep as written."
+        }
+      },
+      "required": [
+        "markId"
+      ]
+    },
+    "mark.revert": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "markId": {
+          "type": "string",
+          "description": "Mark id to revert."
+        }
+      },
+      "required": [
+        "markId"
+      ]
+    },
+    "mark.focus": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "markId": {
+          "type": "string",
+          "description": "Mark id to focus."
+        }
+      },
+      "required": [
+        "markId"
+      ]
+    },
+    "view.section": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "section": {
+          "type": "string",
+          "description": "Workspace section id.",
+          "enum": [
+            "journal",
+            "write",
+            "cast",
+            "notes",
+            "inbox",
+            "izzy",
+            "rehearsal",
+            "share",
+            "print",
+            "walkthrough",
+            "sets",
+            "tableread",
+            "production",
+            "gdoc",
+            "graph"
+          ]
+        }
+      },
+      "required": [
+        "section"
+      ]
+    },
+    "view.goToScene": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sceneId": {
+          "type": "string",
+          "description": "Scene id."
+        }
+      },
+      "required": [
+        "sceneId"
+      ]
+    },
+    "view.dialog": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "dialog": {
+          "type": "string",
+          "description": "Dialog identifier.",
+          "enum": [
+            "import",
+            "rename",
+            "share",
+            "acts",
+            "history",
+            "nameVersion",
+            "capture",
+            "notes",
+            "noteComposer",
+            "printScene"
+          ]
+        }
+      },
+      "required": [
+        "dialog"
+      ]
+    },
+    "view.navigate": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "to": {
+          "type": "string",
+          "description": "Path beginning with /."
+        }
+      },
+      "required": [
+        "to"
+      ]
+    },
+    "view.readerView": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "playId": {
+          "type": "string",
+          "description": "Play id."
+        },
+        "sceneIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Optional scene ids to include."
+        }
+      },
+      "required": [
+        "playId"
+      ]
+    },
+    "view.pages": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "playId": {
+          "type": "string",
+          "description": "Play id."
+        },
+        "sceneIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Optional scene ids to include."
+        }
+      },
+      "required": [
+        "playId"
+      ]
+    },
+    "view.showPageBreaks": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Whether page break markers are visible."
+        }
+      },
+      "required": [
+        "enabled"
+      ]
+    },
+    "play.compareWithDoc": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "playId": {
+          "type": "string",
+          "description": "Play id."
+        },
+        "html": {
+          "type": "string",
+          "description": "Google Doc HTML export."
+        }
+      },
+      "required": [
+        "playId",
+        "html"
+      ]
+    },
+    "chat.simulate": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "steps": {
+          "type": "array",
+          "description": "Ordered simulation steps (open, caretTo, clickMark, next, clear, answer, scrollTo, reload)."
+        }
+      },
+      "required": [
+        "steps"
+      ]
+    },
+    "view.playTextSize": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "step": {
+          "type": "string",
+          "description": "How to adjust reader text size.",
+          "enum": [
+            "smaller",
+            "larger",
+            "reset"
+          ]
+        }
+      },
+      "required": [
+        "step"
+      ]
+    },
+    "landing.ask": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "type": "string",
+          "description": "Message to send; omit to use the composer."
+        }
+      }
+    },
+    "landing.suggestion": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "answerId": {
+          "type": "string",
+          "description": "Scripted answer id.",
+          "enum": [
+            "default",
+            "how-it-works",
+            "whos-behind",
+            "where-going",
+            "what-can-do"
+          ]
+        }
+      },
+      "required": [
+        "answerId"
+      ]
+    },
+    "landing.moveChip": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "chipId": {
+          "type": "string",
+          "description": "Opening or ticket chip id.",
+          "enum": [
+            "have-line",
+            "have-draft",
+            "someone-told",
+            "whos-behind",
+            "start-with-line",
+            "idle-show-demo",
+            "idle-look-around",
+            "pick-it-up",
+            "start-fresh",
+            "ticket-thats-me",
+            "ticket-not-me",
+            "ticket-just-talk",
+            "ticket-sign-in"
+          ]
+        }
+      },
+      "required": [
+        "chipId"
+      ]
+    },
+    "landing.startVoice": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {}
+    },
+    "landing.toggleDictation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {}
+    },
+    "landing.endSpeech": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {}
+    },
+    "landing.toggleRail": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "open": {
+          "type": "boolean",
+          "description": "Force open or closed; omit to toggle."
+        }
+      }
+    },
+    "landing.toggleRailCollapse": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {}
+    },
+    "landing.closeRail": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {}
+    },
+    "landing.railTool": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "item": {
+          "type": "string",
+          "description": "Rail tool id.",
+          "enum": [
+            "room",
+            "plays",
+            "captures",
+            "reads",
+            "map",
+            "company"
+          ]
+        }
+      },
+      "required": [
+        "item"
+      ]
+    },
+    "landing.toggleAttachMenu": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "open": {
+          "type": "boolean",
+          "description": "Force open or closed; omit to toggle."
+        }
+      }
+    },
+    "landing.attachUploadScript": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {}
+    },
+    "landing.continueSignIn": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {}
+    },
+    "landing.sharedGuestName": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Guest name."
+        }
+      },
+      "required": [
+        "name"
+      ]
+    },
+    "landing.interviewSubmit": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {}
+    },
+    "landing.fillComposer": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "type": "string",
+          "description": "Text to place in the composer."
+        }
+      },
+      "required": [
+        "text"
+      ]
+    },
+    "landing.setLayout": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "layout": {
+          "type": "string",
+          "description": "Layout registry key."
+        }
+      },
+      "required": [
+        "layout"
+      ]
+    },
+    "landing.layoutPreview": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "type": "string",
+          "description": "Whether to expand or collapse the switcher.",
+          "enum": [
+            "expand",
+            "collapse"
+          ]
+        }
+      },
+      "required": [
+        "action"
+      ]
+    },
+    "landing.programNoteOpen": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "noteId": {
+          "type": "string",
+          "description": "Program note id.",
+          "enum": [
+            "eric",
+            "veric"
+          ]
+        }
+      },
+      "required": [
+        "noteId"
+      ]
+    },
+    "landing.programNoteClose": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "noteId": {
+          "type": "string",
+          "description": "Program note id.",
+          "enum": [
+            "eric",
+            "veric"
+          ]
+        }
+      },
+      "required": [
+        "noteId"
+      ]
+    },
+    "landing.programNoteAsk": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "noteId": {
+          "type": "string",
+          "description": "Program note id.",
+          "enum": [
+            "eric",
+            "veric"
+          ]
+        }
+      },
+      "required": [
+        "noteId"
+      ]
+    },
+    "landing.knownDeviceDismiss": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {}
+    },
+    "landing.knownDeviceNotMe": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {}
+    },
+    "landing.pageDropWrongFile": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "entryId": {
+          "type": "string",
+          "description": "Page-drop entry id."
+        }
+      },
+      "required": [
+        "entryId"
+      ]
+    },
+    "landing.pageDropRetry": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "entryId": {
+          "type": "string",
+          "description": "Page-drop entry id."
+        }
+      },
+      "required": [
+        "entryId"
+      ]
+    },
+    "landing.pageDropReload": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {}
+    },
+    "landing.pageDropBringIn": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "entryId": {
+          "type": "string",
+          "description": "Page-drop entry id."
+        }
+      },
+      "required": [
+        "entryId"
+      ]
+    },
+    "landing.pageDropToggleScenePicker": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "entryId": {
+          "type": "string",
+          "description": "Page-drop entry id."
+        }
+      },
+      "required": [
+        "entryId"
+      ]
+    },
+    "landing.pageDropImportScene": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "entryId": {
+          "type": "string",
+          "description": "Page-drop entry id."
+        },
+        "sceneTitle": {
+          "type": "string",
+          "description": "Scene title to import."
+        }
+      },
+      "required": [
+        "entryId",
+        "sceneTitle"
+      ]
+    }
+  }
+}

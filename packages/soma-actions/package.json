@@ -1,0 +1,20 @@
+{
+  "name": "@soma/actions",
+  "version": "0.1.0",
+  "description": "Generic action registry: validation, workflows, audit — behaviourally aligned with PlayMaker agent-portal fixtures.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.mjs"
+  },
+  "files": [
+    "README.md",
+    "fixtures",
+    "src"
+  ],
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "mutation-check": "node scripts/mutation-check.mjs",
+    "freeze": "node tools/freeze-playmaker.mjs"
+  },
+  "license": "UNLICENSED"
+}

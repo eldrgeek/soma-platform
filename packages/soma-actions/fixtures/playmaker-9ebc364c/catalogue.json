@@ -1,0 +1,675 @@
+{
+  "playmakerCommit": "9ebc364c",
+  "frozenAt": "2026-10-23T07:32:54.101Z",
+  "catalogue": [
+    {
+      "id": "play.newScene",
+      "kind": "effect",
+      "args": {}
+    },
+    {
+      "id": "play.importScript",
+      "kind": "effect",
+      "args": {
+        "fileName": {
+          "type": "string",
+          "required": false,
+          "description": "Source file name when text is sent alone."
+        },
+        "text": {
+          "type": "string",
+          "required": false,
+          "description": "Script text to import (one file)."
+        },
+        "files": {
+          "type": "array",
+          "required": false,
+          "description": "One or more files as { fileName, text } objects (combined in order)."
+        },
+        "notes": {
+          "type": "array",
+          "required": false,
+          "description": "PDF reviewer notes ({ page, comment, anchorQuote, author, … }) riding with the import."
+        }
+      }
+    },
+    {
+      "id": "play.importGoogleDoc",
+      "kind": "effect",
+      "args": {
+        "html": {
+          "type": "string",
+          "required": true,
+          "description": "Google Doc HTML export."
+        },
+        "title": {
+          "type": "string",
+          "required": false,
+          "description": "Optional document title."
+        },
+        "sourceUrl": {
+          "type": "string",
+          "required": false,
+          "description": "Optional source URL for the PlayMaker Source line."
+        }
+      }
+    },
+    {
+      "id": "import.goToStart",
+      "kind": "effect",
+      "args": {}
+    },
+    {
+      "id": "play.rename",
+      "kind": "effect",
+      "args": {
+        "title": {
+          "type": "string",
+          "required": true,
+          "description": "New play title."
+        }
+      }
+    },
+    {
+      "id": "format.insertElement",
+      "kind": "effect",
+      "args": {
+        "element": {
+          "type": "string",
+          "required": true,
+          "enum": [
+            "sceneHeading",
+            "action",
+            "parenthetical",
+            "transition",
+            "pageBreak",
+            "note",
+            "bold",
+            "italic",
+            "underline"
+          ],
+          "description": "Script element to insert."
+        }
+      }
+    },
+    {
+      "id": "format.setPlayStyle",
+      "kind": "effect",
+      "args": {
+        "styleId": {
+          "type": "string",
+          "required": true,
+          "enum": [
+            "generic",
+            "diana-wyenn"
+          ],
+          "description": "Play style id."
+        }
+      }
+    },
+    {
+      "id": "insert.cue",
+      "kind": "effect",
+      "args": {
+        "name": {
+          "type": "string",
+          "required": true,
+          "description": "Character name."
+        }
+      }
+    },
+    {
+      "id": "note.save",
+      "kind": "effect",
+      "args": {
+        "sceneId": {
+          "type": "string",
+          "required": false,
+          "description": "Optional scene id for note attachment."
+        },
+        "body": {
+          "type": "string",
+          "required": true,
+          "description": "Note body."
+        }
+      }
+    },
+    {
+      "id": "edit.undo",
+      "kind": "effect",
+      "args": {}
+    },
+    {
+      "id": "edit.redo",
+      "kind": "effect",
+      "args": {}
+    },
+    {
+      "id": "file.exportFountain",
+      "kind": "effect",
+      "args": {}
+    },
+    {
+      "id": "file.exportMarks",
+      "kind": "effect",
+      "args": {}
+    },
+    {
+      "id": "file.exportGoogleDoc",
+      "kind": "effect",
+      "args": {}
+    },
+    {
+      "id": "file.sendAsPdf",
+      "kind": "effect",
+      "args": {}
+    },
+    {
+      "id": "mark.accept",
+      "kind": "effect",
+      "args": {
+        "markId": {
+          "type": "string",
+          "required": true,
+          "description": "Mark id to accept."
+        }
+      }
+    },
+    {
+      "id": "mark.reject",
+      "kind": "effect",
+      "args": {
+        "markId": {
+          "type": "string",
+          "required": true,
+          "description": "Mark id to keep as written."
+        }
+      }
+    },
+    {
+      "id": "mark.revert",
+      "kind": "effect",
+      "args": {
+        "markId": {
+          "type": "string",
+          "required": true,
+          "description": "Mark id to revert."
+        }
+      }
+    },
+    {
+      "id": "mark.focus",
+      "kind": "view",
+      "args": {
+        "markId": {
+          "type": "string",
+          "required": true,
+          "description": "Mark id to focus."
+        }
+      }
+    },
+    {
+      "id": "view.section",
+      "kind": "view",
+      "args": {
+        "section": {
+          "type": "string",
+          "required": true,
+          "enum": [
+            "journal",
+            "write",
+            "cast",
+            "notes",
+            "inbox",
+            "izzy",
+            "rehearsal",
+            "share",
+            "print",
+            "walkthrough",
+            "sets",
+            "tableread",
+            "production",
+            "gdoc",
+            "graph"
+          ],
+          "description": "Workspace section id."
+        }
+      }
+    },
+    {
+      "id": "view.goToScene",
+      "kind": "view",
+      "args": {
+        "sceneId": {
+          "type": "string",
+          "required": true,
+          "description": "Scene id."
+        }
+      }
+    },
+    {
+      "id": "view.dialog",
+      "kind": "view",
+      "args": {
+        "dialog": {
+          "type": "string",
+          "required": true,
+          "enum": [
+            "import",
+            "rename",
+            "share",
+            "acts",
+            "history",
+            "nameVersion",
+            "capture",
+            "notes",
+            "noteComposer",
+            "printScene"
+          ],
+          "description": "Dialog identifier."
+        }
+      }
+    },
+    {
+      "id": "view.navigate",
+      "kind": "view",
+      "args": {
+        "to": {
+          "type": "string",
+          "required": true,
+          "description": "Path beginning with /."
+        }
+      }
+    },
+    {
+      "id": "view.readerView",
+      "kind": "inspection",
+      "args": {
+        "playId": {
+          "type": "string",
+          "required": true,
+          "description": "Play id."
+        },
+        "sceneIds": {
+          "type": "string[]",
+          "required": false,
+          "description": "Optional scene ids to include."
+        }
+      }
+    },
+    {
+      "id": "view.pages",
+      "kind": "inspection",
+      "args": {
+        "playId": {
+          "type": "string",
+          "required": true,
+          "description": "Play id."
+        },
+        "sceneIds": {
+          "type": "string[]",
+          "required": false,
+          "description": "Optional scene ids to include."
+        }
+      }
+    },
+    {
+      "id": "view.showPageBreaks",
+      "kind": "effect",
+      "args": {
+        "enabled": {
+          "type": "boolean",
+          "required": true,
+          "description": "Whether page break markers are visible."
+        }
+      }
+    },
+    {
+      "id": "play.compareWithDoc",
+      "kind": "inspection",
+      "args": {
+        "playId": {
+          "type": "string",
+          "required": true,
+          "description": "Play id."
+        },
+        "html": {
+          "type": "string",
+          "required": true,
+          "description": "Google Doc HTML export."
+        }
+      }
+    },
+    {
+      "id": "chat.simulate",
+      "kind": "inspection",
+      "args": {
+        "steps": {
+          "type": "array",
+          "required": true,
+          "description": "Ordered simulation steps (open, caretTo, clickMark, next, clear, answer, scrollTo, reload)."
+        }
+      }
+    },
+    {
+      "id": "view.playTextSize",
+      "kind": "effect",
+      "args": {
+        "step": {
+          "type": "string",
+          "required": true,
+          "enum": [
+            "smaller",
+            "larger",
+            "reset"
+          ],
+          "description": "How to adjust reader text size."
+        }
+      }
+    },
+    {
+      "id": "landing.ask",
+      "kind": "effect",
+      "args": {
+        "text": {
+          "type": "string",
+          "required": false,
+          "description": "Message to send; omit to use the composer."
+        }
+      }
+    },
+    {
+      "id": "landing.suggestion",
+      "kind": "effect",
+      "args": {
+        "answerId": {
+          "type": "string",
+          "required": true,
+          "enum": [
+            "default",
+            "how-it-works",
+            "whos-behind",
+            "where-going",
+            "what-can-do"
+          ],
+          "description": "Scripted answer id."
+        }
+      }
+    },
+    {
+      "id": "landing.moveChip",
+      "kind": "effect",
+      "args": {
+        "chipId": {
+          "type": "string",
+          "required": true,
+          "enum": [
+            "have-line",
+            "have-draft",
+            "someone-told",
+            "whos-behind",
+            "start-with-line",
+            "idle-show-demo",
+            "idle-look-around",
+            "pick-it-up",
+            "start-fresh",
+            "ticket-thats-me",
+            "ticket-not-me",
+            "ticket-just-talk",
+            "ticket-sign-in"
+          ],
+          "description": "Opening or ticket chip id."
+        }
+      }
+    },
+    {
+      "id": "landing.startVoice",
+      "kind": "effect",
+      "args": {}
+    },
+    {
+      "id": "landing.toggleDictation",
+      "kind": "effect",
+      "args": {}
+    },
+    {
+      "id": "landing.endSpeech",
+      "kind": "effect",
+      "args": {}
+    },
+    {
+      "id": "landing.toggleRail",
+      "kind": "effect",
+      "args": {
+        "open": {
+          "type": "boolean",
+          "required": false,
+          "description": "Force open or closed; omit to toggle."
+        }
+      }
+    },
+    {
+      "id": "landing.toggleRailCollapse",
+      "kind": "effect",
+      "args": {}
+    },
+    {
+      "id": "landing.closeRail",
+      "kind": "effect",
+      "args": {}
+    },
+    {
+      "id": "landing.railTool",
+      "kind": "effect",
+      "args": {
+        "item": {
+          "type": "string",
+          "required": true,
+          "enum": [
+            "room",
+            "plays",
+            "captures",
+            "reads",
+            "map",
+            "company"
+          ],
+          "description": "Rail tool id."
+        }
+      }
+    },
+    {
+      "id": "landing.toggleAttachMenu",
+      "kind": "effect",
+      "args": {
+        "open": {
+          "type": "boolean",
+          "required": false,
+          "description": "Force open or closed; omit to toggle."
+        }
+      }
+    },
+    {
+      "id": "landing.attachUploadScript",
+      "kind": "effect",
+      "args": {}
+    },
+    {
+      "id": "landing.continueSignIn",
+      "kind": "effect",
+      "args": {}
+    },
+    {
+      "id": "landing.sharedGuestName",
+      "kind": "effect",
+      "args": {
+        "name": {
+          "type": "string",
+          "required": true,
+          "description": "Guest name."
+        }
+      }
+    },
+    {
+      "id": "landing.interviewSubmit",
+      "kind": "effect",
+      "args": {}
+    },
+    {
+      "id": "landing.fillComposer",
+      "kind": "effect",
+      "args": {
+        "text": {
+          "type": "string",
+          "required": true,
+          "description": "Text to place in the composer."
+        }
+      }
+    },
+    {
+      "id": "landing.setLayout",
+      "kind": "effect",
+      "args": {
+        "layout": {
+          "type": "string",
+          "required": true,
+          "description": "Layout registry key."
+        }
+      }
+    },
+    {
+      "id": "landing.layoutPreview",
+      "kind": "effect",
+      "args": {
+        "action": {
+          "type": "string",
+          "required": true,
+          "enum": [
+            "expand",
+            "collapse"
+          ],
+          "description": "Whether to expand or collapse the switcher."
+        }
+      }
+    },
+    {
+      "id": "landing.programNoteOpen",
+      "kind": "effect",
+      "args": {
+        "noteId": {
+          "type": "string",
+          "required": true,
+          "enum": [
+            "eric",
+            "veric"
+          ],
+          "description": "Program note id."
+        }
+      }
+    },
+    {
+      "id": "landing.programNoteClose",
+      "kind": "effect",
+      "args": {
+        "noteId": {
+          "type": "string",
+          "required": true,
+          "enum": [
+            "eric",
+            "veric"
+          ],
+          "description": "Program note id."
+        }
+      }
+    },
+    {
+      "id": "landing.programNoteAsk",
+      "kind": "effect",
+      "args": {
+        "noteId": {
+          "type": "string",
+          "required": true,
+          "enum": [
+            "eric",
+            "veric"
+          ],
+          "description": "Program note id."
+        }
+      }
+    },
+    {
+      "id": "landing.knownDeviceDismiss",
+      "kind": "effect",
+      "args": {}
+    },
+    {
+      "id": "landing.knownDeviceNotMe",
+      "kind": "effect",
+      "args": {}
+    },
+    {
+      "id": "landing.pageDropWrongFile",
+      "kind": "effect",
+      "args": {
+        "entryId": {
+          "type": "string",
+          "required": true,
+          "description": "Page-drop entry id."
+        }
+      }
+    },
+    {
+      "id": "landing.pageDropRetry",
+      "kind": "effect",
+      "args": {
+        "entryId": {
+          "type": "string",
+          "required": true,
+          "description": "Page-drop entry id."
+        }
+      }
+    },
+    {
+      "id": "landing.pageDropReload",
+      "kind": "effect",
+      "args": {}
+    },
+    {
+      "id": "landing.pageDropBringIn",
+      "kind": "effect",
+      "args": {
+        "entryId": {
+          "type": "string",
+          "required": true,
+          "description": "Page-drop entry id."
+        }
+      }
+    },
+    {
+      "id": "landing.pageDropToggleScenePicker",
+      "kind": "effect",
+      "args": {
+        "entryId": {
+          "type": "string",
+          "required": true,
+          "description": "Page-drop entry id."
+        }
+      }
+    },
+    {
+      "id": "landing.pageDropImportScene",
+      "kind": "effect",
+      "args": {
+        "entryId": {
+          "type": "string",
+          "required": true,
+          "description": "Page-drop entry id."
+        },
+        "sceneTitle": {
+          "type": "string",
+          "required": true,
+          "description": "Scene title to import."
+        }
+      }
+    }
+  ]
+}
