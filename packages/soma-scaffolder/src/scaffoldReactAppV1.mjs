@@ -1,15 +1,17 @@
 import {
-  cpSync,
   existsSync,
   mkdirSync,
   readFileSync,
-  readdirSync,
-  statSync,
   writeFileSync,
 } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { assertCleanTemplateProvenance } from "./templateProvenance.mjs";
+import {
+  assertCleanTemplateProvenance,
+  copyTrackedTemplateTree,
+} from "./templateProvenance.mjs";
+import { assertCleanPlatformPackages } from "./assertCleanPlatformPackages.mjs";
+import { copyManifestSources } from "./copyManifestSources.mjs";
 import { writeKitLock } from "./writeKitLock.mjs";
 import {
   resolveAppTemplateDir,
@@ -30,30 +32,6 @@ export const METER_ADAPTER = "netlify/functions/lib/meter.ts";
 export const TICKETS_SCHEMA = `${VENDORED_TICKETS_DIR}/sql/schema.sql`;
 export const METER_SCHEMA = `${VENDORED_METER_DIR}/sql/schema.sql`;
 
-const EXCLUDE = new Set([
-  "node_modules",
-  "dist",
-  "dist-ssr",
-  ".git",
-  ".netlify",
-  ".env.local",
-]);
-
-function copyTemplateTree(srcDir, outDir) {
-  mkdirSync(outDir, { recursive: true });
-  for (const entry of readdirSync(srcDir)) {
-    if (EXCLUDE.has(entry)) continue;
-    const src = join(srcDir, entry);
-    const dest = join(outDir, entry);
-    const st = statSync(src);
-    if (st.isDirectory()) {
-      cpSync(src, dest, { recursive: true });
-    } else {
-      cpSync(src, dest);
-    }
-  }
-}
-
 function writeFile(outDir, rel, content) {
   const full = join(outDir, rel);
   mkdirSync(dirname(full), { recursive: true });
@@ -61,51 +39,47 @@ function writeFile(outDir, rel, content) {
   return rel;
 }
 
-function copyTree(src, dest) {
-  mkdirSync(dest, { recursive: true });
-  for (const entry of readdirSync(src)) {
-    const from = join(src, entry);
-    const to = join(dest, entry);
-    if (statSync(from).isDirectory()) {
-      copyTree(from, to);
-    } else {
-      cpSync(from, to);
-    }
-  }
-}
-
-function copyConformanceBundle(outDir, bundleDir) {
-  if (!bundleDir || !existsSync(bundleDir)) return;
-  for (const name of ["schemas", "personas", "knowledge"]) {
-    const src = join(bundleDir, name);
-    if (existsSync(src)) copyTree(src, join(outDir, name));
-  }
-  const vendorSrc = join(bundleDir, "vendor", "soma");
-  if (existsSync(vendorSrc)) {
-    for (const entry of readdirSync(vendorSrc)) {
-      const from = join(vendorSrc, entry);
-      const to = join(outDir, "vendor", "soma", entry);
-      if (statSync(from).isDirectory()) {
-        copyTree(from, to);
-      } else {
-        mkdirSync(dirname(to), { recursive: true });
-        cpSync(from, to);
-      }
-    }
-  }
-}
-
 function patchTsconfigForVendor(outDir) {
-  const rel = "tsconfig.json";
-  const full = join(outDir, rel);
-  if (!existsSync(full)) return;
-  const tsconfig = JSON.parse(readFileSync(full, "utf8"));
-  tsconfig.compilerOptions ??= {};
-  tsconfig.compilerOptions.paths ??= {};
-  if (!tsconfig.compilerOptions.paths["@vendor/*"]) {
-    tsconfig.compilerOptions.paths["@vendor/*"] = ["./vendor/*"];
-    writeFileSync(full, `${JSON.stringify(tsconfig, null, 2)}\n`);
+  for (const rel of ["tsconfig.json", "tsconfig.app.json", "tsconfig.functions.json"]) {
+    const full = join(outDir, rel);
+    if (!existsSync(full)) continue;
+    let src = readFileSync(full, "utf8");
+    if (src.includes("@vendor/*")) continue;
+    if (src.includes('"paths"')) {
+      src = src.replace(
+        /"paths"\s*:\s*\{/,
+        '"paths": {\n      "@vendor/*": ["./vendor/*"],',
+      );
+    } else if (src.includes('"compilerOptions"')) {
+      src = src.replace(
+        /"compilerOptions"\s*:\s*\{/,
+        '"compilerOptions": {\n    "paths": { "@vendor/*": ["./vendor/*"] },',
+      );
+    } else {
+      continue;
+    }
+    writeFileSync(full, src);
   }
+}
+
+function writeVendorTypeShims(outDir) {
+  writeFile(
+    outDir,
+    "src/soma-vendor.d.ts",
+    `declare module "@vendor/soma/tickets/index.js";
+declare module "@vendor/soma/meter/index.js";
+declare module "@vendor/soma/signin/somaAuthConfig.js";
+declare module "@vendor/soma/signin/somaKnownDevice.js";
+declare module "@vendor/soma/signin/react/AuthProvider";
+declare module "@vendor/soma/signin/react/SomaAuth";
+`,
+  );
+  writeFile(
+    outDir,
+    "netlify/functions/soma-vendor.d.ts",
+    `declare module "@vendor/soma/meter/index.js";
+`,
+  );
 }
 
 function patchViteForVendor(outDir) {
@@ -113,14 +87,19 @@ function patchViteForVendor(outDir) {
   const full = join(outDir, rel);
   if (!existsSync(full)) return;
   let src = readFileSync(full, "utf8");
-  if (src.includes("@vendor")) return;
-  if (!src.includes("resolve:")) {
+  if (src.includes("'@vendor'") || src.includes('"@vendor"')) return;
+  if (src.includes("alias:")) {
+    src = src.replace(
+      /(alias:\s*\{)/,
+      "$1\n      '@vendor': fileURLToPath(new URL('./vendor', import.meta.url)),",
+    );
+  } else {
     src = src.replace(
       /export default defineConfig\(\{/,
-      "export default defineConfig({\n  resolve: {\n    alias: {\n      '@vendor': new URL('./vendor', import.meta.url).pathname,\n    },\n  },",
+      "export default defineConfig({\n  resolve: {\n    alias: {\n      '@vendor': fileURLToPath(new URL('./vendor', import.meta.url)),\n    },\n  },",
     );
-    writeFileSync(full, src);
   }
+  writeFileSync(full, src);
 }
 
 function wireSignInAuthV1(outDir) {
@@ -192,7 +171,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       <SomaSignInAuthProvider
         supabase={supabase}
         knownDevice={knownDevice}
-        onAuthEvent={async (event) => {
+        onAuthEvent={async (event: string) => {
           if (event === 'SIGNED_IN') {
             const loc = await fetchLastLocation();
             setResumePath(loc?.path ?? null);
@@ -347,11 +326,9 @@ export async function scaffoldReactAppV1(
   manifest,
   {
     outDir,
+    manifestDir,
     appTemplateDir = resolveAppTemplateDir(),
     platformRoot = SOMA_PLATFORM_ROOT,
-    conformanceBundleDir = null,
-    skipKitLock = false,
-    skipTemplateProvenance = false,
   } = {},
 ) {
   if (manifest?.schema_version !== "soma.app/1") {
@@ -365,16 +342,21 @@ export async function scaffoldReactAppV1(
     throw new Error(`scaffoldReactAppV1: outDir already exists: ${outDir}`);
   }
 
-  const template = skipTemplateProvenance
-    ? { repository: "test/template", commit: "0".repeat(40) }
-    : assertCleanTemplateProvenance(appTemplateDir);
+  if (!manifestDir) {
+    throw new Error("scaffoldReactAppV1: manifestDir is required (directory containing the spec file)");
+  }
 
-  copyTemplateTree(appTemplateDir, outDir);
-  copyConformanceBundle(outDir, conformanceBundleDir);
+  assertCleanPlatformPackages(platformRoot);
+  const template = assertCleanTemplateProvenance(appTemplateDir);
+
+  mkdirSync(outDir, { recursive: true });
+  copyTrackedTemplateTree(appTemplateDir, outDir);
+  copyManifestSources(manifestDir, outDir, manifest);
   wireTicketsAndMeterV1(outDir, { platformRoot });
   wireSignInAuthV1(outDir);
   patchTsconfigForVendor(outDir);
   patchViteForVendor(outDir);
+  writeVendorTypeShims(outDir);
 
   rewriteAppConfig(outDir, "src/lib/appConfig.ts", manifest.app.id, manifest.app.name);
   rewriteAppConfig(
@@ -389,15 +371,13 @@ export async function scaffoldReactAppV1(
 
   writeFile(outDir, "soma-app.json", JSON.stringify(manifest, null, 2) + "\n");
 
-  if (!skipKitLock) {
-    await writeKitLock({
-      outDir,
-      manifest,
-      platformRoot,
-      sourceCommit: readSomaPlatformCommit(platformRoot),
-      template,
-    });
-  }
+  await writeKitLock({
+    outDir,
+    manifest,
+    platformRoot,
+    sourceCommit: readSomaPlatformCommit(platformRoot),
+    template,
+  });
 
   return { outDir, template };
 }

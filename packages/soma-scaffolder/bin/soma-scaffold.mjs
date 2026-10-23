@@ -6,6 +6,7 @@
 //   soma-scaffold react-app <spec.json> [outDir]          # full app, cloned from soma-app-template
 //   soma-scaffold provision <spec.json> [appDir]
 
+import { dirname, resolve } from "node:path";
 import { loadSpec, validate } from "../src/spec.mjs";
 import { migrateSpecV0 } from "../src/migrate-spec.mjs";
 import { scaffold } from "../src/scaffold.mjs";
@@ -75,7 +76,8 @@ if (cmd === "scaffold") {
 }
 
 if (cmd === "react-app") {
-  const res = await scaffoldReactApp(doc, { outDir });
+  const manifestDir = dirname(resolve(specPath));
+  const res = await scaffoldReactApp(doc, { outDir, manifestDir });
   const slug = doc.schema_version === "soma.app/1" ? doc.app.id : doc.soma_app.slug;
   console.log(`✓ react-app scaffolded ${slug} → ${res.outDir}`);
   console.log(`  run: cd ${res.outDir} && npm install && npm run dev`);

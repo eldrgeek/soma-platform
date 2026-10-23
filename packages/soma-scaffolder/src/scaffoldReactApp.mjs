@@ -512,23 +512,19 @@ export async function scaffoldReactApp(
   doc,
   {
     outDir,
+    manifestDir,
     appTemplateDir = DEFAULT_APP_TEMPLATE,
     affordancesTemplatesDir = DEFAULT_AFFORDANCES_TEMPLATES,
     platformRoot = SOMA_PLATFORM_ROOT,
-    conformanceBundleDir = null,
-    skipKitLock = false,
-    skipTemplateProvenance = false,
   } = {},
 ) {
   if (doc?.schema_version === "soma.app/1") {
     const { scaffoldReactAppV1 } = await import("./scaffoldReactAppV1.mjs");
     const res = await scaffoldReactAppV1(doc, {
       outDir,
+      manifestDir,
       appTemplateDir,
       platformRoot,
-      conformanceBundleDir,
-      skipKitLock,
-      skipTemplateProvenance,
     });
     return { outDir: res.outDir, unresolved: [] };
   }
