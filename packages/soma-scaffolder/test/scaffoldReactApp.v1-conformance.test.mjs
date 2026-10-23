@@ -13,36 +13,28 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomBytes } from "node:crypto";
-import { execFileSync, spawnSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { loadSpec } from "../src/spec.mjs";
 import { scaffoldReactApp } from "../src/scaffoldReactApp.mjs";
 import { assertCleanTemplateProvenance } from "../src/templateProvenance.mjs";
 import { reportPassed } from "@soma/conformance";
+import {
+  createCleanPlatformRepo,
+  initBareOrigin,
+  runGit,
+  TEMPLATE_LOCK_REPOSITORY,
+  wireFileOriginToBare,
+} from "./gitTestHelpers.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SCAFFOLDER_ROOT = join(__dirname, "..");
-const PLATFORM_ROOT = join(SCAFFOLDER_ROOT, "..", "..");
+const MONOREPO_ROOT = join(SCAFFOLDER_ROOT, "..", "..");
 const FIXTURE_MANIFEST = join(SCAFFOLDER_ROOT, "test", "fixtures", "v1-disposable", "soma-app.json");
 const FIXTURE_DIR = dirname(FIXTURE_MANIFEST);
 const CONFORM_CLI = join(SCAFFOLDER_ROOT, "..", "soma-conformance", "bin", "soma-conform.mjs");
 
 // export-app-schema / erase-app-schema are one-line prose stubs (not executable handlers);
 // conformance only needs repository-relative paths with stable bytes for C13 contract hashing.
-
-function runGit(cwd, args, env = {}) {
-  execFileSync("git", args, {
-    cwd,
-    stdio: "pipe",
-    env: {
-      ...process.env,
-      GIT_AUTHOR_NAME: "test",
-      GIT_AUTHOR_EMAIL: "test@test",
-      GIT_COMMITTER_NAME: "test",
-      GIT_COMMITTER_EMAIL: "test@test",
-      ...env,
-    },
-  });
-}
 
 function writeMinimalTemplateTree(dir) {
   writeFileSync(
@@ -73,19 +65,9 @@ function writeMinimalTemplateTree(dir) {
   );
 }
 
-const TEMPLATE_GITHUB_ORIGIN = "https://github.com/test/soma-app-template.git";
-
-function wireTemplateOrigin(templateDir, bareDir) {
-  runGit(templateDir, ["remote", "add", "origin", TEMPLATE_GITHUB_ORIGIN]);
-  runGit(templateDir, ["config", `url.${bareDir}.insteadOf`, TEMPLATE_GITHUB_ORIGIN]);
-  runGit(templateDir, ["push", "-u", "origin", "main"]);
-}
-
 function createCleanTemplateRepo() {
   const repoRoot = mkdtempSync(join(tmpdir(), "soma-template-root-"));
-  const bareDir = join(repoRoot, "origin.git");
-  runGit(repoRoot, ["init", "--bare", bareDir]);
-  runGit(bareDir, ["symbolic-ref", "HEAD", "refs/heads/main"]);
+  const bareDir = initBareOrigin(repoRoot);
 
   const templateDir = mkdtempSync(join(tmpdir(), "soma-template-"));
   runGit(templateDir, ["init"]);
@@ -93,8 +75,15 @@ function createCleanTemplateRepo() {
   runGit(templateDir, ["add", "."]);
   runGit(templateDir, ["commit", "-m", "template seed"]);
   runGit(templateDir, ["branch", "-M", "main"]);
-  wireTemplateOrigin(templateDir, bareDir);
+  wireFileOriginToBare(templateDir, bareDir, {
+    branch: "main",
+    githubRepository: TEMPLATE_LOCK_REPOSITORY,
+  });
   return { templateDir, bareDir, repoRoot };
+}
+
+function createV1PlatformFixture() {
+  return createCleanPlatformRepo({ monorepoRoot: MONOREPO_ROOT });
 }
 
 function runConformance(repositoryRoot) {
@@ -116,39 +105,58 @@ function runConformance(repositoryRoot) {
   return JSON.parse(result.stdout);
 }
 
-async function scaffoldDisposable({ templateDir }) {
+async function scaffoldDisposable({ templateDir, platformRoot }) {
   const outDir = join(tmpdir(), `soma-v1-conform-${randomBytes(8).toString("hex")}`);
   const manifest = loadSpec(FIXTURE_MANIFEST);
   await scaffoldReactApp(manifest, {
     outDir,
     manifestDir: FIXTURE_DIR,
     appTemplateDir: templateDir,
-    platformRoot: PLATFORM_ROOT,
+    platformRoot,
   });
   return outDir;
 }
 
-function cleanupTemplateFixture({ templateDir, repoRoot }) {
-  rmSync(templateDir, { recursive: true, force: true });
-  if (repoRoot) rmSync(repoRoot, { recursive: true, force: true });
+function cleanupConformanceFixture({
+  templateDir,
+  templateRepoRoot,
+  platformRoot,
+  platformRepoRoot,
+}) {
+  if (templateDir) rmSync(templateDir, { recursive: true, force: true });
+  if (templateRepoRoot) rmSync(templateRepoRoot, { recursive: true, force: true });
+  if (platformRoot) rmSync(platformRoot, { recursive: true, force: true });
+  if (platformRepoRoot) rmSync(platformRepoRoot, { recursive: true, force: true });
+}
+
+function beginConformanceFixture() {
+  const { platformRoot, repoRoot: platformRepoRoot } = createV1PlatformFixture();
+  const { templateDir, repoRoot: templateRepoRoot } = createCleanTemplateRepo();
+  return { platformRoot, platformRepoRoot, templateDir, templateRepoRoot };
 }
 
 test("v1 disposable app passes local conformance", async () => {
-  const { templateDir, repoRoot } = createCleanTemplateRepo();
-  const outDir = await scaffoldDisposable({ templateDir });
+  const fx = beginConformanceFixture();
+  const outDir = await scaffoldDisposable({
+    templateDir: fx.templateDir,
+    platformRoot: fx.platformRoot,
+  });
   try {
     assert.ok(existsSync(join(outDir, "soma-kit.lock.json")));
     const report = runConformance(outDir);
     assert.equal(reportPassed(report), true);
   } finally {
     rmSync(outDir, { recursive: true, force: true });
-    cleanupTemplateFixture({ templateDir, repoRoot });
+    cleanupConformanceFixture(fx);
   }
 });
 
 test("conformance fails C13 when a host field changes in soma-app.json", async () => {
-  const { templateDir, repoRoot } = createCleanTemplateRepo();
-  const outDir = await scaffoldDisposable({ templateDir });
+  const fx = beginConformanceFixture();
+  const outDir = await scaffoldDisposable({
+    templateDir: fx.templateDir,
+    platformRoot: fx.platformRoot,
+  });
   try {
     const manifest = JSON.parse(readFileSync(join(outDir, "soma-app.json"), "utf8"));
     manifest.hosts.human.name = "Someone else";
@@ -163,13 +171,16 @@ test("conformance fails C13 when a host field changes in soma-app.json", async (
     assert.match(result.stdout, /contract_sha256/);
   } finally {
     rmSync(outDir, { recursive: true, force: true });
-    cleanupTemplateFixture({ templateDir, repoRoot });
+    cleanupConformanceFixture(fx);
   }
 });
 
 test("conformance fails C5 when an effect action loses its UI binding", async () => {
-  const { templateDir, repoRoot } = createCleanTemplateRepo();
-  const outDir = await scaffoldDisposable({ templateDir });
+  const fx = beginConformanceFixture();
+  const outDir = await scaffoldDisposable({
+    templateDir: fx.templateDir,
+    platformRoot: fx.platformRoot,
+  });
   try {
     const manifest = JSON.parse(readFileSync(join(outDir, "soma-app.json"), "utf8"));
     manifest.actions[1].surfaces = ["guide", "remote"];
@@ -183,13 +194,16 @@ test("conformance fails C5 when an effect action loses its UI binding", async ()
     assert.match(result.stdout, /^C5 fail:/m);
   } finally {
     rmSync(outDir, { recursive: true, force: true });
-    cleanupTemplateFixture({ templateDir, repoRoot });
+    cleanupConformanceFixture(fx);
   }
 });
 
 test("conformance fails C13 when a vendored file byte changes", async () => {
-  const { templateDir, repoRoot } = createCleanTemplateRepo();
-  const outDir = await scaffoldDisposable({ templateDir });
+  const fx = beginConformanceFixture();
+  const outDir = await scaffoldDisposable({
+    templateDir: fx.templateDir,
+    platformRoot: fx.platformRoot,
+  });
   try {
     appendFileSync(join(outDir, "vendor", "soma", "actions", "index.mjs"), " ");
     const result = spawnSync(
@@ -202,12 +216,12 @@ test("conformance fails C13 when a vendored file byte changes", async () => {
     assert.match(result.stdout, /packages\.@soma\/actions\.sha256/);
   } finally {
     rmSync(outDir, { recursive: true, force: true });
-    cleanupTemplateFixture({ templateDir, repoRoot });
+    cleanupConformanceFixture(fx);
   }
 });
 
 test("dirty template checkout is refused", () => {
-  const { templateDir, repoRoot } = createCleanTemplateRepo();
+  const { templateDir, repoRoot: templateRepoRoot } = createCleanTemplateRepo();
   try {
     writeFileSync(join(templateDir, "dirty.txt"), "x\n");
     assert.throws(
@@ -215,12 +229,12 @@ test("dirty template checkout is refused", () => {
       /uncommitted or untracked files/,
     );
   } finally {
-    cleanupTemplateFixture({ templateDir, repoRoot });
+    cleanupConformanceFixture({ templateDir, templateRepoRoot });
   }
 });
 
 test("template commit not on default branch is refused", () => {
-  const { templateDir, repoRoot } = createCleanTemplateRepo();
+  const { templateDir, repoRoot: templateRepoRoot } = createCleanTemplateRepo();
   try {
     runGit(templateDir, ["checkout", "-b", "feature"]);
     writeFileSync(join(templateDir, "feature-only.txt"), "x\n");
@@ -231,13 +245,16 @@ test("template commit not on default branch is refused", () => {
       /is not on origin\/main/,
     );
   } finally {
-    cleanupTemplateFixture({ templateDir, repoRoot });
+    cleanupConformanceFixture({ templateDir, templateRepoRoot });
   }
 });
 
 test("conformance fails when soma-kit.lock.json is missing", async () => {
-  const { templateDir, repoRoot } = createCleanTemplateRepo();
-  const outDir = await scaffoldDisposable({ templateDir });
+  const fx = beginConformanceFixture();
+  const outDir = await scaffoldDisposable({
+    templateDir: fx.templateDir,
+    platformRoot: fx.platformRoot,
+  });
   try {
     rmSync(join(outDir, "soma-kit.lock.json"));
     const result = spawnSync(
@@ -249,6 +266,6 @@ test("conformance fails when soma-kit.lock.json is missing", async () => {
     assert.match(result.stdout, /^C13 fail:/m);
   } finally {
     rmSync(outDir, { recursive: true, force: true });
-    cleanupTemplateFixture({ templateDir, repoRoot });
+    cleanupConformanceFixture(fx);
   }
 });
