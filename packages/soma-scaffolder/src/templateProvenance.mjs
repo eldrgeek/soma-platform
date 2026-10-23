@@ -1,7 +1,9 @@
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
+import { cpSync, mkdirSync } from "node:fs";
+import { dirname, join } from "node:path";
 
 function git(cwd, args) {
-  return execSync(["git", ...args].join(" "), {
+  return execFileSync("git", args, {
     cwd,
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
@@ -10,7 +12,7 @@ function git(cwd, args) {
 
 function gitOk(cwd, args) {
   try {
-    execSync(["git", ...args].join(" "), {
+    execFileSync("git", args, {
       cwd,
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
@@ -32,6 +34,28 @@ function parseGithubRepository(remoteUrl) {
   const scp = normalized.match(/^ssh:\/\/git@github\.com\/([^/]+\/[^/]+)$/);
   if (scp) return scp[1];
   return null;
+}
+
+function resolveDefaultBranch(templateDir) {
+  try {
+    const symbolic = git(templateDir, [
+      "symbolic-ref",
+      "refs/remotes/origin/HEAD",
+    ]);
+    const match = symbolic.match(/^refs\/remotes\/origin\/(.+)$/);
+    if (match) return match[1];
+  } catch {
+    // fall through
+  }
+  if (gitOk(templateDir, ["show-ref", "--verify", "--quiet", "refs/remotes/origin/main"])) {
+    return "main";
+  }
+  if (gitOk(templateDir, ["show-ref", "--verify", "--quiet", "refs/remotes/origin/master"])) {
+    return "master";
+  }
+  throw new Error(
+    "template provenance: no fetched origin — set refs/remotes/origin/HEAD or origin/main or origin/master",
+  );
 }
 
 /**
@@ -70,17 +94,7 @@ export function assertCleanTemplateProvenance(templateDir) {
   }
 
   const commit = git(templateDir, ["rev-parse", "HEAD"]);
-
-  let defaultBranch = "main";
-  if (gitOk(templateDir, ["show-ref", "--verify", "--quiet", "refs/remotes/origin/main"])) {
-    defaultBranch = "main";
-  } else if (gitOk(templateDir, ["show-ref", "--verify", "--quiet", "refs/remotes/origin/master"])) {
-    defaultBranch = "master";
-  } else {
-    throw new Error(
-      "template provenance: no fetched origin/main or origin/master — run git fetch origin in the template",
-    );
-  }
+  const defaultBranch = resolveDefaultBranch(templateDir);
 
   if (!gitOk(templateDir, ["merge-base", "--is-ancestor", commit, `origin/${defaultBranch}`])) {
     throw new Error(
@@ -89,4 +103,22 @@ export function assertCleanTemplateProvenance(templateDir) {
   }
 
   return { repository, commit };
+}
+
+/**
+ * Copy only git-tracked files from the template checkout (excludes .env, etc.).
+ * @param {string} templateDir
+ * @param {string} outDir
+ */
+export function copyTrackedTemplateTree(templateDir, outDir) {
+  const tracked = git(templateDir, ["ls-files", "-z"]).split("\0").filter(Boolean);
+  if (tracked.length === 0) {
+    throw new Error("template provenance: template has no tracked files");
+  }
+  for (const rel of tracked) {
+    const src = join(templateDir, rel);
+    const dest = join(outDir, rel);
+    mkdirSync(dirname(dest), { recursive: true });
+    cpSync(src, dest);
+  }
 }
