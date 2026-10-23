@@ -45,6 +45,14 @@ export function buildLlmsTxt(manifest, resolvedActions) {
     }
   }
   lines.push("");
+  lines.push("## SOMA API routes (not live yet)");
+  lines.push(
+    "Every /api/soma/v1/* route in OpenAPI is planned contract documentation only; this app does not serve those endpoints yet.",
+  );
+  lines.push(
+    "An outside AI can read public pages and knowledge today; it cannot call prepare, execute, ask, contact, or other SOMA API routes until the app ships them.",
+  );
+  lines.push("");
   lines.push("## Acting as an outside AI");
   lines.push(
     "Fetch-only assistants should read this file and the discovery JSON, then tell the person how to connect an AI that can act.",
@@ -56,7 +64,7 @@ export function buildLlmsTxt(manifest, resolvedActions) {
     "When pairing is available, tool-capable assistants will authorize through the app-declared identity broker, receive per-app grants, then call /api/soma/v1/actions/{action_id}/prepare and /execute with bearer tokens.",
   );
   lines.push(
-    "Human-only approval and consent routes are not listed here; an outside AI must never be invited to approve its own request.",
+    "Human-only authorization flows are not listed here; an outside AI must never be invited to authorize its own request.",
   );
   lines.push("");
   return lines.join("\n");

@@ -1,6 +1,25 @@
 {
   "components": {
     "schemas": {
+      "SomaApprovalRequired": {
+        "additionalProperties": false,
+        "properties": {
+          "approval_id": {
+            "type": "string"
+          },
+          "approval_url": {
+            "description": "Human-facing page URL for the account holder to approve or deny; outside AIs must not treat it as an API route.",
+            "type": "string"
+          },
+          "status": {
+            "const": "approval_required"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "type": "object"
+      },
       "SomaErrorResponse": {
         "additionalProperties": false,
         "properties": {
@@ -8,6 +27,7 @@
             "additionalProperties": false,
             "properties": {
               "approval_url": {
+                "description": "Human-facing page URL for the account holder to approve or deny; outside AIs must not treat it as an API route.",
                 "type": "string"
               },
               "code": {
@@ -103,7 +123,7 @@
     }
   },
   "info": {
-    "description": "Routes intended for outside AIs at this app origin.\n\nRate limits use platform-derived client-address metadata, app identity where available, and account or grant identity after authentication. They do not trust a caller-supplied forwarding header. Ask, contact, device pairing, approval polling, and unauthenticated discovery have separate quotas. A 429 response, and a retryable 409 or 503 response, includes Retry-After.\n\nEvery response carries X-Request-Id.\n\nErrors use the SomaErrorResponse schema; responses never include stack traces, SQL, provider payloads, or credentials.",
+    "description": "Routes intended for outside AIs at this app origin.\n\nContract routes under /api/soma/v1 are documented for future outside-AI access; this app does not serve them yet (x-soma-status: not_live).\n\nRate limits use platform-derived client-address metadata, app identity where available, and account or grant identity after authentication. They do not trust a caller-supplied forwarding header. Ask, contact, device pairing, approval polling, and unauthenticated discovery have separate quotas. A 429 response, and a retryable 409 or 503 response, includes Retry-After.\n\nEvery response carries X-Request-Id.\n\nErrors use the SomaErrorResponse schema; responses never include stack traces, SQL, provider payloads, or credentials.",
     "title": "V'Eric Coaching SOMA API",
     "version": "1.0.0"
   },
@@ -132,7 +152,8 @@
             "somaAgentBearer": []
           }
         ],
-        "summary": "List remote actions visible to the caller"
+        "summary": "List remote actions visible to the caller",
+        "x-soma-status": "not_live"
       }
     },
     "/api/soma/v1/actions/coaching.inspect-agenda/execute": {
@@ -198,7 +219,8 @@
         "summary": "Execute coaching.inspect-agenda",
         "x-soma-action-id": "coaching.inspect-agenda",
         "x-soma-action-kind": "observe",
-        "x-soma-action-version": "1"
+        "x-soma-action-version": "1",
+        "x-soma-status": "not_live"
       }
     },
     "/api/soma/v1/actions/coaching.inspect-agenda/prepare": {
@@ -229,11 +251,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SomaErrorResponse"
+                  "$ref": "#/components/schemas/SomaApprovalRequired"
                 }
               }
             },
-            "description": "Approval required"
+            "description": "Approval required before execution"
           },
           "401": {
             "content": {
@@ -264,7 +286,8 @@
         "summary": "Prepare coaching.inspect-agenda",
         "x-soma-action-id": "coaching.inspect-agenda",
         "x-soma-action-kind": "observe",
-        "x-soma-action-version": "1"
+        "x-soma-action-version": "1",
+        "x-soma-status": "not_live"
       }
     },
     "/api/soma/v1/actions/coaching.save-reflection/execute": {
@@ -342,7 +365,8 @@
         "x-soma-action-id": "coaching.save-reflection",
         "x-soma-action-kind": "effect",
         "x-soma-action-version": "1",
-        "x-soma-requires-idempotency-key": true
+        "x-soma-requires-idempotency-key": true,
+        "x-soma-status": "not_live"
       }
     },
     "/api/soma/v1/actions/coaching.save-reflection/prepare": {
@@ -373,11 +397,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SomaErrorResponse"
+                  "$ref": "#/components/schemas/SomaApprovalRequired"
                 }
               }
             },
-            "description": "Approval required"
+            "description": "Approval required before execution"
           },
           "401": {
             "content": {
@@ -408,7 +432,8 @@
         "summary": "Prepare coaching.save-reflection",
         "x-soma-action-id": "coaching.save-reflection",
         "x-soma-action-kind": "effect",
-        "x-soma-action-version": "1"
+        "x-soma-action-version": "1",
+        "x-soma-status": "not_live"
       }
     },
     "/api/soma/v1/approvals/{approval_id}": {
@@ -454,7 +479,8 @@
             "somaAgentBearer": []
           }
         ],
-        "summary": "Poll an approval by id"
+        "summary": "Poll an approval by id",
+        "x-soma-status": "not_live"
       }
     },
     "/api/soma/v1/ask": {
@@ -510,7 +536,8 @@
           }
         },
         "security": [],
-        "summary": "Ask the app host from declared knowledge"
+        "summary": "Ask the app host from declared knowledge",
+        "x-soma-status": "not_live"
       }
     },
     "/api/soma/v1/contact": {
@@ -532,7 +559,8 @@
           }
         },
         "security": [],
-        "summary": "Contact the human host"
+        "summary": "Contact the human host",
+        "x-soma-status": "not_live"
       }
     },
     "/api/soma/v1/receipts/{receipt_id}": {
@@ -578,7 +606,8 @@
             "somaAgentBearer": []
           }
         ],
-        "summary": "Fetch a receipt by id"
+        "summary": "Fetch a receipt by id",
+        "x-soma-status": "not_live"
       }
     },
     "/api/soma/v1/status": {
@@ -590,7 +619,8 @@
           }
         },
         "security": [],
-        "summary": "Release and dependency status"
+        "summary": "Release and dependency status",
+        "x-soma-status": "not_live"
       }
     }
   },

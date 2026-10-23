@@ -111,29 +111,35 @@ export async function checkC14(manifest, repositoryRoot) {
 
   if (failures.length === 0) {
     return checkResult("C14", failures, [
-      "static discovery files match manifest-derived soma-app.json, llms.txt, and openapi.json",
+      "static portion passed; discovery files match manifest-derived soma-app.json, llms.txt, and openapi.json",
       "runtime actions not_run: requires live HTTP action endpoints (M4 slice 2)",
       "executors applied not_run: requires broker-backed execution (M4 slice 2)",
       "error-envelope contract tests not_run: requires runtime API responses (M4 slice 2)",
     ]);
   }
 
-  try {
-    const actualSomaApp = JSON.parse(
-      readBytes(repositoryRoot, DISCOVERY_FILE_PATHS.wellKnown).toString("utf8"),
-    );
-    compareSomaAppActions(generated.somaApp, actualSomaApp, failures);
-  } catch {
-    // byte mismatch already recorded
+  const wellKnownBytes = readBytes(repositoryRoot, DISCOVERY_FILE_PATHS.wellKnown);
+  if (wellKnownBytes) {
+    try {
+      const actualSomaApp = JSON.parse(wellKnownBytes.toString("utf8"));
+      compareSomaAppActions(generated.somaApp, actualSomaApp, failures);
+    } catch (error) {
+      failures.push(
+        `public/.well-known/soma-app.json: could not parse for field diff (${error.message})`,
+      );
+    }
   }
 
-  try {
-    const actualOpenApi = JSON.parse(
-      readBytes(repositoryRoot, DISCOVERY_FILE_PATHS.openApi).toString("utf8"),
-    );
-    compareOpenApiActions(generated.openapi, actualOpenApi, failures);
-  } catch {
-    // byte mismatch already recorded
+  const openApiBytes = readBytes(repositoryRoot, DISCOVERY_FILE_PATHS.openApi);
+  if (openApiBytes) {
+    try {
+      const actualOpenApi = JSON.parse(openApiBytes.toString("utf8"));
+      compareOpenApiActions(generated.openapi, actualOpenApi, failures);
+    } catch (error) {
+      failures.push(
+        `public/api/soma/v1/openapi.json: could not parse for field diff (${error.message})`,
+      );
+    }
   }
 
   return checkResult("C14", failures, []);

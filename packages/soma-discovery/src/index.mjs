@@ -44,17 +44,37 @@ export async function generateDiscoveryArtifacts(manifest, readFile) {
   };
 }
 
+function routeStringsFromJson(text) {
+  try {
+    const doc = JSON.parse(text);
+    const paths = Object.keys(doc.paths ?? {});
+    const publicRoutes = doc.api?.public_routes ?? [];
+    return [...paths, ...publicRoutes].join("\n");
+  } catch {
+    return text;
+  }
+}
+
+function assertNoForbiddenRoutesInText(relPath, text) {
+  const routeText = relPath.endsWith(".txt")
+    ? text
+        .split("\n")
+        .filter((line) => line.startsWith("- /api/"))
+        .join("\n")
+    : routeStringsFromJson(text);
+  for (const marker of FORBIDDEN_ROUTE_MARKERS) {
+    if (routeText.includes(marker)) {
+      throw new Error(`discovery artifact ${relPath} must not include forbidden route ${marker}`);
+    }
+  }
+  if (routeText.includes("/decision")) {
+    throw new Error(`discovery artifact ${relPath} must not include an approval decision route`);
+  }
+}
+
 export function assertNoForbiddenRoutes(files) {
-  for (const [path, bytes] of Object.entries(files)) {
-    const text = bytes.toString("utf8");
-    for (const marker of FORBIDDEN_ROUTE_MARKERS) {
-      if (text.includes(marker)) {
-        throw new Error(`discovery artifact ${path} must not include forbidden route ${marker}`);
-      }
-    }
-    if (text.includes("/decision")) {
-      throw new Error(`discovery artifact ${path} must not include an approval decision route`);
-    }
+  for (const [relPath, bytes] of Object.entries(files)) {
+    assertNoForbiddenRoutesInText(relPath, bytes.toString("utf8"));
   }
 }
 

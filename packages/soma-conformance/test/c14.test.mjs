@@ -31,6 +31,7 @@ test("minimal app passes static C14 discovery checks", async (t) => {
   const manifest = readManifest(repositoryRoot);
   const result = await checkC14(manifest, repositoryRoot);
   assert.equal(result.result, "pass", result.reasons.join("\n"));
+  assert.match(result.reasons.join("\n"), /static portion passed/);
   assert.match(result.reasons.join("\n"), /runtime actions not_run/);
 });
 
