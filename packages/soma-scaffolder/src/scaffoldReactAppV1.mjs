@@ -68,18 +68,11 @@ function writeVendorTypeShims(outDir) {
     outDir,
     "src/soma-vendor.d.ts",
     `declare module "@vendor/soma/tickets/index.js";
-declare module "@vendor/soma/meter/index.js";
 declare module "@vendor/soma/signin/somaAuthConfig.js";
 declare module "@vendor/soma/signin/somaKnownDevice.js";
 declare module "@vendor/soma/signin/react/AuthProvider";
 declare module "@vendor/soma/signin/react/SomaAuth";
 declare module "@vendor/soma/feedback/index.js";
-`,
-  );
-  writeFile(
-    outDir,
-    "netlify/functions/soma-vendor.d.ts",
-    `declare module "@vendor/soma/meter/index.js";
 `,
   );
 }

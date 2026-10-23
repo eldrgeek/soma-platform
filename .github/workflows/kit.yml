@@ -53,6 +53,11 @@ jobs:
       - name: soma-discovery — test
         working-directory: packages/soma-discovery
         run: npm test
+      - name: soma-discovery — mutation-check
+        working-directory: packages/soma-discovery
+        run: timeout 10m npm run mutation-check
+      - name: soma-discovery — mutation-check clean tree
+        run: test -z "$(git status --porcelain)"
 
       - name: soma-conformance — install
         working-directory: packages/soma-conformance
@@ -60,6 +65,16 @@ jobs:
       - name: soma-conformance — test
         working-directory: packages/soma-conformance
         run: npm test
+      - name: soma-conformance — mutation-check
+        working-directory: packages/soma-conformance
+        run: timeout 10m npm run mutation-check
+      - name: soma-conformance — mutation-check clean tree
+        run: test -z "$(git status --porcelain)"
+      - name: soma-conformance — mutation-check-c15
+        working-directory: packages/soma-conformance
+        run: timeout 10m npm run mutation-check-c15
+      - name: soma-conformance — mutation-check-c15 clean tree
+        run: test -z "$(git status --porcelain)"
 
       - name: soma-scaffolder — install
         working-directory: packages/soma-scaffolder
@@ -67,6 +82,21 @@ jobs:
       - name: soma-scaffolder — test
         working-directory: packages/soma-scaffolder
         run: npm test
+      - name: soma-scaffolder — mutation-check-v1-guards
+        working-directory: packages/soma-scaffolder
+        run: timeout 10m npm run mutation-check-v1-guards
+      - name: soma-scaffolder — mutation-check-v1-guards clean tree
+        run: test -z "$(git status --porcelain)"
+      - name: soma-scaffolder — mutation-check-cli-refusal
+        working-directory: packages/soma-scaffolder
+        run: timeout 10m npm run mutation-check-cli-refusal
+      - name: soma-scaffolder — mutation-check-cli-refusal clean tree
+        run: test -z "$(git status --porcelain)"
+      - name: soma-scaffolder — mutation-check-v1-feedback
+        working-directory: packages/soma-scaffolder
+        run: timeout 10m npm run mutation-check-v1-feedback
+      - name: soma-scaffolder — mutation-check-v1-feedback clean tree
+        run: test -z "$(git status --porcelain)"
 
       - name: soma-actions — install
         working-directory: packages/soma-actions
@@ -74,6 +104,11 @@ jobs:
       - name: soma-actions — test
         working-directory: packages/soma-actions
         run: timeout 10m npm test
+      - name: soma-actions — mutation-check
+        working-directory: packages/soma-actions
+        run: timeout 10m npm run mutation-check
+      - name: soma-actions — mutation-check clean tree
+        run: test -z "$(git status --porcelain)"
 
       - name: soma-meter — install
         working-directory: packages/soma-meter
@@ -81,3 +116,8 @@ jobs:
       - name: soma-meter — test
         working-directory: packages/soma-meter
         run: timeout 10m npm test
+      - name: soma-meter — mutation-check
+        working-directory: packages/soma-meter
+        run: timeout 10m npm run mutation-check
+      - name: soma-meter — mutation-check clean tree
+        run: test -z "$(git status --porcelain)"
