@@ -3,47 +3,57 @@
  */
 
 /**
- * @param {import('../../tools/registry-scripts.mjs').ImplSpec} spec
+ * @param {() => void} run
+ * @param {{ count: number }} runCallCounter
  */
-export function buildImplFromSpec(spec) {
+function trackRun(run, runCallCounter) {
+  return (...args) => {
+    runCallCounter.count += 1;
+    return run(...args);
+  };
+}
+
+/**
+ * @param {import('../../tools/registry-scripts.mjs').ImplSpec} spec
+ * @param {{ count: number }} runCallCounter
+ */
+export function buildImplFromSpec(spec, runCallCounter) {
   switch (spec.kind) {
     case "throw":
       return {
-        run: () => {
+        run: trackRun(() => {
           throw new Error(spec.message ?? "boom");
-        },
+        }, runCallCounter),
       };
     case "return":
       return {
-        run: () => spec.value,
+        run: trackRun(() => spec.value, runCallCounter),
       };
     case "async-resolve":
       return {
-        run: async () => spec.value,
+        run: trackRun(async () => spec.value, runCallCounter),
       };
     case "async-reject-error":
       return {
-        run: async () => {
+        run: trackRun(async () => {
           throw new Error(spec.message ?? "async fail");
-        },
+        }, runCallCounter),
       };
     case "async-reject-value":
       return {
-        run: async () => {
+        run: trackRun(async () => {
           // eslint-disable-next-line no-throw-literal
           throw spec.value;
-        },
+        }, runCallCounter),
       };
     case "unavailable":
       return {
         unavailable: () => spec.reason ?? "unavailable",
-        run: () => {
-          throw new Error("run must not be called when unavailable returns a reason");
-        },
+        run: trackRun(() => undefined, runCallCounter),
       };
     case "undefined":
       return {
-        run: () => undefined,
+        run: trackRun(() => undefined, runCallCounter),
       };
     default:
       throw new Error(`Unknown impl kind: ${spec.kind}`);
@@ -81,13 +91,14 @@ export async function runRegistryScript(registry, script) {
   const stepResults = [];
   /** @type {Record<number, { auditId?: string }>} */
   const invokeByStep = [];
+  const runCallCounter = { count: 0 };
 
   for (let stepIndex = 0; stepIndex < script.length; stepIndex += 1) {
     const step = script[stepIndex];
     if (step.op === "provide") {
       const impls = {};
       for (const [commandId, spec] of Object.entries(step.impls)) {
-        impls[commandId] = buildImplFromSpec(spec);
+        impls[commandId] = buildImplFromSpec(spec, runCallCounter);
       }
       registry.provide(impls);
       stepResults.push(null);
@@ -121,5 +132,6 @@ export async function runRegistryScript(registry, script) {
   return {
     invoke: lastInvoke,
     stepResults,
+    runCallCount: runCallCounter.count,
   };
 }

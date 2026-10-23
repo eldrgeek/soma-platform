@@ -114,10 +114,11 @@ test("registry invoke and audit match frozen PlayMaker cases", async () => {
     });
     registry.clearAudit();
 
-    const { invoke, stepResults } = await runRegistryScript(registry, caseDef.script);
+    const { invoke, stepResults, runCallCount } = await runRegistryScript(registry, caseDef.script);
 
     assert.deepEqual(invoke, caseEntry.invoke, caseDef.id);
     assert.deepEqual(stepResults, caseEntry.stepResults, caseDef.id);
+    assert.equal(runCallCount, caseEntry.runCallCount, `${caseDef.id} runCallCount`);
     assert.deepEqual(registry.audit(), caseEntry.audit, caseDef.id);
     assert.equal(registry.audit().length, caseEntry.auditLength, caseDef.id);
     restore();
