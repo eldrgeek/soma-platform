@@ -6,6 +6,8 @@
   /* v0.3: the host decides a row's status; new rows start pending. */
   const STATUSES=new Set(['confirmed','declined']);
   const DAYS=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  /* Shared components an app may pin; the same list as PINNABLE in scripts/vendor-store.mjs. */
+  const PINNABLE=new Set(['soma-play','soma-video']);
   const strip=s=>s.replace(/\s+(#|\/\/).*$/,'').trimEnd();
   const q=s=>{const m=s.match(/^"([^"]*)"/);return m?m[1]:null};
   const value=s=>{s=s.trim();if(/^"/.test(s))return q(s);if(/^\[/.test(s))return s.slice(1,-1).split(',').map(x=>x.trim()).filter(Boolean).map(x=>q(x)??x);return s};
@@ -18,6 +20,8 @@
   function parse(source){const errors=[],warnings=[],root={screens:[],dialogs:[],stubs:{},data:{},states:{},stories:[],app:null,meta:null,theme:null};const lines=source.replace(/\r/g,'').split('\n');let stack=[{indent:-1,node:root,type:'root'}],last=0;const pop=end=>{const top=stack.pop();if(top.node!==root)top.node.end=end};
     for(let i=0;i<lines.length;i++){let raw=strip(lines[i]);if(!raw.trim())continue;const indent=raw.match(/^\s*/)[0].length;if(indent%2){errors.push({line:i+1,message:'Indentation must use 2-space steps'});continue}raw=raw.trim();if(raw==='}'){if(stack.length===1)errors.push({line:i+1,message:'Unexpected }'});else pop(i+1);last=i+1;continue}while(stack.length>1&&indent<=stack.at(-1).indent)pop(last);last=i+1;const parent=stack.at(-1);let m;
       if((m=raw.match(/^puppet\s+"([^"]+)"(?:\s+version\s+"([^"]+)")?$/))){root.meta={title:m[1],version:m[2]};continue}if((m=raw.match(/^theme:\s*([\w-]+)$/))){root.theme=m[1];continue}
+      /* Component pins: `uses soma-video@<hash>` loads that published build of a shared component (scripts/vendor-store.mjs). */
+      if((m=raw.match(/^uses\s+(\S+)$/))){const p=m[1].match(/^([\w-]+)@([0-9a-f]{12})$/);if(stack.length>1)errors.push({line:i+1,message:'uses goes at the top level, outside any block'});else if(!p)errors.push({line:i+1,message:'Write a pin as uses <component>@<12-digit hash>, for example uses soma-video@0123456789ab'});else if(!PINNABLE.has(p[1]))errors.push({line:i+1,message:`${p[1]} cannot be pinned; pin one of ${[...PINNABLE].join(', ')}`});else if(root.uses?.[p[1]])errors.push({line:i+1,message:`${p[1]} is pinned twice`});else(root.uses??={})[p[1]]=p[2];continue}
       if((m=raw.match(/^data\s+([\w-]+)\s*\{$/))){const name=m[1],node=span({fields:[]},i+1);root.data[name]=node;stack.push({indent,node,type:'data'});continue}
       if((m=raw.match(/^screen\s+"([^"]+)"\s+from\s+([\w-]+)\s*\{$/))){const node={type:'screen',name:m[1],from:m[2],props:{},children:[],line:i+1,end:i+1};root.screens.push(node);stack.push({indent,node,type:'screen'});continue}
       if((m=raw.match(/^(app|screen|dialog|stub|state|story)\s+(?:"([^"]+)"|([\w-]+))\s*\{$/))){const type=m[1],name=m[2]||m[3],node={type,name,props:{},children:[],line:i+1,end:i+1};if(type==='app')root.app=node;else if(type==='screen')root.screens.push(node);else if(type==='dialog')root.dialogs.push(node);else if(type==='stub')root.stubs[name]=node;else if(type==='state')root.states[name]=node;else root.stories.push(node);stack.push({indent,node,type});continue}

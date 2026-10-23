@@ -13,7 +13,10 @@ SOMA Studio app. Plain browser modules, no framework, no build step.
 In a Puppet description (v0.4) they are the elements `play-view "{row.text}"`
 and `stage-read "{row.text}"` on a screen that shows one row; see
 `packages/soma-puppet-runtime/GRAMMAR-v0.4.md`. The Puppet runtime serves
-copies of `src/` at `/vendor/soma-play/` (a test checks they match).
+copies of `src/` at `/vendor/soma-play/` (a test checks they match), and every
+published build at `/vendor/soma-play@<hash>/` for apps that pin one; after
+changing `src/`, copy it there and run `node scripts/vendor-store.mjs` in
+`packages/soma-puppet-runtime` (see its README, "Component pins").
 
 ## Files
 
