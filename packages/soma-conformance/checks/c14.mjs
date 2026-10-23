@@ -3,6 +3,7 @@ import { join } from "node:path";
 import {
   DISCOVERY_FILE_PATHS,
   generateDiscoveryFromRepository,
+  sortValue,
 } from "@soma/discovery";
 import { checkResult } from "../src/result.mjs";
 
@@ -22,6 +23,10 @@ function compareDiscoveryFile(relPath, expected, actual, failures) {
   if (expected.length !== actual.length || !expected.equals(actual)) {
     failures.push(`${relPath}: does not match manifest-derived discovery`);
   }
+}
+
+function stableFieldJson(value) {
+  return JSON.stringify(sortValue(value ?? null));
 }
 
 function compareSomaAppActions(expectedDoc, actualDoc, failures) {
@@ -46,8 +51,8 @@ function compareSomaAppActions(expectedDoc, actualDoc, failures) {
       "input_schema",
       "output_schema",
     ]) {
-      const left = JSON.stringify(expected[field] ?? null);
-      const right = JSON.stringify(actual[field] ?? null);
+      const left = stableFieldJson(expected[field]);
+      const right = stableFieldJson(actual[field]);
       if (left !== right) {
         failures.push(`action ${id}: field ${field} does not match manifest`);
       }
