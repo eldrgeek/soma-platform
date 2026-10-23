@@ -1,4 +1,4 @@
-import { cpSync, existsSync, mkdirSync, readdirSync, statSync } from "node:fs";
+import { cpSync, existsSync, lstatSync, mkdirSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { referencedSourcePaths, validateSourcePath } from "@soma/contracts";
 
@@ -7,12 +7,24 @@ function copyFile(src, dest) {
   cpSync(src, dest);
 }
 
+/**
+ * True for a directory, false for a regular file. A symlink or any other kind of entry is refused,
+ * so nothing outside the manifest directory can be pulled into the scaffold (C13).
+ */
+function isDirectoryNoLinks(path) {
+  const st = lstatSync(path);
+  if (st.isSymbolicLink()) throw new Error(`manifest source is a symlink (refused): ${path}`);
+  if (st.isDirectory()) return true;
+  if (st.isFile()) return false;
+  throw new Error(`manifest source is not a regular file or directory (refused): ${path}`);
+}
+
 function copyTree(src, dest) {
   mkdirSync(dest, { recursive: true });
   for (const entry of readdirSync(src)) {
     const from = join(src, entry);
     const to = join(dest, entry);
-    if (statSync(from).isDirectory()) {
+    if (isDirectoryNoLinks(from)) {
       copyTree(from, to);
     } else {
       copyFile(from, to);
@@ -42,7 +54,7 @@ export function copyManifestSources(manifestDir, outDir, manifest) {
       continue;
     }
     const dest = join(outDir, rel);
-    if (statSync(src).isDirectory()) {
+    if (isDirectoryNoLinks(src)) {
       copyTree(src, dest);
     } else {
       copyFile(src, dest);
@@ -56,7 +68,7 @@ export function copyManifestSources(manifestDir, outDir, manifest) {
     for (const entry of readdirSync(vendorSoma)) {
       const from = join(vendorSoma, entry);
       const to = join(destVendor, entry);
-      if (statSync(from).isDirectory()) {
+      if (isDirectoryNoLinks(from)) {
         copyTree(from, to);
       } else {
         copyFile(from, to);
