@@ -25,8 +25,11 @@ export function assertCleanPlatformPackages(
         ["status", "--porcelain", "--", rel],
         { cwd: platformRoot, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
       ).trim();
-    } catch {
-      continue;
+    } catch (err) {
+      // A git failure is not a clean tree: refuse rather than skip the gate.
+      throw new Error(
+        `soma-platform: cannot read git status for ${rel} in ${platformRoot}: ${String(err.message).split("\n")[0]}`,
+      );
     }
     if (status.length > 0) dirty.push(rel);
   }
