@@ -1,0 +1,228 @@
+{
+  "playmakerCommit": "9ebc364c",
+  "frozenAt": "2026-10-22T13:37:15-04:00",
+  "validationCases": [
+    {
+      "commandId": "play.rename",
+      "label": "string-valid-1",
+      "args": {
+        "title": "My play"
+      },
+      "error": null
+    },
+    {
+      "commandId": "note.save",
+      "label": "string-valid-2",
+      "args": {
+        "body": "hello",
+        "sceneId": "s1"
+      },
+      "error": null
+    },
+    {
+      "commandId": "view.navigate",
+      "label": "string-valid-3",
+      "args": {
+        "to": "/play/p1"
+      },
+      "error": null
+    },
+    {
+      "commandId": "play.rename",
+      "label": "string-invalid-1",
+      "args": {
+        "title": 42
+      },
+      "error": "Argument \"title\" must be a string."
+    },
+    {
+      "commandId": "play.rename",
+      "label": "string-invalid-2",
+      "args": {
+        "extra": "x"
+      },
+      "error": "Missing required argument: title."
+    },
+    {
+      "commandId": "view.dialog",
+      "label": "string-invalid-enum",
+      "args": {
+        "dialog": "not-a-dialog"
+      },
+      "error": "Argument \"dialog\" must be one of: import, rename, share, acts, history, nameVersion, capture, notes, noteComposer, printScene."
+    },
+    {
+      "commandId": "view.showPageBreaks",
+      "label": "boolean-valid-1",
+      "args": {
+        "enabled": true
+      },
+      "error": null
+    },
+    {
+      "commandId": "view.showPageBreaks",
+      "label": "boolean-valid-2",
+      "args": {
+        "enabled": false
+      },
+      "error": null
+    },
+    {
+      "commandId": "landing.toggleRail",
+      "label": "boolean-valid-3",
+      "args": {
+        "open": true
+      },
+      "error": null
+    },
+    {
+      "commandId": "view.showPageBreaks",
+      "label": "boolean-invalid-1",
+      "args": {
+        "enabled": "yes"
+      },
+      "error": "Argument \"enabled\" must be a boolean."
+    },
+    {
+      "commandId": "view.showPageBreaks",
+      "label": "boolean-invalid-2",
+      "args": {},
+      "error": "Missing required argument: enabled."
+    },
+    {
+      "commandId": "view.showPageBreaks",
+      "label": "boolean-invalid-3",
+      "args": {
+        "enabled": 1
+      },
+      "error": "Argument \"enabled\" must be a boolean."
+    },
+    {
+      "commandId": "view.readerView",
+      "label": "string-array-valid-1",
+      "args": {
+        "playId": "p1",
+        "sceneIds": [
+          "s1"
+        ]
+      },
+      "error": null
+    },
+    {
+      "commandId": "view.readerView",
+      "label": "string-array-valid-2",
+      "args": {
+        "playId": "p1",
+        "sceneIds": []
+      },
+      "error": null
+    },
+    {
+      "commandId": "view.readerView",
+      "label": "string-array-valid-3",
+      "args": {
+        "playId": "p1"
+      },
+      "error": null
+    },
+    {
+      "commandId": "view.readerView",
+      "label": "string-array-invalid-1",
+      "args": {
+        "playId": "p1",
+        "sceneIds": [
+          "s1",
+          2
+        ]
+      },
+      "error": "Argument \"sceneIds\" must be an array of strings."
+    },
+    {
+      "commandId": "view.readerView",
+      "label": "string-array-invalid-2",
+      "args": {
+        "playId": "p1",
+        "sceneIds": "s1"
+      },
+      "error": "Argument \"sceneIds\" must be an array of strings."
+    },
+    {
+      "commandId": "view.readerView",
+      "label": "string-array-invalid-3",
+      "args": {
+        "playId": "p1",
+        "sceneIds": [
+          null
+        ]
+      },
+      "error": "Argument \"sceneIds\" must be an array of strings."
+    },
+    {
+      "commandId": "play.importScript",
+      "label": "array-valid-1",
+      "args": {
+        "files": [
+          {
+            "fileName": "a.fountain",
+            "text": "INT. ROOM - DAY"
+          }
+        ]
+      },
+      "error": null
+    },
+    {
+      "commandId": "play.importScript",
+      "label": "array-valid-2",
+      "args": {
+        "fileName": "solo.fountain",
+        "text": "INT. HALL - NIGHT"
+      },
+      "error": null
+    },
+    {
+      "commandId": "play.importScript",
+      "label": "array-valid-3",
+      "args": {
+        "files": [
+          {
+            "fileName": "a.fountain",
+            "text": "A"
+          },
+          {
+            "fileName": "b.fountain",
+            "text": "B"
+          }
+        ]
+      },
+      "error": null
+    },
+    {
+      "commandId": "play.importScript",
+      "label": "array-invalid-1",
+      "args": {
+        "files": "nope"
+      },
+      "error": "Argument \"files\" must be an array."
+    },
+    {
+      "commandId": "play.importScript",
+      "label": "array-invalid-2",
+      "args": {},
+      "error": "Provide script text or at least one file."
+    },
+    {
+      "commandId": "play.importScript",
+      "label": "array-invalid-3",
+      "args": {
+        "text": "orphan text"
+      },
+      "error": "fileName is required when importing a single text payload."
+    },
+    {
+      "commandId": "play.rename",
+      "label": "non-object-args",
+      "args": null,
+      "error": "Arguments must be an object."
+    }
+  ]
+}

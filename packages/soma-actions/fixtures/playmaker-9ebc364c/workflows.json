@@ -1,0 +1,102 @@
+{
+  "playmakerCommit": "9ebc364c",
+  "frozenAt": "2026-10-22T13:37:15-04:00",
+  "workflows": [
+    {
+      "id": "import-marks-visible",
+      "title": "Add a script to a play and see its marks",
+      "personReaches": [
+        {
+          "command": "view.dialog",
+          "person": "File → Add a script to this play…"
+        }
+      ],
+      "steps": [
+        {
+          "command": "play.importScript",
+          "person": "Chooses a script file in the Import dialog"
+        }
+      ],
+      "tests": [
+        "tests/browser/agent-portal.spec.ts › import-marks-visible (commands)"
+      ]
+    },
+    {
+      "id": "dialogue-undo",
+      "title": "Decide a mark, undo the decision, redo it",
+      "personReaches": [
+        {
+          "command": "view.dialog",
+          "person": "File → Add a script to this play…"
+        }
+      ],
+      "steps": [
+        {
+          "command": "play.importScript",
+          "person": "Chooses a script file in the Import dialog"
+        },
+        {
+          "command": [
+            "mark.accept",
+            "mark.reject",
+            "mark.revert"
+          ],
+          "person": "Chooses the default choice in the chat, or presses Enter"
+        },
+        {
+          "command": "edit.undo",
+          "person": "Presses ⌘Z, or Edit → Undo"
+        },
+        {
+          "command": "edit.redo",
+          "person": "Presses ⇧⌘Z, or Edit → Redo"
+        }
+      ],
+      "tests": [
+        "tests/browser/agent-portal.spec.ts › dialogue-undo (commands)"
+      ]
+    }
+  ],
+  "workflowSnapshots": [
+    {
+      "id": "import-marks-visible",
+      "workflowCommands": [
+        "view.dialog",
+        "play.importScript"
+      ],
+      "compareInvocations": {
+        "matching": [],
+        "missingStep": [
+          "declared step play.importScript was never invoked"
+        ],
+        "extraStep": [
+          "invoked play.newScene, which workflow import-marks-visible does not declare"
+        ]
+      }
+    },
+    {
+      "id": "dialogue-undo",
+      "workflowCommands": [
+        "view.dialog",
+        "play.importScript",
+        "mark.accept",
+        "mark.reject",
+        "mark.revert",
+        "edit.undo",
+        "edit.redo"
+      ],
+      "compareInvocations": {
+        "matching": [],
+        "missingStep": [
+          "declared step play.importScript was never invoked",
+          "declared step mark.accept | mark.reject | mark.revert was never invoked",
+          "declared step edit.undo was never invoked",
+          "declared step edit.redo was never invoked"
+        ],
+        "extraStep": [
+          "invoked play.newScene, which workflow dialogue-undo does not declare"
+        ]
+      }
+    }
+  ]
+}
