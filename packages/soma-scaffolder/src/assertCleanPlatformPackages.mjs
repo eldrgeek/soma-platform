@@ -7,6 +7,7 @@ export const V1_KIT_PACKAGES = [
   "soma-guide",
   "soma-contracts",
   "soma-conformance",
+  "soma-discovery",
 ];
 
 /**

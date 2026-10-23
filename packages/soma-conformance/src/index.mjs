@@ -3,6 +3,7 @@ import { checkC3 } from "../checks/c3.mjs";
 import { checkC4 } from "../checks/c4.mjs";
 import { checkC5 } from "../checks/c5.mjs";
 import { checkC13 } from "../checks/c13.mjs";
+import { checkC14 } from "../checks/c14.mjs";
 import { notRun } from "./result.mjs";
 
 const CHECK_IDS = [
@@ -43,6 +44,11 @@ export async function runConformance({ manifest, repositoryRoot, tier }) {
   } catch (error) {
     built.set("C13", failedCheck("C13", error));
   }
+
+  built.set(
+    "C14",
+    await runBuiltCheck("C14", () => checkC14(manifest, repositoryRoot)),
+  );
 
   const checks = CHECK_IDS.map(
     (id) => built.get(id) ?? notRun(id, "not built in M1 slice 2"),

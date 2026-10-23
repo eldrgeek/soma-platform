@@ -1,0 +1,140 @@
+import { readFileSync, existsSync } from "node:fs";
+import { join } from "node:path";
+import {
+  DISCOVERY_FILE_PATHS,
+  generateDiscoveryFromRepository,
+} from "@soma/discovery";
+import { checkResult } from "../src/result.mjs";
+
+function readBytes(repositoryRoot, relPath) {
+  const full = join(repositoryRoot, relPath);
+  if (!existsSync(full)) {
+    return null;
+  }
+  return readFileSync(full);
+}
+
+function compareDiscoveryFile(relPath, expected, actual, failures) {
+  if (!actual) {
+    failures.push(`${relPath}: file is missing`);
+    return;
+  }
+  if (expected.length !== actual.length || !expected.equals(actual)) {
+    failures.push(`${relPath}: does not match manifest-derived discovery`);
+  }
+}
+
+function compareSomaAppActions(expectedDoc, actualDoc, failures) {
+  const expectedById = new Map(
+    (expectedDoc.actions ?? []).map((action) => [action.id, action]),
+  );
+  const actualById = new Map(
+    (actualDoc.actions ?? []).map((action) => [action.id, action]),
+  );
+
+  for (const [id, expected] of expectedById) {
+    const actual = actualById.get(id);
+    if (!actual) {
+      failures.push(`action ${id}: missing from public/.well-known/soma-app.json`);
+      continue;
+    }
+    for (const field of [
+      "version",
+      "kind",
+      "risk",
+      "required_scopes",
+      "input_schema",
+      "output_schema",
+    ]) {
+      const left = JSON.stringify(expected[field] ?? null);
+      const right = JSON.stringify(actual[field] ?? null);
+      if (left !== right) {
+        failures.push(`action ${id}: field ${field} does not match manifest`);
+      }
+    }
+  }
+
+  for (const id of actualById.keys()) {
+    if (!expectedById.has(id)) {
+      failures.push(
+        `action ${id}: appears in public/.well-known/soma-app.json but is not a remote manifest action`,
+      );
+    }
+  }
+}
+
+function compareOpenApiActions(expectedDoc, actualDoc, failures) {
+  const expectedIds = new Set(
+    (expectedDoc.paths ? Object.keys(expectedDoc.paths) : [])
+      .filter((path) => path.includes("/actions/") && path.endsWith("/execute"))
+      .map((path) => path.split("/actions/")[1].replace("/execute", "")),
+  );
+  const actualIds = new Set(
+    Object.keys(actualDoc.paths ?? {})
+      .filter((path) => path.includes("/actions/") && path.endsWith("/execute"))
+      .map((path) => path.split("/actions/")[1].replace("/execute", "")),
+  );
+
+  for (const id of expectedIds) {
+    if (!actualIds.has(id)) {
+      failures.push(`action ${id}: missing execute path in public/api/soma/v1/openapi.json`);
+    }
+  }
+  for (const id of actualIds) {
+    if (!expectedIds.has(id)) {
+      failures.push(
+        `action ${id}: execute path in public/api/soma/v1/openapi.json is not a remote manifest action`,
+      );
+    }
+  }
+}
+
+export async function checkC14(manifest, repositoryRoot) {
+  const failures = [];
+  let generated;
+
+  try {
+    generated = await generateDiscoveryFromRepository(manifest, repositoryRoot);
+  } catch (error) {
+    failures.push(`discovery generation: ${error.message}`);
+    return checkResult("C14", failures, []);
+  }
+
+  for (const relPath of Object.values(DISCOVERY_FILE_PATHS)) {
+    compareDiscoveryFile(
+      relPath,
+      generated.files[relPath],
+      readBytes(repositoryRoot, relPath),
+      failures,
+    );
+  }
+
+  if (failures.length === 0) {
+    return checkResult("C14", failures, [
+      "static discovery files match manifest-derived soma-app.json, llms.txt, and openapi.json",
+      "runtime actions not_run: requires live HTTP action endpoints (M4 slice 2)",
+      "executors applied not_run: requires broker-backed execution (M4 slice 2)",
+      "error-envelope contract tests not_run: requires runtime API responses (M4 slice 2)",
+    ]);
+  }
+
+  try {
+    const actualSomaApp = JSON.parse(
+      readBytes(repositoryRoot, DISCOVERY_FILE_PATHS.wellKnown).toString("utf8"),
+    );
+    compareSomaAppActions(generated.somaApp, actualSomaApp, failures);
+  } catch {
+    // byte mismatch already recorded
+  }
+
+  try {
+    const actualOpenApi = JSON.parse(
+      readBytes(repositoryRoot, DISCOVERY_FILE_PATHS.openApi).toString("utf8"),
+    );
+    compareOpenApiActions(generated.openapi, actualOpenApi, failures);
+  } catch {
+    // byte mismatch already recorded
+  }
+
+  return checkResult("C14", failures, []);
+}

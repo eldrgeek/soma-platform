@@ -1,0 +1,155 @@
+{
+  "actions": [
+    {
+      "effects": [],
+      "id": "coaching.inspect-agenda",
+      "input_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "type": "object"
+      },
+      "input_schema_path": "schemas/inspect-agenda.input.json",
+      "kind": "observe",
+      "output_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "output_schema_path": "schemas/inspect-agenda.output.json",
+      "required_role": "member",
+      "required_scopes": [
+        "agenda:read"
+      ],
+      "version": "1"
+    },
+    {
+      "effects": [
+        "Creates a private reflection"
+      ],
+      "id": "coaching.save-reflection",
+      "input_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "text": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "type": "object"
+      },
+      "input_schema_path": "schemas/save-reflection.input.json",
+      "kind": "effect",
+      "output_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "text"
+        ],
+        "type": "object"
+      },
+      "output_schema_path": "schemas/reflection.output.json",
+      "required_role": "member",
+      "required_scopes": [
+        "reflection:write"
+      ],
+      "risk": "consequential",
+      "version": "1"
+    }
+  ],
+  "ai_visitors": {
+    "default_grant_minutes": 60,
+    "enabled": true,
+    "maximum_standing_risk": "reversible",
+    "stranger_test_action": "coaching.inspect-agenda"
+  },
+  "api": {
+    "base_path": "/api/soma/v1",
+    "public_routes": [
+      "/.well-known/soma-app.json",
+      "/api/soma/v1/actions",
+      "/api/soma/v1/actions/coaching.inspect-agenda/execute",
+      "/api/soma/v1/actions/coaching.inspect-agenda/prepare",
+      "/api/soma/v1/actions/coaching.save-reflection/execute",
+      "/api/soma/v1/actions/coaching.save-reflection/prepare",
+      "/api/soma/v1/approvals/{approval_id}",
+      "/api/soma/v1/ask",
+      "/api/soma/v1/contact",
+      "/api/soma/v1/openapi.json",
+      "/api/soma/v1/receipts/{receipt_id}",
+      "/api/soma/v1/status",
+      "/llms.txt"
+    ]
+  },
+  "app": {
+    "id": "veric-coaching",
+    "name": "V'Eric Coaching",
+    "origins": {
+      "production": "https://veric-coaching.netlify.app",
+      "staging": "https://preview--veric-coaching.netlify.app"
+    },
+    "tier": "prototype"
+  },
+  "discovery": {
+    "knowledge": [
+      "/knowledge/host-pair.md"
+    ],
+    "llms_txt": "/llms.txt",
+    "openapi": "/api/soma/v1/openapi.json",
+    "soma_app": "/.well-known/soma-app.json"
+  },
+  "hosts": {
+    "ai": {
+      "id": "veric",
+      "name": "V'Eric",
+      "persona": "personas/veric.md",
+      "role": "AI host"
+    },
+    "human": {
+      "escalation_url": "/contact",
+      "expected_response": "Within two working days",
+      "id": "eric",
+      "name": "Eric",
+      "role": "Human host"
+    }
+  },
+  "identity": {
+    "device_authorization": "https://id.mike-wolf.com/agents/device-code",
+    "jwks": "https://id.mike-wolf.com/.well-known/jwks.json",
+    "oauth_authorization_server": "https://id.mike-wolf.com/.well-known/oauth-authorization-server",
+    "origin": "https://id.mike-wolf.com",
+    "token": "https://id.mike-wolf.com/agents/token"
+  },
+  "legal": {
+    "agent_revocation": "/settings/agents",
+    "app_forget": "/settings/leave",
+    "data_export": "/settings/export",
+    "privacy": "/privacy",
+    "terms": "/terms"
+  },
+  "manifest_schema_version": "soma.app/1",
+  "schema_version": "soma.discovery/1"
+}

@@ -1,0 +1,25 @@
+# V'Eric Coaching
+
+App id: veric-coaching
+Manifest schema: soma.app/1
+
+## Discovery
+- /.well-known/soma-app.json — machine-readable app and action contract
+- /api/soma/v1/openapi.json — OpenAPI 3.1 for outside AIs
+- /llms.txt — this file
+
+## Hosts
+- Human: Eric (Human host), escalation /contact, expected response Within two working days
+- AI: V'Eric (AI host)
+
+## Public knowledge
+- /knowledge/host-pair.md
+
+## Remote actions
+- coaching.inspect-agenda@1 kind=observe scopes=agenda:read role=member
+- coaching.save-reflection@1 kind=effect risk=consequential scopes=reflection:write role=member
+
+## Acting as an outside AI
+Fetch-only assistants should read this file and the discovery JSON, then tell the person how to connect an AI that can act.
+Tool-capable assistants pair through the identity broker at https://id.mike-wolf.com (device authorization), receive per-app grants, then call /api/soma/v1/actions/{action_id}/prepare and /execute with bearer tokens.
+Human-only approval and consent routes are not listed here; an outside AI must never be invited to approve its own request.
