@@ -16,7 +16,8 @@ import { costUsd } from './pricing.js';
  * @property {boolean} degraded
  *
  * @typedef {Object} MeterStore
- * @property {(userId: string, requested?: string) => Promise<string | null>} resolveStudioId
+ * @property {(userId: string, requested?: string) => Promise<string | null>} resolveBillingSubject
+ * @property {(userId: string, requested?: string) => Promise<string | null>} [resolveStudioId]
  * @property {(studioId: string) => Promise<{
  *   id: string;
  *   billing_mode: BillingMode;
@@ -37,6 +38,31 @@ import { costUsd } from './pricing.js';
  */
 
 /**
+ * PlayMaker-era stores may still expose `resolveStudioId`; kit stores use `resolveBillingSubject`.
+ *
+ * @param {MeterStore | Record<string, unknown>} store
+ * @returns {MeterStore}
+ */
+export function normalizeStore(store) {
+  if (typeof store.resolveBillingSubject === 'function') {
+    return {
+      ...store,
+      resolveBillingSubject: store.resolveBillingSubject.bind(store),
+    };
+  }
+  if (typeof store.resolveStudioId === 'function') {
+    const resolveStudioId = store.resolveStudioId.bind(store);
+    return {
+      ...store,
+      resolveBillingSubject: resolveStudioId,
+    };
+  }
+  throw new Error(
+    'createMeter: store must provide resolveBillingSubject or resolveStudioId',
+  );
+}
+
+/**
  * @param {{ id: string; actingFor?: string }} user
  */
 export function billingUserId(user) {
@@ -52,6 +78,8 @@ export function billingUserId(user) {
  */
 export function createMeter({ store, app, log = console }) {
   const tag = app ? `[${app}] ` : '';
+  /** @type {MeterStore | null} */
+  const meterStore = store ? normalizeStore(store) : null;
 
   /**
    * @param {string} subscriberId
@@ -83,25 +111,25 @@ export function createMeter({ store, app, log = console }) {
    * @param {{ capabilityId: string; estimatedUsd: number; studioId?: string }} opts
    */
   async function gateSpend(user, opts) {
-    if (!store) {
+    if (!meterStore) {
       log.error(`${tag}metering: gate degraded (null store, failing open)`);
       return degradedContext(billingUserId(user), opts.studioId);
     }
     try {
       const billUser = billingUserId(user);
-      const studioId = await store.resolveStudioId(billUser, opts.studioId);
+      const studioId = await meterStore.resolveBillingSubject(billUser, opts.studioId);
       if (!studioId) {
         log.error(
           `${tag}metering: user ${billUser} has no studio membership (${opts.capabilityId})`,
         );
         return degradedContext(billUser, opts.studioId);
       }
-      const ent = await store.resolveEntitlement(studioId);
+      const ent = await meterStore.resolveEntitlement(studioId);
       if (!ent) {
         log.error(`${tag}metering: no entitlement resolvable for studio ${studioId}`);
         return degradedContext(user.id, studioId);
       }
-      const mtdUsd = await store.monthToDateBillable(studioId);
+      const mtdUsd = await meterStore.monthToDateBillable(studioId);
       const cap = num(ent.monthly_cap_usd);
       const verdict = decideSpend({
         mtdUsd,
@@ -140,7 +168,7 @@ export function createMeter({ store, app, log = console }) {
    * }} usage
    */
   async function recordUsage(ctx, usage) {
-    if (!store) {
+    if (!meterStore) {
       log.error(
         `${tag}metering: usage NOT recorded (null store): ${usage.capabilityId} ${usage.kind}=${usage.amount}`,
       );
@@ -155,7 +183,7 @@ export function createMeter({ store, app, log = console }) {
       }
       const cost = costUsd(usage.kind, usage.amount, usage.model);
       const billable = ctx.billingMode === 'byok' ? 0 : cost;
-      await store.insertUsageEvent({
+      await meterStore.insertUsageEvent({
         studio_id: ctx.studioId,
         subscriber_id: ctx.subscriberId,
         capability_id: usage.capabilityId,
@@ -178,15 +206,19 @@ export function createMeter({ store, app, log = console }) {
    * @param {string} [studioId]
    */
   async function usageSummary(user, studioId) {
-    if (!store) return null;
-    const studio = await store.resolveStudioId(billingUserId(user), studioId);
+    if (!meterStore) return null;
+    const studio = await meterStore.resolveBillingSubject(billingUserId(user), studioId);
     if (!studio) return null;
-    const ent = await store.resolveEntitlement(studio);
+    const ent = await meterStore.resolveEntitlement(studio);
     if (!ent) return null;
     const mtd =
-      typeof store.studioUsageMtd === 'function'
-        ? await store.studioUsageMtd(studio)
-        : { billable_usd: await store.monthToDateBillable(studio), tts_chars: 0, llm_tokens: 0 };
+      typeof meterStore.studioUsageMtd === 'function'
+        ? await meterStore.studioUsageMtd(studio)
+        : {
+            billable_usd: await meterStore.monthToDateBillable(studio),
+            tts_chars: 0,
+            llm_tokens: 0,
+          };
     const mtdUsd = num(mtd.billable_usd);
     const cap = num(ent.monthly_cap_usd);
     return {
@@ -209,11 +241,11 @@ export function createMeter({ store, app, log = console }) {
    * @param {string} [studioId]
    */
   async function hasActiveEntitlement(user, studioId) {
-    if (!store) return false;
+    if (!meterStore) return false;
     try {
-      const studio = await store.resolveStudioId(billingUserId(user), studioId);
+      const studio = await meterStore.resolveBillingSubject(billingUserId(user), studioId);
       if (!studio) return false;
-      const ent = await store.resolveEntitlement(studio);
+      const ent = await meterStore.resolveEntitlement(studio);
       return ent?.status === 'active';
     } catch (err) {
       log.error(`${tag}metering: hasActiveEntitlement check failed (failing closed):`, err);

@@ -42,7 +42,7 @@ export async function handler(event) {
 | `PRICING` | Rate table (same numbers as PlayMaker `pricing.ts`) |
 | `USAGE_KINDS` | All supported `kind` values |
 
-Inject `store` with `{ resolveStudioId, resolveEntitlement, monthToDateBillable, insertUsageEvent }`. Optional `studioUsageMtd` on the store powers full `usageSummary` rollups.
+Inject `store` with `{ resolveBillingSubject, resolveEntitlement, monthToDateBillable, insertUsageEvent }`. PlayMaker-era stores may still expose `resolveStudioId` instead; `createMeter` adapts that name in one place. `createSupabaseRestStore` exposes both names as the same function. Optional `studioUsageMtd` on the store powers full `usageSummary` rollups.
 
 Reference SQL (already live in the shared project for `playmaker`) lives in [`sql/schema.sql`](sql/schema.sql).
 
