@@ -1,0 +1,21 @@
+{
+  "name": "@soma/discovery",
+  "version": "0.1.0",
+  "description": "Generate AI visitor discovery documents from a soma.app/1 manifest.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.mjs"
+  },
+  "files": [
+    "README.md",
+    "src"
+  ],
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "mutation-check": "node scripts/mutation-check.mjs"
+  },
+  "dependencies": {
+    "@soma/contracts": "file:../soma-contracts"
+  },
+  "license": "UNLICENSED"
+}

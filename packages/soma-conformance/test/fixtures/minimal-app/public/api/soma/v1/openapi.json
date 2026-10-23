@@ -1,0 +1,602 @@
+{
+  "components": {
+    "schemas": {
+      "SomaErrorResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "additionalProperties": false,
+            "properties": {
+              "approval_url": {
+                "type": "string"
+              },
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "receipt_id": {
+                "type": "string"
+              },
+              "request_id": {
+                "type": "string"
+              },
+              "retryable": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "retryable",
+              "request_id"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "type": "object"
+      },
+      "coaching_inspect_agenda_Input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "type": "object"
+      },
+      "coaching_inspect_agenda_Output": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "coaching_save_reflection_Input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "text": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "type": "object"
+      },
+      "coaching_save_reflection_Output": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "text"
+        ],
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "somaAgentBearer": {
+        "bearerFormat": "JWT",
+        "description": "Broker-issued app-audience access token (kit plan §2.7). Public discovery requires no authentication.",
+        "scheme": "bearer",
+        "type": "http"
+      }
+    }
+  },
+  "info": {
+    "description": "Routes intended for outside AIs at this app origin.\n\nRate limits use platform-derived client-address metadata, app identity where available, and account or grant identity after authentication. They do not trust a caller-supplied forwarding header. Ask, contact, device pairing, approval polling, and unauthenticated discovery have separate quotas. A 429 response, and a retryable 409 or 503 response, includes Retry-After.\n\nEvery response carries X-Request-Id.\n\nErrors use the SomaErrorResponse schema; responses never include stack traces, SQL, provider payloads, or credentials.",
+    "title": "V'Eric Coaching SOMA API",
+    "version": "1.0.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/soma/v1/actions": {
+      "get": {
+        "operationId": "listActions",
+        "responses": {
+          "200": {
+            "description": "Action catalogue"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SomaErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid authentication"
+          }
+        },
+        "security": [
+          {
+            "somaAgentBearer": []
+          }
+        ],
+        "summary": "List remote actions visible to the caller"
+      }
+    },
+    "/api/soma/v1/actions/coaching.inspect-agenda/execute": {
+      "post": {
+        "operationId": "execute_coaching_inspect_agenda",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/coaching_inspect_agenda_Input"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/coaching_inspect_agenda_Output"
+                }
+              }
+            },
+            "description": "Execution result"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SomaErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid authentication"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SomaErrorResponse"
+                }
+              }
+            },
+            "description": "Authenticated but unauthorized"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SomaErrorResponse"
+                }
+              }
+            },
+            "description": "State conflict"
+          }
+        },
+        "security": [
+          {
+            "somaAgentBearer": []
+          }
+        ],
+        "summary": "Execute coaching.inspect-agenda",
+        "x-soma-action-id": "coaching.inspect-agenda",
+        "x-soma-action-kind": "observe",
+        "x-soma-action-version": "1"
+      }
+    },
+    "/api/soma/v1/actions/coaching.inspect-agenda/prepare": {
+      "post": {
+        "operationId": "prepare_coaching_inspect_agenda",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/coaching_inspect_agenda_Input"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/coaching_inspect_agenda_Output"
+                }
+              }
+            },
+            "description": "Prepared preview or immediate result"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SomaErrorResponse"
+                }
+              }
+            },
+            "description": "Approval required"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SomaErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid authentication"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SomaErrorResponse"
+                }
+              }
+            },
+            "description": "Authenticated but unauthorized"
+          }
+        },
+        "security": [
+          {
+            "somaAgentBearer": []
+          }
+        ],
+        "summary": "Prepare coaching.inspect-agenda",
+        "x-soma-action-id": "coaching.inspect-agenda",
+        "x-soma-action-kind": "observe",
+        "x-soma-action-version": "1"
+      }
+    },
+    "/api/soma/v1/actions/coaching.save-reflection/execute": {
+      "post": {
+        "operationId": "execute_coaching_save_reflection",
+        "parameters": [
+          {
+            "description": "Required for every effect execution (kit plan §2.6).",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/coaching_save_reflection_Input"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/coaching_save_reflection_Output"
+                }
+              }
+            },
+            "description": "Execution result"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SomaErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid authentication"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SomaErrorResponse"
+                }
+              }
+            },
+            "description": "Authenticated but unauthorized"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SomaErrorResponse"
+                }
+              }
+            },
+            "description": "State conflict"
+          }
+        },
+        "security": [
+          {
+            "somaAgentBearer": []
+          }
+        ],
+        "summary": "Execute coaching.save-reflection",
+        "x-soma-action-id": "coaching.save-reflection",
+        "x-soma-action-kind": "effect",
+        "x-soma-action-version": "1",
+        "x-soma-requires-idempotency-key": true
+      }
+    },
+    "/api/soma/v1/actions/coaching.save-reflection/prepare": {
+      "post": {
+        "operationId": "prepare_coaching_save_reflection",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/coaching_save_reflection_Input"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/coaching_save_reflection_Output"
+                }
+              }
+            },
+            "description": "Prepared preview or immediate result"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SomaErrorResponse"
+                }
+              }
+            },
+            "description": "Approval required"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SomaErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid authentication"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SomaErrorResponse"
+                }
+              }
+            },
+            "description": "Authenticated but unauthorized"
+          }
+        },
+        "security": [
+          {
+            "somaAgentBearer": []
+          }
+        ],
+        "summary": "Prepare coaching.save-reflection",
+        "x-soma-action-id": "coaching.save-reflection",
+        "x-soma-action-kind": "effect",
+        "x-soma-action-version": "1"
+      }
+    },
+    "/api/soma/v1/approvals/{approval_id}": {
+      "get": {
+        "operationId": "getApproval",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "approval_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Approval state"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SomaErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid authentication"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SomaErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          }
+        },
+        "security": [
+          {
+            "somaAgentBearer": []
+          }
+        ],
+        "summary": "Poll an approval by id"
+      }
+    },
+    "/api/soma/v1/ask": {
+      "post": {
+        "operationId": "ask",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "page_context": {
+                    "maxLength": 4000,
+                    "type": "string"
+                  },
+                  "question": {
+                    "maxLength": 2000,
+                    "type": "string"
+                  },
+                  "route": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "question"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Grounded or degraded answer"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SomaErrorResponse"
+                }
+              }
+            },
+            "description": "Admission limit"
+          }
+        },
+        "security": [],
+        "summary": "Ask the app host from declared knowledge"
+      }
+    },
+    "/api/soma/v1/contact": {
+      "post": {
+        "operationId": "contact",
+        "responses": {
+          "200": {
+            "description": "Contact accepted"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SomaErrorResponse"
+                }
+              }
+            },
+            "description": "Admission limit"
+          }
+        },
+        "security": [],
+        "summary": "Contact the human host"
+      }
+    },
+    "/api/soma/v1/receipts/{receipt_id}": {
+      "get": {
+        "operationId": "getReceipt",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "receipt_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Receipt"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SomaErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid authentication"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SomaErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          }
+        },
+        "security": [
+          {
+            "somaAgentBearer": []
+          }
+        ],
+        "summary": "Fetch a receipt by id"
+      }
+    },
+    "/api/soma/v1/status": {
+      "get": {
+        "operationId": "status",
+        "responses": {
+          "200": {
+            "description": "Status snapshot"
+          }
+        },
+        "security": [],
+        "summary": "Release and dependency status"
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "https://veric-coaching.netlify.app"
+    }
+  ]
+}

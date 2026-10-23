@@ -14,6 +14,7 @@ import { assertCleanPlatformPackages } from "./assertCleanPlatformPackages.mjs";
 import { assertCleanPlatformProvenance } from "./platformProvenance.mjs";
 import { copyManifestSources } from "./copyManifestSources.mjs";
 import { writeKitLock } from "./writeKitLock.mjs";
+import { writeDiscoveryFiles } from "@soma/discovery";
 import {
   resolveAppTemplateDir,
   readSomaPlatformCommit,
@@ -372,6 +373,8 @@ export async function scaffoldReactAppV1(
   rewriteIndexHtml(outDir, manifest);
 
   writeFile(outDir, "soma-app.json", JSON.stringify(manifest, null, 2) + "\n");
+
+  await writeDiscoveryFiles({ repositoryRoot: outDir, manifest });
 
   await writeKitLock({
     outDir,

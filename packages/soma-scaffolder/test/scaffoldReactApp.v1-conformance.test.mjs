@@ -143,6 +143,9 @@ test("v1 disposable app passes local conformance", async () => {
   });
   try {
     assert.ok(existsSync(join(outDir, "soma-kit.lock.json")));
+    assert.ok(existsSync(join(outDir, "public", ".well-known", "soma-app.json")));
+    assert.ok(existsSync(join(outDir, "public", "llms.txt")));
+    assert.ok(existsSync(join(outDir, "public", "api", "soma", "v1", "openapi.json")));
     const lock = JSON.parse(readFileSync(join(outDir, "soma-kit.lock.json"), "utf8"));
     assert.equal(lock.template.repository, fx.templateOriginUrl);
     const report = runConformance(outDir);

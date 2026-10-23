@@ -23,7 +23,7 @@ import {
 const testDirectory = dirname(fileURLToPath(import.meta.url));
 const fixture = join(testDirectory, "fixtures", "minimal-app");
 const cli = join(testDirectory, "..", "bin", "soma-conform.mjs");
-const builtChecks = new Set(["C1", "C3", "C4", "C5", "C13"]);
+const builtChecks = new Set(["C1", "C3", "C4", "C5", "C13", "C14"]);
 
 function copyFixture(t) {
   const parent = mkdtempSync(join(tmpdir(), "soma-conformance-"));
@@ -94,7 +94,7 @@ function assertCliFails(repositoryRoot, id) {
   assert.match(result.stdout, new RegExp(`^${id} fail:`, "m"));
 }
 
-test("minimal app passes the five static checks and discloses all omitted coverage", async (t) => {
+test("minimal app passes the static checks and discloses all omitted coverage", async (t) => {
   const repositoryRoot = copyFixture(t);
   const report = await run(repositoryRoot);
 

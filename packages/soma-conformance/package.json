@@ -20,7 +20,8 @@
     "test": "node --test test/*.test.mjs"
   },
   "dependencies": {
-    "@soma/contracts": "file:../soma-contracts"
+    "@soma/contracts": "file:../soma-contracts",
+    "@soma/discovery": "file:../soma-discovery"
   },
   "license": "UNLICENSED"
 }
