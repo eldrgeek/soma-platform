@@ -41,10 +41,10 @@ function reactAppTest(title, fn) {
   });
 }
 
-function scaffoldLegendsToTemp() {
+async function scaffoldLegendsToTemp() {
   const outDir = join(tmpdir(), `soma-react-app-kit-${randomBytes(8).toString("hex")}`);
   const doc = loadSpec(LEGENDS_SPEC);
-  scaffoldReactApp(doc, {
+  await scaffoldReactApp(doc, {
     outDir,
     appTemplateDir: APP_TEMPLATE_DIR,
     platformRoot: PLATFORM_ROOT,
@@ -52,8 +52,8 @@ function scaffoldLegendsToTemp() {
   return outDir;
 }
 
-reactAppTest("react-app scaffolds vendored @soma/tickets and @soma/meter trees", () => {
-  const outDir = scaffoldLegendsToTemp();
+reactAppTest("react-app scaffolds vendored @soma/tickets and @soma/meter trees", async () => {
+  const outDir = await scaffoldLegendsToTemp();
   try {
     assert.ok(existsSync(join(outDir, VENDORED_TICKETS_DIR, "index.js")));
     assert.ok(existsSync(join(outDir, VENDORED_TICKETS_DIR, "VENDORED.md")));
@@ -70,8 +70,8 @@ reactAppTest("react-app scaffolds vendored @soma/tickets and @soma/meter trees",
   }
 });
 
-reactAppTest("react-app emits tickets and meter adapters wired to the spec APP_ID", () => {
-  const outDir = scaffoldLegendsToTemp();
+reactAppTest("react-app emits tickets and meter adapters wired to the spec APP_ID", async () => {
+  const outDir = await scaffoldLegendsToTemp();
   try {
     const tickets = readFileSync(join(outDir, TICKETS_ADAPTER), "utf8");
     assert.match(tickets, /createTickets\(\{ supabase, app: APP_ID \}\)/);
@@ -95,8 +95,8 @@ test("scaffoldReactApp default template path honors SOMA_APP_TEMPLATE_DIR", () =
   assert.match(src, /process\.env\.SOMA_APP_TEMPLATE_DIR/);
 });
 
-reactAppTest("react-app scaffolds vendored @soma/signin and wires auth routes", () => {
-  const outDir = scaffoldLegendsToTemp();
+reactAppTest("react-app scaffolds vendored @soma/signin and wires auth routes", async () => {
+  const outDir = await scaffoldLegendsToTemp();
   try {
     assert.ok(existsSync(join(outDir, VENDORED_SIGNIN_DIR, "index.js")));
     assert.ok(existsSync(join(outDir, VENDORED_SIGNIN_DIR, "react", "SomaAuth.tsx")));
@@ -121,8 +121,8 @@ reactAppTest("react-app scaffolds vendored @soma/signin and wires auth routes", 
   }
 });
 
-reactAppTest("react-app scaffolds vendored @soma/feedback when affordances.feedback.enabled", () => {
-  const outDir = scaffoldLegendsToTemp();
+reactAppTest("react-app scaffolds vendored @soma/feedback when affordances.feedback.enabled", async () => {
+  const outDir = await scaffoldLegendsToTemp();
   try {
     assert.ok(existsSync(join(outDir, VENDORED_FEEDBACK_DIR, "index.js")));
     assert.ok(existsSync(join(outDir, VENDORED_FEEDBACK_DIR, "VENDORED.md")));
@@ -150,8 +150,8 @@ reactAppTest("react-app scaffolds vendored @soma/feedback when affordances.feedb
   }
 });
 
-reactAppTest("SETUP.md documents shared kit schema.sql paths", () => {
-  const outDir = scaffoldLegendsToTemp();
+reactAppTest("SETUP.md documents shared kit schema.sql paths", async () => {
+  const outDir = await scaffoldLegendsToTemp();
   try {
     const setup = readFileSync(join(outDir, "SETUP.md"), "utf8");
     assert.match(setup, new RegExp(TICKETS_SCHEMA.replace(/\//g, "\\/")));
