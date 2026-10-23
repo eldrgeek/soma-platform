@@ -26,6 +26,16 @@ function readManifest(repositoryRoot) {
   return JSON.parse(readFileSync(join(repositoryRoot, "soma-app.json"), "utf8"));
 }
 
+const ACTION_FIELD_REASON = /^action [^:]+: field /;
+
+function actionFieldReasons(reasons) {
+  return reasons.filter((reason) => ACTION_FIELD_REASON.test(reason));
+}
+
+function assertOnlyActionFieldReasons(reasons, expected) {
+  assert.deepEqual(actionFieldReasons(reasons), expected);
+}
+
 test("minimal app passes static C14 discovery checks", async (t) => {
   const repositoryRoot = copyFixture(t);
   const manifest = readManifest(repositoryRoot);
@@ -45,7 +55,10 @@ test("C14 fails when an action input schema file changes without regenerating di
   const manifest = readManifest(repositoryRoot);
   const result = await checkC14(manifest, repositoryRoot);
   assert.equal(result.result, "fail");
-  assert.match(result.reasons.join("\n"), /action coaching\.inspect-agenda: field input_schema/);
+  assert.match(result.reasons.join("\n"), /does not match manifest-derived discovery/);
+  assertOnlyActionFieldReasons(result.reasons, [
+    "action coaching.inspect-agenda: field input_schema does not match manifest",
+  ]);
 });
 
 test("C14 fails when openapi.json lists a non-remote action by hand", async (t) => {
@@ -64,6 +77,8 @@ test("C14 fails when openapi.json lists a non-remote action by hand", async (t) 
     result.reasons.join("\n"),
     /action coaching\.notify-host: execute path in public\/api\/soma\/v1\/openapi\.json/,
   );
+  assert.match(result.reasons.join("\n"), /does not match manifest-derived discovery/);
+  assert.deepEqual(actionFieldReasons(result.reasons), []);
 });
 
 test("C14 fails when soma-app.json risk drifts from the manifest", async (t) => {
@@ -77,5 +92,8 @@ test("C14 fails when soma-app.json risk drifts from the manifest", async (t) => 
   const manifest = readManifest(repositoryRoot);
   const result = await checkC14(manifest, repositoryRoot);
   assert.equal(result.result, "fail");
-  assert.match(result.reasons.join("\n"), /action coaching\.save-reflection: field risk/);
+  assert.match(result.reasons.join("\n"), /does not match manifest-derived discovery/);
+  assertOnlyActionFieldReasons(result.reasons, [
+    "action coaching.save-reflection: field risk does not match manifest",
+  ]);
 });
