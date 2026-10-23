@@ -14,6 +14,11 @@ components. Plain browser modules, no framework, no build step.
   reused: the same player and the same server checks, given a video script's
   lines and voices.
 
+- **`video-jobs`** (v0.6): the "Make it" panel. Each button or request in words becomes a job that the
+  VideoMaker worker on Mike's Mac runs with Claude Code (`~/Projects/_estate/videomaker-worker`).
+- **`video-assets`** (v0.6): the script's assets, scene by scene: a button that plays that part of the
+  song, the cards drawn as frames, the pictures with the pieces they were cut into, and the sung lines.
+
 The third v0.5 element, `script-editor` (change a row's text), is drawn by the
 Puppet runtime itself. See `packages/soma-puppet-runtime/GRAMMAR-v0.5.md`.
 
@@ -68,6 +73,10 @@ soma-cut. The first one is The Compassionate Heart
 | `src/video-view.js` | `mountVideoView(container, text)` returns `{ blocks, highlight(blockIndex), update(text), destroy() }`. |
 | `src/video-read.js` | `mountVideoRead(container, { text, speak, onActive, mountStageRead })`; the page passes soma-play's player. |
 | `server/video-read.js` | `createVideoReader({ apiKey, store, fetch })`: soma-play's `createStageReader` with `readFilm`, its own allowance (`VIDEO_LIMITS`) and keys under `video/`. |
+| `src/jobs.js` | `JOB_STEPS`: what the team can be asked to do. Shared by the page and the server. |
+| `src/video-jobs.js` | `mountVideoJobs(container, { listJobs, createJob, onDone })`. |
+| `src/video-assets.js` | `mountVideoAssets(container, { text, listAssets, fetchAsset, cacheKey })`, `boardScenes`, `placePictures`. |
+| `server/studio.js` | `createVideoStudio({ blobs })`: assets and jobs in Netlify Blobs (`soma-video-studio`). |
 | `bin/vm-export.mjs` | A saved script to `<name>.fountain` + `<name>.cast.json` for soma-cut, from a text file or from the runtime's stored app (`--app-json`). |
 
 ## Render a script

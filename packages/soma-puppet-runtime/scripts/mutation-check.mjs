@@ -17,6 +17,7 @@ const run = promisify(execFile);
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const API = 'site/functions/api.mjs';
 const PLAY = '../soma-play/server/stage-read.js';
+const STUDIO = '../soma-video/server/studio.js';
 
 const MUTANTS = [
   // 1. Host-only screens
@@ -98,6 +99,20 @@ const MUTANTS = [
   ['src/parser.js', "if(el.kind==='script-editor'&&m[1]==='status')errors.push(", 'if(false)errors.push(', 'a script-editor changes status'],
   ['src/render.js', '        drafts.set(key, area.value);\n', '', 'unsaved text is lost on a redraw'],
   ['src/render.js', "        for (const entry of mounted) if (entry.label === element.label) entry.view?.update?.(area.value);\n", '', 'the view does not follow the typing'],
+  // Puppet v0.6: the team key, who may ask for a job, and who may see a script's assets.
+  [API, "        if (!keyMatches(request.headers.get('x-studio-team-key'), teamKey)) throw new HttpError(401, 'The team key is required');\n", '', 'the team routes need no key'],
+  [API, "  if (!expected || typeof given !== 'string' || !given) return false;", "  if (typeof given !== 'string') return false;", 'an empty key matches a site with no key'],
+  [API, '          requireHost(config, reader);\n', '', 'anyone signed in may ask for a job'],
+  [API, '        if (!offered.length) throw new HttpError(404, `No ${element} of ${name} here`);\n', '', 'assets and jobs without the element that offers them'],
+  [API, '        if (!visible.some((candidate) => candidate.id === rowId)) throw new HttpError(404, `Unknown row: ${rowId}`);\n', '', "a reader sees another person's assets"],
+  [API, "Object.keys(input).some((key) => !['step', 'note'].includes(key))", 'false', 'a job body may carry any field'],
+  [STUDIO, "      if (!ASSET_NAME.test(name)) throw new Error('An asset name is letters, digits, dot, dash and underscore');\n", '', 'any asset name is stored'],
+  [STUDIO, '      if (!ASSET_TYPES.has(type)) throw', '      if (false) throw', 'any asset type is stored'],
+  [STUDIO, '      if (bytes.byteLength > MAX_ASSET_BYTES) throw', '      if (false) throw', 'an asset of any size is stored'],
+  [STUDIO, "      if (!STEP_NAMES.includes(step)) throw", '      if (false) throw', 'a job of any step is queued'],
+  [STUDIO, '.needsNote && !note.trim()) throw', '.needsNote && false) throw', 'an ask with no words is queued'],
+  [STUDIO, "        if (['done', 'failed'].includes(job.status)) throw", '        if (false) throw', 'a finished job is reopened'],
+  [STUDIO, '        if (open && !', '        if (false && !', 'finished jobs are handed to the team again'],
 ];
 
 // The site's functions import their neighbours in packages/ (soma-studio,

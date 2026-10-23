@@ -5,6 +5,8 @@ import { createBlobsStore } from '../../src/blobs-store.js';
 import { DAYS, guestSource, parse, walk } from '../../src/parser.js';
 import { createStageReader, DEFAULT_LIMITS } from '../../../soma-play/server/stage-read.js';
 import { createVideoReader, VIDEO_LIMITS } from '../../../soma-video/server/video-read.js';
+import { createVideoStudio } from '../../../soma-video/server/studio.js';
+import { createHash, timingSafeEqual } from 'node:crypto';
 import { PuppetParseError, STATUSES, stricter } from '../../src/store.js';
 import { createIdentityVerifier, HttpError } from '../lib/auth.mjs';
 
@@ -24,6 +26,14 @@ async function body(request) {
   } catch {
     throw new HttpError(400, 'A JSON object body is required');
   }
+}
+
+// The SOMA Studio team key (STUDIO_TEAM_KEY), compared in constant time. Both sides are hashed first,
+// so keys of different lengths compare without leaking the length.
+export function keyMatches(given, expected) {
+  if (!expected || typeof given !== 'string' || !given) return false;
+  const digest = (value) => createHash('sha256').update(value).digest();
+  return timingSafeEqual(digest(given), digest(expected));
 }
 
 function requireHost(config, identity) {
@@ -175,6 +185,8 @@ export function createApiHandler({
   feedbackStore,
   stageReader,
   videoReader,
+  videoStudio,
+  teamKey = '',
 }) {
   // Seeding is two writes, propose then approve. If a request stops between
   // them, the next request finds the seed still proposed and approves it,
@@ -220,6 +232,45 @@ export function createApiHandler({
       const route = match[2] ?? '';
       const config = apps[appId];
       if (!config) throw new HttpError(404, `Unknown app: ${appId}`);
+
+      // Puppet v0.6: the team on Mike's Mac (the VideoMaker worker) signs with the SOMA Studio team
+      // key, not as a person. It reads the open jobs with the script each one is for, reports on a job,
+      // and stores the assets it made. Nothing else answers to the key.
+      const teamMatch = route.match(/^video-team\/(jobs|assets)(?:\/(.*))?$/);
+      if (teamMatch) {
+        if (!videoStudio) throw new HttpError(503, 'The video studio is not configured');
+        if (!keyMatches(request.headers.get('x-studio-team-key'), teamKey)) throw new HttpError(401, 'The team key is required');
+        const [, kind, rest = ''] = teamMatch;
+        if (kind === 'jobs' && request.method === 'GET' && !rest) {
+          const jobs = await videoStudio.listJobs(appId, { open: true });
+          const out = [];
+          for (const job of jobs) {
+            const rows = await store.list(appId, job.data, {});
+            const row = rows.find((candidate) => candidate.id === job.rowId);
+            out.push({ ...job, title: row?.title ?? '', text: typeof row?.[job.field] === 'string' ? row[job.field] : null });
+          }
+          return json(out);
+        }
+        if (kind === 'jobs' && request.method === 'POST' && rest) {
+          return json(await videoStudio.updateJob(appId, decodeURIComponent(rest), await body(request)));
+        }
+        const assetPath = rest.match(/^([^/]+)\/([^/]+)\/([^/]+)$/);
+        if (kind === 'assets' && assetPath) {
+          const [, name, rowId, file] = assetPath.map(decodeURIComponent);
+          if (request.method === 'PUT') {
+            let meta = {};
+            try {
+              meta = JSON.parse(request.headers.get('x-asset-meta') || '{}');
+            } catch {
+              throw new HttpError(400, 'x-asset-meta must be JSON');
+            }
+            const bytes = new Uint8Array(await request.arrayBuffer());
+            return json(await videoStudio.putAsset(appId, name, rowId, file, bytes, { ...meta, type: request.headers.get('content-type') }), 201);
+          }
+          if (request.method === 'DELETE') return json(await videoStudio.removeAsset(appId, name, rowId, file));
+        }
+        throw new HttpError(404, 'Unknown team route');
+      }
 
       const isWrite = request.method !== 'GET';
       // A publicRead app still identifies a reader who sends credentials, so
@@ -381,6 +432,51 @@ export function createApiHandler({
           status: 200,
           headers: { ...out.headers, 'cache-control': 'private, no-store' },
         });
+      }
+
+      // Puppet v0.6: a script's assets and jobs, for a reader of the row. Checks in order: signed in; a
+      // video-assets (or video-jobs) element of this data on a screen the reader can see; the row is one
+      // the reader may read (otherwise the same answer as a missing row). Asking for a job also needs
+      // the host, because a job runs with Claude Code on the host's own Mac.
+      const videoMatch = route.match(/^video\/([^/]+)\/([^/]+)\/(assets|jobs)(?:\/([^/]+))?$/);
+      if (videoMatch) {
+        if (!videoStudio) throw new HttpError(503, 'The video studio is not configured');
+        const [, name, rowId, kind, file] = videoMatch.map((part) => (part === undefined ? part : decodeURIComponent(part)));
+        const reader = await signedIn();
+        const element = kind === 'assets' ? 'video-assets' : 'video-jobs';
+        const sketch = await liveSketch(store, appId);
+        const offered = [...sketch.screens, ...sketch.dialogs].flatMap((owner) =>
+          owner.from === name && (!owner.hostOnly || reader.id === config.hostId)
+            ? walk(owner.children).filter((candidate) => candidate.kind === element)
+            : [],
+        );
+        if (!offered.length) throw new HttpError(404, `No ${element} of ${name} here`);
+        const visible = (await readable(sketch, name)).rows;
+        if (!visible.some((candidate) => candidate.id === rowId)) throw new HttpError(404, `Unknown row: ${rowId}`);
+        if (kind === 'assets' && request.method === 'GET' && !file) {
+          return json(await videoStudio.listAssets(appId, name, rowId));
+        }
+        if (kind === 'assets' && request.method === 'GET' && file) {
+          const found = await videoStudio.getAsset(appId, name, rowId, file);
+          if (!found) throw new HttpError(404, `Unknown asset: ${file}`);
+          return new Response(found.bytes, {
+            status: 200,
+            headers: { 'content-type': found.metadata?.type ?? 'application/octet-stream', 'cache-control': 'private, max-age=300' },
+          });
+        }
+        if (kind === 'jobs' && request.method === 'GET' && !file) {
+          return json(await videoStudio.listJobs(appId, { rowId }));
+        }
+        if (kind === 'jobs' && request.method === 'POST' && !file) {
+          requireHost(config, reader);
+          const input = await body(request);
+          const { step, note = '' } = input;
+          if (typeof step !== 'string' || Object.keys(input).some((key) => !['step', 'note'].includes(key))) {
+            throw new HttpError(400, 'Body must be { "step": "...", "note": "..." }');
+          }
+          return json(await videoStudio.createJob(appId, { data: name, rowId, field: offered[0].field, step, note, by: reader.id }), 201);
+        }
+        throw new HttpError(404, 'Unknown API route');
       }
 
       const dataMatch = route.match(/^data\/([^/]+)(?:\/([^/]+))?$/);
@@ -553,6 +649,9 @@ export function createApiFunction({
         store: blobCounters(getStoreImpl({ name: 'soma-stage-read', consistency: 'strong' })),
         limits: videoReadLimits,
       }),
+      // Puppet v0.6: VideoMaker's assets and jobs, and the team key the Mac's worker signs with.
+      videoStudio: createVideoStudio({ blobs: getStoreImpl({ name: 'soma-video-studio', consistency: 'strong' }) }),
+      teamKey: env.STUDIO_TEAM_KEY ?? '',
     })(request);
   };
 }

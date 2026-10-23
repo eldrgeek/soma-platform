@@ -69,10 +69,10 @@ export function shorten(value) {
   return cut === text ? text : cut.endsWith('…') ? cut : `${cut} …`;
 }
 
-function rowText(row, brief) {
+function rowText(row) {
   return Object.entries(row)
     .filter(([key]) => key !== 'id' && key !== 'status')
-    .map(([, value]) => (brief ? shorten(formatValue(value)) : formatValue(value)))
+    .map(([, value]) => formatValue(value))
     .filter(Boolean)
     .join(' · ');
 }
@@ -104,6 +104,9 @@ function checkFields(root) {
  * @param {{id?: string, name?: string}} [options.me]
  * @param {boolean} [options.host] whether the reader is the app's host
  * @param {(action: object) => unknown | Promise<unknown>} [options.onAction]
+ * @param {(where: {screen: string, row: string|null, back: string|null}) => void} [options.onNavigate]
+ *   told whenever the reader moves to another screen or row (not on the first draw). The page keeps
+ *   root.dataset.puppetScreen, puppetRow and puppetBack, and a draw opens what they name.
  * @param {{'play-view'?: Function, 'stage-read'?: Function, 'video-view'?: Function, 'video-read'?: Function}} [options.components]
  *   library components (packages/soma-play): play-view(node, text) returns
  *   { highlight(blockIndex) }; stage-read(node, { text, data, rowId, field, onActive });
@@ -113,7 +116,7 @@ function checkFields(root) {
  */
 const DRAFTS = new WeakMap();
 
-export function render(sketch, { root, data = {}, me = {}, host = false, onAction = () => {}, components = {} }) {
+export function render(sketch, { root, data = {}, me = {}, host = false, onAction = () => {}, onNavigate = () => {}, components = {} }) {
   if (!root?.ownerDocument) throw new TypeError('render requires a DOM root');
 
   // The server never sends host-only screens to anyone else; this is the
@@ -215,6 +218,8 @@ export function render(sketch, { root, data = {}, me = {}, host = false, onActio
     root.dataset.puppetScreen = screen.name;
     root.dataset.puppetDialog = '';
     draw();
+    // The page puts the screen and row in its address, so a row screen has a link of its own.
+    onNavigate({ screen: screen.name, row: row?.id ?? null, back: screen.from ? root.dataset.puppetBack ?? null : null });
   }
 
   function goBack() {
@@ -307,8 +312,19 @@ export function render(sketch, { root, data = {}, me = {}, host = false, onActio
 
     const list = append(parent, 'div', { className: 'puppet-runtime-list-rows' });
     for (const row of rows) {
-      const item = append(list, 'div', { className: 'puppet-runtime-list-row' });
-      append(item, 'span', { text: rowText(row, brief) });
+      const item = append(list, 'div', { className: `puppet-runtime-list-row${brief ? ' puppet-runtime-list-opens' : ''}` });
+      if (brief) {
+        // A row that opens its own screen shows its first one-line value as a title and the other
+        // one-line values under it. A value of several lines (a script) is left for the row screen.
+        const [head, ...rest] = Object.entries(row)
+          .filter(([key, value]) => key !== 'id' && key !== 'status' && value && !String(value).includes('\n'))
+          .map(([, value]) => shorten(formatValue(value)));
+        const words = append(item, 'span', { className: 'puppet-runtime-list-words' });
+        append(words, 'strong', { className: 'puppet-runtime-list-title', text: head ?? 'Untitled' });
+        if (rest.length) append(words, 'span', { className: 'puppet-runtime-list-sub', text: rest.join(' · ') });
+      } else {
+        append(item, 'span', { text: rowText(row) });
+      }
       if (row.status) statusBadge(item, row.status);
       if (removeAction) {
         const button = append(item, 'button', {
@@ -396,6 +412,25 @@ export function render(sketch, { root, data = {}, me = {}, host = false, onActio
         },
       });
       mounted.push({ view: player, label: null });
+      return;
+    }
+
+    // Puppet v0.6 (VideoMaker): the script's assets (pictures, cut pieces, cards, the song by section)
+    // and the panel that asks the team on Mike's Mac to make them. Both act on the row on screen; the
+    // assets follow the editor's unsaved text, as the AV view does.
+    if (element.kind === 'video-assets' || element.kind === 'video-jobs') {
+      const node = append(parent, 'section', { className: `puppet-runtime-${element.kind}` });
+      if (!components[element.kind] || !currentRow?.id) {
+        append(node, 'p', { className: 'puppet-runtime-empty', text: 'This panel is not available here.' });
+        return;
+      }
+      const view = components[element.kind](node, {
+        text: draftOf(element.label) ?? text(element.label),
+        data: current.from,
+        rowId: currentRow.id,
+        field: element.field,
+      });
+      mounted.push({ view, label: element.label });
       return;
     }
 

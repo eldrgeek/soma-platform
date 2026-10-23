@@ -83,6 +83,14 @@ button { cursor: pointer; }
 .puppet-runtime-list, .puppet-runtime-table { margin: 20px 0; }
 .puppet-runtime-list h2, .puppet-runtime-table h2, .puppet-runtime-card h2 { margin: 0 0 9px; font-size: 17px; }
 .puppet-runtime-list-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 8px; border-top: 1px solid #e7edf3; }
+/* A row that opens its own screen: a title, a muted line under it, and a chevron. */
+.puppet-runtime-list-opens { cursor: pointer; border-radius: 8px; padding: 12px 10px; }
+.puppet-runtime-list-opens:hover { background: #f3f6fb; }
+.puppet-runtime-list-opens::after { content: "›"; color: #8a97ab; font-size: 22px; line-height: 1; }
+.puppet-runtime-list-words { display: grid; gap: 2px; min-width: 0; flex: 1; }
+.puppet-runtime-list-title { font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.puppet-runtime-list-sub { color: #5d6b82; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.puppet-runtime-video-assets, .puppet-runtime-video-jobs { margin: 18px 0 0; }
 .puppet-runtime-table { width: 100%; overflow-x: auto; }
 .puppet-runtime-table table { width: 100%; border-collapse: collapse; }
 .puppet-runtime-table th, .puppet-runtime-table td { padding: 10px; text-align: left; border-bottom: 1px solid #e7edf3; }
