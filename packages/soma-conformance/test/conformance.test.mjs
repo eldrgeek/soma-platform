@@ -107,6 +107,9 @@ test("minimal app passes the static checks and discloses all omitted coverage", 
   for (const result of report.checks) {
     if (builtChecks.has(result.id)) {
       assert.equal(result.result, "pass", result.reasons.join("\n"));
+    } else if (result.id === "C15") {
+      assert.equal(result.result, "not_run");
+      assert.match(result.reasons.join("\n"), /feedback_chip/);
     } else {
       assert.deepEqual(result, {
         id: result.id,

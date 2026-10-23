@@ -4,6 +4,7 @@ import { checkC4 } from "../checks/c4.mjs";
 import { checkC5 } from "../checks/c5.mjs";
 import { checkC13 } from "../checks/c13.mjs";
 import { checkC14 } from "../checks/c14.mjs";
+import { checkC15 } from "../checks/c15.mjs";
 import { notRun } from "./result.mjs";
 
 const CHECK_IDS = [
@@ -48,6 +49,11 @@ export async function runConformance({ manifest, repositoryRoot, tier }) {
   built.set(
     "C14",
     await runBuiltCheck("C14", () => checkC14(manifest, repositoryRoot)),
+  );
+
+  built.set(
+    "C15",
+    await runBuiltCheck("C15", () => checkC15(manifest, repositoryRoot)),
   );
 
   const checks = CHECK_IDS.map(

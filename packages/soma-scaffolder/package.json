@@ -17,7 +17,8 @@
     "standup-check": "node tools/standup-check.mjs",
     "test": "node --test test/*.test.mjs",
     "mutation-check-v1-guards": "node scripts/mutation-check-v1-guards.mjs",
-    "mutation-check-cli-refusal": "node scripts/mutation-check-cli-refusal.mjs"
+    "mutation-check-cli-refusal": "node scripts/mutation-check-cli-refusal.mjs",
+    "mutation-check-v1-feedback": "node scripts/mutation-check-v1-feedback.mjs"
   },
   "license": "UNLICENSED",
   "dependencies": {
