@@ -101,9 +101,12 @@ test('the real play-view draws Diana blocks: cue and speech together, directions
   assert.equal(view.blocks.length, 4);
 });
 
-test('a list that opens a row screen shows long values cut to their first line', async () => {
+test('a list that opens a row screen shows a title and one-line values cut short; a value of several lines waits for the row screen', async () => {
   const root = mount();
   const long = { id: 'r-9', title: 'Long', play: 'x'.repeat(120), text: 'FIRST LINE\nsecond line' };
   render(SKETCH, { root, data: { pieces: [long] }, me: {} });
-  assert.equal(rows(root)[0].textContent, `Long · ${'x'.repeat(80)}… · FIRST LINE …`);
+  assert.equal(root.querySelector('.puppet-runtime-list-title').textContent, 'Long');
+  assert.equal(root.querySelector('.puppet-runtime-list-sub').textContent, `${'x'.repeat(80)}…`);
+  assert.ok(!rows(root)[0].textContent.includes('FIRST LINE'));
+  assert.match(rows(root)[0].className, /puppet-runtime-list-opens/);
 });

@@ -6,6 +6,8 @@ import { mountPlayView } from '/vendor/soma-play/play-view.js';
 import { mountStageRead } from '/vendor/soma-play/stage-read.js';
 import { mountVideoView } from '/vendor/soma-video/video-view.js';
 import { mountVideoRead } from '/vendor/soma-video/video-read.js';
+import { mountVideoAssets } from '/vendor/soma-video/video-assets.js';
+import { mountVideoJobs } from '/vendor/soma-video/video-jobs.js';
 import { createSomaAuthConfig } from '/vendor/soma-signin/somaAuthConfig.js';
 
 const appId = new URLSearchParams(location.search).get('app') || 'sunday-supper';
@@ -132,7 +134,36 @@ const reader = (route) => ({ data, rowId, field }) => (line) =>
     body: JSON.stringify({ data, rowId, field, line }),
   });
 
+// Puppet v0.6: a script's assets and the team's jobs. Files come through the API with the reader's
+// sign-in. When a job ends, the asset board of the same row loads the asset list again.
+const boards = new Map();
+const videoPath = (data, rowId) => `video/${encodeURIComponent(data)}/${encodeURIComponent(rowId)}`;
+
+async function fetchAsset(data, rowId, name) {
+  const response = await fetch(`/api/app/${encodeURIComponent(appId)}/${videoPath(data, rowId)}/assets/${encodeURIComponent(name)}`, {
+    headers: authHeaders(),
+  });
+  if (!response.ok) throw new Error(`Could not load ${name} (${response.status})`);
+  return response.blob();
+}
+
 const components = {
+  'video-assets': (node, { text, data, rowId }) => {
+    const board = mountVideoAssets(node, {
+      text,
+      cacheKey: rowId,
+      listAssets: () => api(`${videoPath(data, rowId)}/assets`),
+      fetchAsset: (name) => fetchAsset(data, rowId, name),
+    });
+    boards.set(rowId, board);
+    return board;
+  },
+  'video-jobs': (node, { data, rowId }) =>
+    mountVideoJobs(node, {
+      listJobs: () => api(`${videoPath(data, rowId)}/jobs`),
+      createJob: (job) => api(`${videoPath(data, rowId)}/jobs`, { method: 'POST', body: job }),
+      onDone: () => boards.get(rowId)?.refresh(),
+    }),
   'video-view': (node, text) => mountVideoView(node, text),
   'video-read': (node, { text, onActive, ...where }) =>
     mountVideoRead(node, { text, onActive, mountStageRead, speak: reader('video-read')(where) }),
@@ -152,6 +183,39 @@ const components = {
 
 let view;
 
+// The address names the open screen and row (?app=…&screen=…&row=…), so a script has a link of its own
+// and Back and Forward move between the list and a script.
+function readAddress() {
+  const params = new URLSearchParams(location.search);
+  const screen = params.get('screen');
+  if (!screen) {
+    delete appRoot.dataset.puppetScreen;
+    delete appRoot.dataset.puppetRow;
+    return;
+  }
+  appRoot.dataset.puppetScreen = screen;
+  if (params.get('row')) appRoot.dataset.puppetRow = params.get('row');
+  else delete appRoot.dataset.puppetRow;
+  if (params.get('back')) appRoot.dataset.puppetBack = params.get('back');
+}
+
+function writeAddress({ screen, row, back }) {
+  const params = new URLSearchParams(location.search);
+  params.set('screen', screen);
+  if (row) params.set('row', row);
+  else params.delete('row');
+  if (back) params.set('back', back);
+  else params.delete('back');
+  const next = `${location.pathname}?${params}`;
+  if (next !== `${location.pathname}${location.search}`) history.pushState(null, '', next);
+}
+
+window.addEventListener('popstate', () => {
+  if (!sketch || !current) return;
+  readAddress();
+  draw();
+});
+
 function draw() {
   view?.destroy();
   view = render(sketch, {
@@ -161,6 +225,7 @@ function draw() {
     me: me(),
     // The server sends anyone but the host a description without host-only screens.
     host: me().id === current.hostId,
+    onNavigate: writeAddress,
     onAction: async (action) => {
       if (action.type === 'add') {
         await api(`data/${encodeURIComponent(action.target)}`, {
@@ -275,6 +340,7 @@ async function loadCurrent(force = false) {
   title.textContent = sketch.meta?.title || appId;
   document.title = title.textContent;
   await loadData();
+  if (!view) readAddress();
   draw();
   await loadVersions();
   setStatus(`Live version ${current.versionId}`);
