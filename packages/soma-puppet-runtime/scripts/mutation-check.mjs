@@ -113,6 +113,8 @@ const MUTANTS = [
   [STUDIO, '.needsNote && !note.trim()) throw', '.needsNote && false) throw', 'an ask with no words is queued'],
   [STUDIO, "        if (['done', 'failed'].includes(job.status)) throw", '        if (false) throw', 'a finished job is reopened'],
   [STUDIO, '        if (open && !', '        if (false && !', 'finished jobs are handed to the team again'],
+  [STUDIO, ' || done > total) {', ') {', 'progress past the end is stored'],
+  [STUDIO, "          ...(progress !== undefined ? { progress: cleanProgress(progress) } : {}),\n", '', 'progress is dropped'],
 ];
 
 // The site's functions import their neighbours in packages/ (soma-studio,

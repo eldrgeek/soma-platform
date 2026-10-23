@@ -41,6 +41,19 @@ function cleanMeta(meta = {}) {
   return out;
 }
 
+/**
+ * How far a running job has got: { label, done, total } (whole numbers, done at most total), or null to
+ * clear it. A finished job keeps its last progress. Anything else is refused.
+ */
+export function cleanProgress(progress) {
+  if (progress === null) return null;
+  const { label = '', done, total } = progress ?? {};
+  if (typeof label !== 'string' || !Number.isInteger(done) || !Number.isInteger(total) || total < 1 || done < 0 || done > total) {
+    throw new Error('progress is { label, done, total } with whole numbers, 0 <= done <= total, or null');
+  }
+  return { label: label.slice(0, 200), done, total };
+}
+
 export function createVideoStudio({ blobs, now = () => new Date(), id = () => `job-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}` }) {
   async function listKeys(prefix) {
     const { blobs: found } = await blobs.list({ prefix });
@@ -106,7 +119,7 @@ export function createVideoStudio({ blobs, now = () => new Date(), id = () => `j
     },
 
     /** The worker's update: a status, log lines to add, a report. A finished job is not changed again. */
-    async updateJob(app, jobId, { status, log, report } = {}) {
+    async updateJob(app, jobId, { status, log, report, progress } = {}) {
       for (let attempt = 0; attempt < 6; attempt += 1) {
         const stored = await blobs.getWithMetadata(jobKey(app, jobId), { type: 'json', consistency: 'strong' });
         if (!stored?.data) throw new Error(`Unknown job: ${jobId}`);
@@ -118,6 +131,7 @@ export function createVideoStudio({ blobs, now = () => new Date(), id = () => `j
           ...(status ? { status } : {}),
           log: [...job.log, ...[].concat(log ?? []).map((line) => String(line).slice(0, 500))].slice(-MAX_LOG_LINES),
           ...(typeof report === 'string' ? { report: report.slice(0, 20000) } : {}),
+          ...(progress !== undefined ? { progress: cleanProgress(progress) } : {}),
           updatedAt: now().toISOString(),
         };
         const { modified } = await blobs.setJSON(jobKey(app, jobId), next, stored.etag ? { onlyIfMatch: stored.etag } : {});

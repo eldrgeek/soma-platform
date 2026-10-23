@@ -175,6 +175,11 @@ test('the host asks for a job; the team reads it with the script, reports on it,
   assert.equal(open.body[0].note, 'Make Verse 1 colder');
   const id = made.body.id;
   assert.equal((await api.call(`video-team/jobs/${id}`, { method: 'POST', key: KEY, body: { status: 'running', log: 'started' } })).body.status, 'running');
+  const moving = await api.call(`video-team/jobs/${id}`, { method: 'POST', key: KEY, body: { progress: { label: 'Rendering', done: 21, total: 66 } } });
+  assert.deepEqual(moving.body.progress, { label: 'Rendering', done: 21, total: 66 });
+  for (const bad of [{ done: 67, total: 66 }, { done: -1, total: 66 }, { done: 1.5, total: 66 }, { done: 0, total: 0 }, { label: 7, done: 1, total: 2 }, 'half']) {
+    assert.equal((await api.call(`video-team/jobs/${id}`, { method: 'POST', key: KEY, body: { progress: bad } })).status, 400, JSON.stringify(bad));
+  }
   const done = await api.call(`video-team/jobs/${id}`, { method: 'POST', key: KEY, body: { status: 'done', report: 'Colder now.' } });
   assert.equal(done.body.report, 'Colder now.');
   assert.deepEqual(done.body.log, ['started']);
@@ -390,6 +395,12 @@ test('the jobs panel sends a step or an ask, lists the jobs with the report, and
   assert.match(root.textContent, /Make the pictures/);
   assert.match(root.textContent, /drawing i03/);
   assert.equal(timers.length, 1, 'an open job is asked about again');
+  assert.equal(root.querySelectorAll('svj-progress').length, 0, 'no bar until the worker says how far it is');
+  jobs = [{ ...jobs[0], progress: { label: 'Rendering the film', done: 33, total: 66 } }];
+  await panel.refresh();
+  assert.equal(root.querySelector('svj-progress').children[0].style.width, '50%');
+  assert.match(root.querySelector('svj-progress-label').textContent, /Rendering the film: 33 of 66 \(50%\)/);
+  jobs = [{ ...jobs[0], progress: undefined }];
   const images = root.querySelectorAll('svj-step').find((b) => b.textContent.startsWith('Make the pictures'));
   await images.click();
   assert.deepEqual(sent.at(-1), { step: 'images', note: '' });
