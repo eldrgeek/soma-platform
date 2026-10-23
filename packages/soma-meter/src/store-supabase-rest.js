@@ -47,19 +47,23 @@ export function createSupabaseRestStore({
     return text ? JSON.parse(text) : null;
   }
 
+  /**
+   * @param {string} userId
+   * @param {string} [requested]
+   */
+  async function resolveBillingSubject(userId, requested) {
+    const rows = await adminFetch(
+      `/rest/v1/memberships?user_id=eq.${userId}&select=studio_id&order=created_at.asc`,
+    );
+    if (!rows?.length) return null;
+    if (requested && rows.some((r) => r.studio_id === requested)) return requested;
+    return rows[0].studio_id;
+  }
+
   return {
-    /**
-     * @param {string} userId
-     * @param {string} [requested]
-     */
-    async resolveStudioId(userId, requested) {
-      const rows = await adminFetch(
-        `/rest/v1/memberships?user_id=eq.${userId}&select=studio_id&order=created_at.asc`,
-      );
-      if (!rows?.length) return null;
-      if (requested && rows.some((r) => r.studio_id === requested)) return requested;
-      return rows[0].studio_id;
-    },
+    resolveBillingSubject,
+    /** @deprecated PlayMaker adapter alias — same function as resolveBillingSubject */
+    resolveStudioId: resolveBillingSubject,
 
     /**
      * @param {string} studioId

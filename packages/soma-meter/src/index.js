@@ -8,5 +8,5 @@ export {
   estimateLlmUsd,
   estimateWebSearchUsd,
 } from './pricing.js';
-export { billingUserId, createMeter } from './meter.js';
+export { billingUserId, createMeter, normalizeStore } from './meter.js';
 export { createSupabaseRestStore } from './store-supabase-rest.js';
