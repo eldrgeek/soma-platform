@@ -346,6 +346,32 @@ test('the board draws cards, pictures with their pieces, a play button per timed
   assert.equal(fetched.length, 3, 'a redraw fetches nothing again');
 });
 
+test('a render shows as Latest render: its check sheet there, not loose, and its preview loads only when asked', async () => {
+  const root = mount();
+  root.ownerDocument.body = mount();
+  const fetched = [];
+  const board = mountVideoAssets(root, {
+    text: SONG,
+    cacheKey: 'test-render',
+    listAssets: async () => [
+      { name: 'render-check-sheet.jpg', type: 'image/jpeg', kind: 'render', updatedAt: '1' },
+      { name: 'render-preview.mp4', type: 'video/mp4', kind: 'render', caption: 'small preview', updatedAt: '2026-10-23T01:00:00Z' },
+    ],
+    fetchAsset: async (name) => { fetched.push(name); return new Blob([name]); },
+    document: root.ownerDocument,
+  });
+  await board.ready;
+  const titles = root.querySelectorAll('sva-scene-title').map((t) => t.textContent);
+  assert.equal(titles[0], 'Latest render');
+  assert.ok(!titles.includes('Pictures not placed in a scene'), 'a render is not a loose picture');
+  assert.match(root.querySelector('sva-count').textContent, /^0 pictures/);
+  assert.deepEqual(fetched, ['render-check-sheet.jpg'], 'the preview waits for Watch');
+  const watch = root.querySelectorAll('sva-play').find((b) => b.textContent === '▶ Watch the preview');
+  await watch.click();
+  assert.ok(fetched.includes('render-preview.mp4'));
+  assert.equal(root.all().filter((n) => n.tagName === 'VIDEO').length, 1);
+});
+
 test('the jobs panel sends a step or an ask, lists the jobs with the report, and says when a job ends', async () => {
   const root = mount();
   const sent = [];

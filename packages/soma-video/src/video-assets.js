@@ -47,6 +47,7 @@ const CSS = `
 .sva-pieces .sva-frame { flex: 1; aspect-ratio: auto; height: 54px; cursor: zoom-in; }
 .sva-lyrics { margin: 0; padding-left: 8px; border-left: 3px solid var(--sva-accent); font-style: italic; color: #2d3550; font-size: 13px; white-space: pre-line; }
 .sva-empty { color: var(--sva-muted); font-size: 13px; }
+.sva-video { width: 100%; max-width: 960px; aspect-ratio: 16 / 9; background: #000; border-radius: 6px; }
 .sva-box { position: fixed; inset: 0; background: rgb(10 12 20 / .88); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; z-index: 1000; padding: 16px; }
 .sva-box img { max-width: 100%; max-height: 80vh; border-radius: 6px; }
 .sva-box p { color: #e8e8ee; margin: 0; font-size: 14px; text-align: center; max-width: 900px; }
@@ -89,7 +90,7 @@ export function boardScenes(text) {
  * whose heading matches its `section`, else none (index -1). Pieces go with their parent picture.
  */
 export function placePictures(scenes, assets) {
-  const pictures = assets.filter((a) => String(a.type).startsWith('image/') && !a.parent);
+  const pictures = assets.filter((a) => String(a.type).startsWith('image/') && !a.parent && a.kind !== 'render');
   return pictures.map((picture) => {
     let index = -1;
     if (typeof picture.start === 'number') index = scenes.findIndex((s) => s.times && picture.start >= s.times.start && picture.start < s.times.end);
@@ -212,6 +213,40 @@ export function mountVideoAssets(container, { text, listAssets, fetchAsset, cach
     root.append(head);
     if (loadError) root.append(el(document, 'p', 'sva-note', loadError));
     if (!track) root.append(el(document, 'p', 'sva-note', 'The song plays here once the team sends it (Make it → Send the assets).'));
+
+    // The last render: its small preview (loaded only when asked, it is a few MB) and its check sheet.
+    const renders = assets.filter((a) => a.kind === 'render');
+    if (renders.length) {
+      const section = el(document, 'section', 'sva-scene sva-render');
+      const top = el(document, 'div', 'sva-scene-head');
+      top.append(el(document, 'span', 'sva-scene-title', 'Latest render'));
+      const body = el(document, 'div', 'sva-body');
+      const video = renders.find((a) => String(a.type).startsWith('video/'));
+      if (video) {
+        const watch = el(document, 'button', 'sva-play', '▶ Watch the preview');
+        watch.type = 'button';
+        top.append(watch);
+        watch.addEventListener('click', async () => {
+          watch.disabled = true;
+          watch.textContent = 'Loading…';
+          const player = el(document, 'video', 'sva-video');
+          player.controls = true;
+          player.src = await urlOf(video.name);
+          body.prepend(player);
+          watch.remove();
+          await player.play?.()?.catch?.(() => {});
+        });
+      }
+      const sheets = renders.filter((a) => String(a.type).startsWith('image/'));
+      if (sheets.length) {
+        const strip = el(document, 'div', 'sva-strip');
+        for (const sheet of sheets) strip.append(frame(sheet, 'check sheet'));
+        body.append(strip);
+      }
+      body.append(el(document, 'p', 'sva-empty', [video?.caption, video?.updatedAt && `sent ${String(video.updatedAt).slice(0, 16).replace('T', ' ')} UTC`].filter(Boolean).join(' · ') || 'The render\'s check sheet.'));
+      section.append(top, body);
+      root.append(section);
+    }
 
     scenes.forEach((scene, index) => {
       const section = el(document, 'section', 'sva-scene');
