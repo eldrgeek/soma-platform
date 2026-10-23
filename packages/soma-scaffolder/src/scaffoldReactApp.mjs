@@ -24,14 +24,6 @@ import { REFUSAL_FIX, ScaffoldRefusal } from "./scaffoldRefusal.mjs";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 export const SOMA_PLATFORM_ROOT = join(__dirname, "..", "..", "..");
 
-/** Platform root for vendoring: explicit option, then SOMA_PLATFORM_ROOT env, then monorepo root. */
-export function resolvePlatformRoot(explicit) {
-  if (explicit !== undefined && explicit !== null) return explicit;
-  const fromEnv = process.env.SOMA_PLATFORM_ROOT;
-  if (fromEnv) return fromEnv;
-  return SOMA_PLATFORM_ROOT;
-}
-
 /** Template dir: explicit/env, then soma-platform sibling, then ~/Projects/soma-app-template. */
 export function resolveAppTemplateDir(explicit) {
   if (explicit) return explicit;
@@ -524,7 +516,7 @@ export async function scaffoldReactApp(
     manifestDir,
     appTemplateDir = DEFAULT_APP_TEMPLATE,
     affordancesTemplatesDir = DEFAULT_AFFORDANCES_TEMPLATES,
-    platformRoot = resolvePlatformRoot(),
+    platformRoot = SOMA_PLATFORM_ROOT,
   } = {},
 ) {
   if (doc?.schema_version === "soma.app/1") {
@@ -533,7 +525,7 @@ export async function scaffoldReactApp(
       outDir,
       manifestDir,
       appTemplateDir,
-      platformRoot: resolvePlatformRoot(platformRoot),
+      platformRoot,
     });
     return { outDir: res.outDir, unresolved: [] };
   }

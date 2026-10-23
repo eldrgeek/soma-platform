@@ -39,7 +39,7 @@ export function assertGitAncestor(cwd, ancestor, descendant, { label }) {
       return false;
     }
     const detail = String(err?.message ?? err).split("\n")[0];
-    throw new ScaffoldRefusal(`${label}: git merge-base --is-ancestor failed: ${detail}`);
+    throw new Error(`${label}: git merge-base --is-ancestor failed: ${detail}`);
   }
   return true;
 }

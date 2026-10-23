@@ -16,7 +16,7 @@ import { writeKitLock } from "./writeKitLock.mjs";
 import { writeDiscoveryFiles } from "@soma/discovery";
 import {
   resolveAppTemplateDir,
-  resolvePlatformRoot,
+  SOMA_PLATFORM_ROOT,
   readSomaPlatformCommit,
   vendorPackageSrc,
 } from "./scaffoldReactApp.mjs";
@@ -215,7 +215,7 @@ export default function SignIn() {
   );
 }
 
-function wireTicketsAndMeterV1(outDir, { platformRoot = resolvePlatformRoot() } = {}) {
+function wireTicketsAndMeterV1(outDir, { platformRoot = SOMA_PLATFORM_ROOT } = {}) {
   const commit = readSomaPlatformCommit(platformRoot);
   vendorPackageSrc(
     join(platformRoot, "packages", "soma-tickets"),
@@ -328,7 +328,7 @@ export async function scaffoldReactAppV1(
     outDir,
     manifestDir,
     appTemplateDir = resolveAppTemplateDir(),
-    platformRoot = resolvePlatformRoot(),
+    platformRoot = SOMA_PLATFORM_ROOT,
   } = {},
 ) {
   if (manifest?.schema_version !== "soma.app/1") {
@@ -352,10 +352,6 @@ export async function scaffoldReactAppV1(
   assertCleanPlatformPackages(platformRoot);
   assertCleanPlatformProvenance(platformRoot);
   const template = assertCleanTemplateProvenance(appTemplateDir);
-
-  if (process.env.SOMA_SCAFFOLD_TEST_UNEXPECTED_ERROR === "1") {
-    throw new Error("deliberate unexpected failure for CLI tests");
-  }
 
   mkdirSync(outDir, { recursive: true });
   copyTrackedTemplateTree(appTemplateDir, outDir);

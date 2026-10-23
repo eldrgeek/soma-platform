@@ -10,14 +10,15 @@ import { fileURLToPath } from "node:url";
 import {
   createCleanPlatformRepo,
   initBareOrigin,
+  installScaffolderInPlatform,
   runGit,
+  patchCopiedScaffolderThrowBeforeDiscovery,
   TEMPLATE_GITHUB_ORIGIN,
   toFileOriginUrl,
   wireFileOriginToBare,
 } from "./gitTestHelpers.mjs";
 
 const SCAFFOLDER_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
-const CLI = join(SCAFFOLDER_ROOT, "bin", "soma-scaffold.mjs");
 const MONOREPO_ROOT = join(SCAFFOLDER_ROOT, "..", "..");
 const FIXTURE_MANIFEST = join(SCAFFOLDER_ROOT, "test", "fixtures", "v1-disposable", "soma-app.json");
 
@@ -55,9 +56,9 @@ function createCleanTemplateRepo() {
   return { templateDir, bareDir, repoRoot };
 }
 
-function runCli(args, env = {}) {
-  return spawnSync(process.execPath, [CLI, ...args], {
-    cwd: SCAFFOLDER_ROOT,
+function runCli(cliPath, args, env = {}) {
+  return spawnSync(process.execPath, [cliPath, ...args], {
+    cwd: join(dirname(cliPath), ".."),
     encoding: "utf8",
     env: { ...process.env, ...env },
     timeout: 120_000,
@@ -79,21 +80,25 @@ function reactAppArgs(outDir) {
   return ["react-app", FIXTURE_MANIFEST, outDir];
 }
 
-function scaffoldEnv({ platformRoot, templateDir, extra = {} }) {
+function scaffoldEnv({ templateDir, extra = {} }) {
   return {
-    SOMA_PLATFORM_ROOT: platformRoot,
     SOMA_APP_TEMPLATE_DIR: templateDir,
     ...extra,
   };
 }
 
+function preparePlatformCli(platformRoot) {
+  return installScaffolderInPlatform(platformRoot, SCAFFOLDER_ROOT);
+}
+
 test("CLI refuses dirty soma-platform kit packages without a stack trace", () => {
   const { platformRoot, repoRoot } = createCleanPlatformRepo({ monorepoRoot: MONOREPO_ROOT });
+  const cli = preparePlatformCli(platformRoot);
   const { templateDir, repoRoot: templateRepoRoot } = createCleanTemplateRepo();
   const outDir = freshOutDir();
   try {
     writeFileSync(join(platformRoot, "packages", "soma-guide", "dirty.txt"), "x\n");
-    const result = runCli(reactAppArgs(outDir), scaffoldEnv({ platformRoot, templateDir }));
+    const result = runCli(cli, reactAppArgs(outDir), scaffoldEnv({ templateDir }));
     assertRefusalCli(result, /uncommitted changes in kit packages/);
     assert.match(result.stderr, /Commit or stash the listed kit packages/);
   } finally {
@@ -107,6 +112,7 @@ test("CLI refuses dirty soma-platform kit packages without a stack trace", () =>
 
 test("CLI refuses soma-platform HEAD not on origin without a stack trace", () => {
   const { platformRoot, repoRoot } = createCleanPlatformRepo({ monorepoRoot: MONOREPO_ROOT });
+  const cli = preparePlatformCli(platformRoot);
   const { templateDir, repoRoot: templateRepoRoot } = createCleanTemplateRepo();
   const outDir = freshOutDir();
   try {
@@ -114,7 +120,7 @@ test("CLI refuses soma-platform HEAD not on origin without a stack trace", () =>
     writeFileSync(join(platformRoot, "packages", "soma-tickets", "feature.txt"), "x\n");
     runGit(platformRoot, ["add", "packages/soma-tickets/feature.txt"]);
     runGit(platformRoot, ["commit", "-m", "feature work"]);
-    const result = runCli(reactAppArgs(outDir), scaffoldEnv({ platformRoot, templateDir }));
+    const result = runCli(cli, reactAppArgs(outDir), scaffoldEnv({ templateDir }));
     assertRefusalCli(result, /is not on origin\/main/);
     assert.match(result.stderr, /Push and merge soma-platform/);
   } finally {
@@ -128,6 +134,7 @@ test("CLI refuses soma-platform HEAD not on origin without a stack trace", () =>
 
 test("CLI refuses template origin url.insteadOf rewrite without a stack trace", () => {
   const { platformRoot, repoRoot } = createCleanPlatformRepo({ monorepoRoot: MONOREPO_ROOT });
+  const cli = preparePlatformCli(platformRoot);
   const { templateDir, bareDir, repoRoot: templateRepoRoot } = createCleanTemplateRepo();
   const outDir = freshOutDir();
   try {
@@ -137,7 +144,7 @@ test("CLI refuses template origin url.insteadOf rewrite without a stack trace", 
       `url.${toFileOriginUrl(bareDir)}.insteadOf`,
       TEMPLATE_GITHUB_ORIGIN,
     ]);
-    const result = runCli(reactAppArgs(outDir), scaffoldEnv({ platformRoot, templateDir }));
+    const result = runCli(cli, reactAppArgs(outDir), scaffoldEnv({ templateDir }));
     assertRefusalCli(result, /origin URL is rewritten by url\.\*\.insteadOf/);
     assert.match(result.stderr, /Remove url\.\*\.insteadOf rules/);
   } finally {
@@ -151,12 +158,14 @@ test("CLI refuses template origin url.insteadOf rewrite without a stack trace", 
 
 test("CLI refuses missing template directory without a stack trace", () => {
   const { platformRoot, repoRoot } = createCleanPlatformRepo({ monorepoRoot: MONOREPO_ROOT });
+  const cli = preparePlatformCli(platformRoot);
   const outDir = freshOutDir();
   const missingTemplate = join(tmpdir(), `no-template-${Date.now()}`);
   try {
     const result = runCli(
+      cli,
       reactAppArgs(outDir),
-      scaffoldEnv({ platformRoot, templateDir: missingTemplate }),
+      scaffoldEnv({ templateDir: missingTemplate }),
     );
     assertRefusalCli(result, /source template not found/);
     assert.match(result.stderr, /SOMA_APP_TEMPLATE_DIR/);
@@ -169,19 +178,14 @@ test("CLI refuses missing template directory without a stack trace", () => {
 
 test("CLI prints a stack trace for an unexpected error", () => {
   const { platformRoot, repoRoot } = createCleanPlatformRepo({ monorepoRoot: MONOREPO_ROOT });
+  const cli = preparePlatformCli(platformRoot);
+  patchCopiedScaffolderThrowBeforeDiscovery(platformRoot);
   const { templateDir, repoRoot: templateRepoRoot } = createCleanTemplateRepo();
   const outDir = freshOutDir();
   try {
-    const result = runCli(
-      reactAppArgs(outDir),
-      scaffoldEnv({
-        platformRoot,
-        templateDir,
-        extra: { SOMA_SCAFFOLD_TEST_UNEXPECTED_ERROR: "1" },
-      }),
-    );
+    const result = runCli(cli, reactAppArgs(outDir), scaffoldEnv({ templateDir }));
     assert.equal(result.status, 1, result.stderr || result.stdout);
-    assert.match(result.stderr, /deliberate unexpected failure for CLI tests/);
+    assert.match(result.stderr, /deliberate discovery failure for CLI stack test/);
     assert.match(result.stderr, /    at /, "unexpected errors must include a stack trace");
   } finally {
     rmSync(outDir, { recursive: true, force: true });
