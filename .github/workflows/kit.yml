@@ -1,0 +1,56 @@
+# Runs the SOMA app-kit package tests (contracts, conformance, scaffolder) on
+# every pull request that touches those packages. Added 2026-10-23 (bead sp-dha):
+# kit PRs previously had only a Netlify deploy preview; pr-merge-green needs
+# at least one real check before it will merge.
+name: kit
+
+on:
+  pull_request:
+    paths:
+      - 'packages/soma-contracts/**'
+      - 'packages/soma-conformance/**'
+      - 'packages/soma-scaffolder/**'
+      - '.github/workflows/kit.yml'
+  push:
+    branches:
+      - master
+    paths:
+      - 'packages/soma-contracts/**'
+      - 'packages/soma-conformance/**'
+      - 'packages/soma-scaffolder/**'
+      - '.github/workflows/kit.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  kit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: soma-contracts — install
+        working-directory: packages/soma-contracts
+        run: timeout 15m npm ci
+      - name: soma-contracts — test
+        working-directory: packages/soma-contracts
+        run: npm test
+
+      - name: soma-conformance — install
+        working-directory: packages/soma-conformance
+        run: timeout 15m npm ci
+      - name: soma-conformance — test
+        working-directory: packages/soma-conformance
+        run: npm test
+
+      - name: soma-scaffolder — install
+        working-directory: packages/soma-scaffolder
+        run: timeout 15m npm ci
+      - name: soma-scaffolder — test
+        working-directory: packages/soma-scaffolder
+        run: npm test
