@@ -7,7 +7,8 @@ import { createStageReader, DEFAULT_LIMITS } from '../../../soma-play/server/sta
 import { createVideoReader, VIDEO_LIMITS } from '../../../soma-video/server/video-read.js';
 import { createVideoStudio } from '../../../soma-video/server/studio.js';
 import { BoardError, createBoardStore } from '../../../soma-video/server/boards.js';
-import { BOARD_STEP_NAMES, jobBrief, roleOf } from '../../../soma-video/src/storyboard.js';
+import { BOARD_STEP_NAMES, jobBrief, LIMITS as BOARD_LIMITS, roleOf } from '../../../soma-video/src/storyboard.js';
+import { notesOps, notesToRedo, parseNotes } from '../../../soma-video/src/notes.js';
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { PuppetParseError, STATUSES, stricter } from '../../src/store.js';
 import { createIdentityVerifier, HttpError } from '../lib/auth.mjs';
@@ -191,6 +192,23 @@ export function createApiHandler({
   videoBoards,
   teamKey = '',
 }) {
+  // Puppet v0.7: an artist's notes (pasted on the board, or sent from the Mac when they came by email or
+  // text) go onto the cards they name as redo notes, and one batch request redoes those scenes. Unless the
+  // host asked, the request is held until the host lets it run.
+  async function takeNotes(appId, boardId, input, { by, role, held }) {
+    if (typeof input.text !== 'string' || !input.text.trim() || input.text.length > 20000) throw new HttpError(400, 'Send the notes as "text", at most 20000 characters');
+    const board = await videoBoards.get(appId, boardId);
+    if (!board) throw new HttpError(404, `Unknown board: ${boardId}`);
+    const found = parseNotes(board, input.text);
+    const ops = notesOps(board, found, { replace: input.replace === true });
+    const next = ops.length ? (await videoBoards.change(appId, boardId, ops, { by, role })).board : board;
+    const scenes = notesToRedo(found);
+    const job = scenes.length && input.ask !== false
+      ? await videoStudio.createBoardJob(appId, { board: boardId, step: 'batch', scenes: scenes.slice(0, BOARD_LIMITS.batch), note: '', by: by.name || by.id, held })
+      : null;
+    return { board: next, notes: found.notes, general: found.general, job, left: scenes.slice(BOARD_LIMITS.batch) };
+  }
+
   // Seeding is two writes, propose then approve. If a request stops between
   // them, the next request finds the seed still proposed and approves it,
   // instead of leaving the app with no current version.
@@ -283,10 +301,22 @@ export function createApiHandler({
         }
         // v0.7: the team seeds a storyboard (PUT the whole board; its owner is the app's host), sends its
         // files, and reports on it with ops (new pictures, a render, the song).
-        const boardPath = kind === 'boards' && rest.match(/^([^/]+)(?:\/files\/([^/]+))?$/);
+        const boardPath = kind === 'boards' && rest.match(/^([^/]+)(?:\/files\/([^/]+)|\/(notes))?$/);
         if (boardPath) {
           if (!videoBoards) throw new HttpError(503, 'Storyboards are not configured');
-          const [, boardId, file] = boardPath.map((part) => (part === undefined ? part : decodeURIComponent(part)));
+          const [, boardId, file, notes] = boardPath.map((part) => (part === undefined ? part : decodeURIComponent(part)));
+          // Notes that reached the Mac by email or text (bin/vm-board-notes.mjs). They are the artist's words, not
+          // the host's click, so the batch they ask for is always held for the host.
+          if (notes && request.method === 'POST') {
+            const input = await body(request);
+            if (typeof input.by !== 'string' || !input.by.trim() || input.by.length > 120) throw new HttpError(400, 'Say whose notes these are as "by"');
+            try {
+              return json(await takeNotes(appId, boardId, input, { by: { name: input.by.trim() }, role: 'team', held: true }), 201);
+            } catch (error) {
+              if (error instanceof BoardError) throw new HttpError(400, error.message);
+              throw error;
+            }
+          }
           if (file && request.method === 'PUT') {
             const bytes = new Uint8Array(await request.arrayBuffer());
             return json(await videoBoards.putFile(appId, boardId, file, bytes, { type: request.headers.get('content-type') }), 201);
@@ -520,7 +550,7 @@ export function createApiHandler({
       // anything, its artists (by the email they sign in with) may view and change it, and anyone else is
       // answered as if it did not exist. Only the host starts a board. A job asked by anyone but the host
       // waits (held) until the host lets it run, because it runs with Claude Code on the host's Mac.
-      const boardMatch = route.match(/^video-boards(?:\/([^/]+)(?:\/(files|jobs)(?:\/([^/]+))?)?)?$/);
+      const boardMatch = route.match(/^video-boards(?:\/([^/]+)(?:\/(files|jobs|notes)(?:\/([^/]+))?)?)?$/);
       if (boardMatch) {
         if (!videoBoards || !videoStudio) throw new HttpError(503, 'Storyboards are not configured');
         const [, boardId, kind, item] = boardMatch.map((part) => (part === undefined ? part : decodeURIComponent(part)));
@@ -576,18 +606,27 @@ export function createApiHandler({
           if (kind === 'jobs' && !item && request.method === 'GET') {
             return json(await videoStudio.listJobs(appId, { board: boardId }));
           }
+          if (kind === 'notes' && !item && request.method === 'POST') {
+            const input = await body(request);
+            if (Object.keys(input).some((key) => !['text', 'replace', 'ask'].includes(key))) throw new HttpError(400, 'Body must be { "text": "...", "replace"?: true, "ask"?: false }');
+            return json(await takeNotes(appId, boardId, input, { by, role, held: reader.id !== config.hostId }), 201);
+          }
           if (kind === 'jobs' && !item && request.method === 'POST') {
             const input = await body(request);
-            const { step, scene, cut, note = '' } = input;
-            if (typeof step !== 'string' || Object.keys(input).some((key) => !['step', 'scene', 'cut', 'note'].includes(key))) {
-              throw new HttpError(400, 'Body must be { "step": "...", "scene"?: "...", "cut"?: "...", "note"?: "..." }');
+            const { step, scene, scenes, cut, note = '' } = input;
+            if (typeof step !== 'string' || Object.keys(input).some((key) => !['step', 'scene', 'scenes', 'cut', 'note'].includes(key))) {
+              throw new HttpError(400, 'Body must be { "step": "...", "scene"?: "...", "scenes"?: [...], "cut"?: "...", "note"?: "..." }');
             }
             if (!BOARD_STEP_NAMES.includes(step)) throw new HttpError(400, `A storyboard job's step is one of ${BOARD_STEP_NAMES.join(', ')}`);
-            if (step === 'render' ? !board.cuts.some((c) => c.id === cut) : !board.scenes.some((s) => s.id === scene)) {
+            if (step === 'batch') {
+              if (!Array.isArray(scenes) || !scenes.length || scenes.length > BOARD_LIMITS.batch || scenes.some((id) => !board.scenes.some((s) => s.id === id))) {
+                throw new HttpError(400, `Name 1 to ${BOARD_LIMITS.batch} scenes on this board`);
+              }
+            } else if (step === 'render' ? !board.cuts.some((c) => c.id === cut) : !board.scenes.some((s) => s.id === scene)) {
               throw new HttpError(400, step === 'render' ? 'Name a cut on this board' : 'Name a scene on this board');
             }
             return json(await videoStudio.createBoardJob(appId, {
-              board: boardId, ...(step === 'render' ? { cut } : { scene }), step, note, by: reader.name || reader.id,
+              board: boardId, ...(step === 'render' ? { cut } : step === 'batch' ? { scenes } : { scene }), step, note, by: reader.name || reader.id,
               held: reader.id !== config.hostId,
             }), 201);
           }

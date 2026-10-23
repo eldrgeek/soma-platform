@@ -20,6 +20,7 @@ const PLAY = '../soma-play/server/stage-read.js';
 const STUDIO = '../soma-video/server/studio.js';
 const BOARDS = '../soma-video/server/boards.js';
 const STORYBOARD = '../soma-video/src/storyboard.js';
+const NOTES = '../soma-video/src/notes.js';
 
 const MUTANTS = [
   // 1. Host-only screens
@@ -133,6 +134,13 @@ const MUTANTS = [
   [STUDIO, "        if (job.status === 'held') throw", '        if (false) throw', 'the worker runs a held job'],
   [STUDIO, "      if (job.status !== 'held') throw", '      if (false) throw', 'a finished job is let run again'],
   [BOARDS, "      if (!ASSET_TYPES.has(type)) throw new BoardError", "      if (false) throw new BoardError", 'a board file of any type is stored'],
+  // Fast notes and rerolls: notes become held batches; a keep note asks for nothing.
+  [API, "{ by: { name: input.by.trim() }, role: 'team', held: true }", "{ by: { name: input.by.trim() }, role: 'team', held: false }", 'notes sent from the Mac run without the host'],
+  [API, '{ by, role, held: reader.id !== config.hostId }), 201);', '{ by, role, held: false }), 201);', "an artist's notes run without the host"],
+  [API, " || scenes.some((id) => !board.scenes.some((s) => s.id === id))) {", ') {', 'a batch names scenes that are not on the board'],
+  [API, "            if (typeof input.by !== 'string' || !input.by.trim() || input.by.length > 120) throw new HttpError(400, 'Say whose notes these are as \"by\"');\n", '', 'notes from the Mac say nothing of whose they are'],
+  [NOTES, 'notes.filter((n) => !n.keep).map', 'notes.map', 'a keep note asks for a redo'],
+  [NOTES, "    if (line.startsWith('>')) continue;\n", '', 'quoted replies are read as notes'],
 ];
 
 // The site's functions import their neighbours in packages/ (soma-studio,

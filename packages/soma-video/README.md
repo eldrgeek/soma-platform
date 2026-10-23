@@ -86,6 +86,8 @@ soma-cut. The first one is The Compassionate Heart
 | `src/storyboard.js` | The storyboard model: `cleanBoard`, `applyOps`, `roleOf`, `cutState`, `jobBrief`, `parseRanges`. Shared by the page, the server and the seed. |
 | `src/video-storyboard.js` | `mountStoryboards(container, { api, host, initial, onOpen })`. |
 | `server/boards.js` | `createBoardStore({ blobs })`: boards and their files in Netlify Blobs (`soma-video-studio`), changes retried on the etag. |
+| `src/notes.js` | An artist's notes as written (email, text, the notes box) read against a board: `parseNotes`, `notesOps`, `notesToRedo`, `redoQueue`. |
+| `bin/vm-board-notes.mjs` | Notes that arrived by email or text, on the Mac: shows where each lands; `--send` puts them on the cards and asks for one held batch. |
 | `bin/vm-board-seed.mjs` | A storyboard from a song project's album, timings, cuts and renders; `--upload` sends it with the team key. |
 | `bin/vm-export.mjs` | A saved script to `<name>.fountain` + `<name>.cast.json` for soma-cut, from a text file or from the runtime's stored app (`--app-json`). |
 
@@ -116,6 +118,26 @@ render in `out/` is newer than its pictures starts up to date.
 Redo, add and render are jobs for the VideoMaker worker (`_estate/videomaker-worker` in projects-meta),
 which writes the board to `storyboard.json` in the project, runs Claude Code on the brief from
 `jobBrief()`, and sends back what Claude names in `storyboard-out/<jobId>.json`.
+
+### Notes and fast rerolls (2026-10-23)
+
+Mike asked for "notes from eric and reroll fast". Four ways in, one way out: every note becomes a redo
+note on its card, and the redos go to the Mac as **one batch job** (one Claude Code run, one generator
+session) instead of one job per card.
+
+- **On a card**: "Reroll" asks for another take of the same prompt in one click; no note needed.
+- **The board's "Notes and redos" panel**: paste an email or a text as it came. `parseNotes` finds the card
+  each line is about (by id `e05:`, by number `scene 5` / `#5` / `In 5 ...`, or by quoting its lyric), shows
+  where each note will land before anything is sent, and treats a note that only says keep ("perfect,
+  keep") as keep, not redo. Quoted replies and signatures are dropped. The panel also redoes every card
+  marked redo in one batch, lets every held request run (host only), and asks for every out-of-date cut.
+- **From the Mac** (notes that came by email or text): `pbpaste | node bin/vm-board-notes.mjs --board <id>
+  --by "Eric (email)" -` shows the mapping; add `--send` to apply it.
+- **The routes**: `POST video-boards/<id>/notes` `{ text }` (owner, host or artist) and
+  `POST video-team/boards/<id>/notes` `{ text, by }` (team key).
+
+The gate is unchanged: a batch asked for by anyone but the host, and **every** batch sent with the team
+key, is held until the host presses "Let it run", because it runs with Claude Code's full reach on the Mac.
 
 ## Render a script
 

@@ -277,3 +277,101 @@ test('the renderer draws video-storyboards through its component', () => {
   render(sketch, { root: bare });
   assert.match(bare.textContent, /Storyboards are not available here/);
 });
+
+// Fast notes and rerolls (2026-10-23): notes as written, from the board or from the Mac, become held batches.
+test('notes on the board land on their cards, and an artist\'s batch waits for the host', async () => {
+  const api = makeApi();
+  await seeded(api);
+  const sent = await api.call('video-boards/witness/notes', { user: 'eric', method: 'POST', body: { text: 'e01: colder\n"so this is how it ends" is perfect, keep\n\nLove it all' } });
+  assert.equal(sent.status, 201, JSON.stringify(sent.body));
+  assert.deepEqual(sent.body.notes.map((n) => [n.scene, n.keep]), [['e01', false], ['e02', true]]);
+  assert.deepEqual(sent.body.general, ['Love it all']);
+  assert.equal(sent.body.board.scenes[0].note, 'colder');
+  assert.equal(sent.body.board.scenes[0].noteBy, 'Eric');
+  assert.equal(sent.body.board.scenes[0].status, 'redo');
+  assert.equal(sent.body.board.scenes[1].status, 'keep');
+  assert.deepEqual([sent.body.job.step, sent.body.job.scenes, sent.body.job.status], ['batch', ['e01'], 'held']);
+  // The host's own notes run at once; notes that ask for nothing ask for no job.
+  const mine = await api.call('video-boards/witness/notes', { user: 'mike', method: 'POST', body: { text: 'e02: warmer' } });
+  assert.equal(mine.body.job.status, 'queued');
+  assert.equal((await api.call('video-boards/witness/notes', { user: 'mike', method: 'POST', body: { text: 'nothing named' } })).body.job, null);
+  assert.equal((await api.call('video-boards/witness/notes', { user: 'mike', method: 'POST', body: { text: 'e01: x', ask: false } })).body.job, null);
+  assert.equal((await api.call('video-boards/witness/notes', { user: 'theo', method: 'POST', body: { text: 'e01: x' } })).status, 404);
+  assert.equal((await api.call('video-boards/witness/notes', { user: 'eric', method: 'POST', body: { text: '' } })).status, 400);
+  assert.equal((await api.call('video-boards/witness/notes', { user: 'eric', method: 'POST', body: { text: 'e01: x', by: 'Mike' } })).status, 400);
+});
+
+test('notes sent from the Mac carry whose they are and are always held, even though the team key sent them', async () => {
+  const api = makeApi();
+  await seeded(api);
+  assert.equal((await api.call('video-team/boards/witness/notes', { method: 'POST', body: { text: 'e01: x', by: 'Eric' } })).status, 401);
+  assert.equal((await api.call('video-team/boards/witness/notes', { method: 'POST', key: KEY, body: { text: 'e01: x' } })).status, 400);
+  const sent = await api.call('video-team/boards/witness/notes', { method: 'POST', key: KEY, body: { text: 'Scene 2 - too dark\n\n-- \nEric', by: 'Eric (email)' } });
+  assert.equal(sent.status, 201, JSON.stringify(sent.body));
+  assert.equal(sent.body.board.scenes[1].noteBy, 'Eric (email)');
+  assert.equal(sent.body.job.status, 'held');
+  assert.equal(sent.body.job.by, 'Eric (email)');
+  assert.deepEqual((await api.call('video-team/jobs?boards=1', { key: KEY })).body, []);
+  await api.call(`video-boards/witness/jobs/${sent.body.job.id}`, { user: 'mike', method: 'POST', body: { release: true } });
+  const [job] = (await api.call('video-team/jobs?boards=1', { key: KEY })).body;
+  assert.match(job.brief, /new pictures for 1 scene in this one run: e02/);
+  assert.match(job.brief, /Redo note from Eric \(email\): too dark/);
+});
+
+test('a batch job names scenes on the board, at most 24', async () => {
+  const api = makeApi();
+  await seeded(api);
+  const ok = await api.call('video-boards/witness/jobs', { user: 'mike', method: 'POST', body: { step: 'batch', scenes: ['e01', 'e02', 'e01'] } });
+  assert.equal(ok.status, 201, JSON.stringify(ok.body));
+  assert.deepEqual(ok.body.scenes, ['e01', 'e02']);
+  assert.equal((await api.call('video-boards/witness/jobs', { user: 'mike', method: 'POST', body: { step: 'batch', scenes: [] } })).status, 400);
+  assert.equal((await api.call('video-boards/witness/jobs', { user: 'mike', method: 'POST', body: { step: 'batch', scenes: ['e01', 'nope'] } })).status, 400);
+  assert.equal((await api.call('video-boards/witness/jobs', { user: 'mike', method: 'POST', body: { step: 'batch', scenes: Array(25).fill('e01') } })).status, 400);
+  assert.equal((await api.call('video-boards/witness/jobs', { user: 'mike', method: 'POST', body: { step: 'batch', scene: 'e01' } })).status, 400);
+});
+
+test('the storyboard component: reroll in one click, redo the marked scenes in one batch, paste notes, let all run', async () => {
+  const blobs = studioBlobs();
+  const store = createBoardStore({ blobs });
+  const board = await store.put(APP_ID, {
+    ...BOARD, id: 'witness',
+    scenes: [...BOARD.scenes.map((s) => ({ ...s, pictures: { '9x16': `${s.id}.jpg` } })), { id: 'e03', lyric: 'A third', status: 'redo', pictures: { '9x16': 'e03.jpg' } }],
+  }, { owner: 'mike' });
+  const { api, calls } = fakeApi(board);
+  let held = [{ id: 'h1', step: 'batch', scenes: ['e02'], status: 'held', by: 'Eric', createdAt: new Date().toISOString(), log: [] }];
+  api.listJobs = async () => held;
+  api.decideJob = async (id, jobId, release) => { calls.push(['decide', jobId, release]); held = held.map((j) => (j.id === jobId ? { ...j, status: 'queued' } : j)); };
+  api.sendNotes = async (id, notes) => { calls.push(['notes', notes]); return { notes: [{ scene: 'e01', note: 'older' }], general: [], job: { id: 'j2', status: 'queued', scenes: ['e01'] } }; };
+  const root = mount();
+  const view = mountStoryboards(root, { api, host: true, initial: 'witness' });
+  await view.ready;
+  await flush();
+
+  // Reroll: no note needed, one click marks redo and asks for another take.
+  const rerolls = root.all().filter((node) => node.tagName === 'BUTTON' && node.textContent === 'Reroll');
+  assert.equal(rerolls.length, 2, 'e02 has a held batch open, so only e01 and e03 offer a reroll');
+  await rerolls[0].click();
+  await flush();
+  assert.deepEqual(calls.find(([kind]) => kind === 'change')[1], [{ op: 'set', scene: 'e01', field: 'status', value: 'redo' }]);
+  assert.deepEqual(calls.find(([kind]) => kind === 'job')[1], { step: 'redo', scene: 'e01', note: 'Reroll: same prompt, a different take.' });
+
+  // The marked scene e03 (e02 is covered by the held batch) goes in one batch.
+  await findText(root, 'Redo the 1 marked scene in one batch').click();
+  await flush();
+  assert.deepEqual(calls.filter(([kind]) => kind === 'job').at(-1)[1], { step: 'batch', scenes: ['e03'] });
+
+  // Let all waiting run.
+  await findText(root, 'Let all 1 waiting request run').click();
+  await flush();
+  assert.deepEqual(calls.find(([kind]) => kind === 'decide'), ['decide', 'h1', true]);
+
+  // Paste notes: the preview shows where each note lands before anything is sent.
+  const box = root.all().find((node) => node.attributes['aria-label'] === 'Notes from the artist');
+  box.value = 'e01: older\nThanks!';
+  box.dispatch?.('input');
+  await findText(root, 'Put the notes on the cards and redo them').click();
+  await flush();
+  assert.deepEqual(calls.find(([kind]) => kind === 'notes')[1], { text: 'e01: older\nThanks!' });
+  assert.match(root.textContent, /Notes put on e01; the batch is queued for the Mac/);
+  view.destroy();
+});

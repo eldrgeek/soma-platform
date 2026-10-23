@@ -11,7 +11,8 @@
  * Storage is one Netlify Blobs store:
  *   assets/<app>/<data>/<rowId>/<name>   the file, with metadata { type, size, kind, section, caption, ... }
  *   jobs/<app>/<jobId>                   JSON { id, data, rowId, field, step, note, by, status, log, report, ... }
- *                                        or, for a storyboard (v0.7), { id, board, scene?, cut?, step, note, by, status, ... }
+ *                                        or, for a storyboard (v0.7), { id, board, scene?, scenes?, cut?, step, note, by, status, ... }
+ *                                        (scenes: a batch, several scenes redone in one run on the Mac)
  *
  * A storyboard job asked by someone other than the host starts 'held': it runs on the host's Mac with
  * Claude Code's full reach, so the host lets it run (releaseJob) or declines it first.
@@ -20,7 +21,9 @@
  */
 
 import { JOB_STATUSES, JOB_STEPS, MAX_NOTE, STEP_NAMES } from '../src/jobs.js';
-import { BOARD_STEP_NAMES } from '../src/storyboard.js';
+import { BOARD_STEP_NAMES, LIMITS } from '../src/storyboard.js';
+
+const BATCH_MAX = LIMITS.batch;
 
 export { JOB_STATUSES, JOB_STEPS, MAX_NOTE, STEP_NAMES };
 
@@ -112,12 +115,13 @@ export function createVideoStudio({ blobs, now = () => new Date(), id = () => `j
     },
 
     /** A storyboard's job (v0.7): queued, or held when the host did not ask for it. The caller has checked who may ask. */
-    async createBoardJob(app, { board, scene, cut, step, note = '', by, held = false }) {
+    async createBoardJob(app, { board, scene, scenes, cut, step, note = '', by, held = false }) {
       if (!BOARD_STEP_NAMES.includes(step)) throw new Error(`A storyboard job's step is one of ${BOARD_STEP_NAMES.join(', ')}`);
+      if (step === 'batch' && (!Array.isArray(scenes) || !scenes.length || scenes.length > BATCH_MAX)) throw new Error(`A batch redoes 1 to ${BATCH_MAX} scenes`);
       if (typeof note !== 'string' || note.length > MAX_NOTE) throw new Error(`A note is text of at most ${MAX_NOTE} characters`);
       const at = now().toISOString();
       const job = {
-        id: id(), app, board, ...(scene ? { scene } : {}), ...(cut ? { cut } : {}), step, note: note.trim(), by,
+        id: id(), app, board, ...(scene ? { scene } : {}), ...(step === 'batch' ? { scenes: [...new Set(scenes)] } : {}), ...(cut ? { cut } : {}), step, note: note.trim(), by,
         status: held ? 'held' : 'queued', log: [], report: '', createdAt: at, updatedAt: at,
       };
       await blobs.setJSON(jobKey(app, job.id), job);
