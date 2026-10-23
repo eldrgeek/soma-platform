@@ -11,6 +11,7 @@ on:
       - 'packages/soma-conformance/**'
       - 'packages/soma-scaffolder/**'
       - 'packages/soma-actions/**'
+      - 'packages/soma-discovery/**'
       - '.github/workflows/kit.yml'
   push:
     branches:
@@ -20,6 +21,7 @@ on:
       - 'packages/soma-conformance/**'
       - 'packages/soma-scaffolder/**'
       - 'packages/soma-actions/**'
+      - 'packages/soma-discovery/**'
       - '.github/workflows/kit.yml'
   workflow_dispatch:
 
@@ -41,6 +43,13 @@ jobs:
         run: timeout 15m npm ci
       - name: soma-contracts — test
         working-directory: packages/soma-contracts
+        run: npm test
+
+      - name: soma-discovery — install
+        working-directory: packages/soma-discovery
+        run: timeout 15m npm ci
+      - name: soma-discovery — test
+        working-directory: packages/soma-discovery
         run: npm test
 
       - name: soma-conformance — install
