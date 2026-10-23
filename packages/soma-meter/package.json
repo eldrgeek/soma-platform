@@ -4,8 +4,12 @@
   "description": "SOMA usage metering — spend gate, cap arithmetic, and usage_events writes (PlayMaker extraction).",
   "type": "module",
   "main": "src/index.js",
+  "types": "src/index.d.ts",
   "exports": {
-    ".": "./src/index.js",
+    ".": {
+      "types": "./src/index.d.ts",
+      "default": "./src/index.js"
+    },
     "./schema": "./sql/schema.sql"
   },
   "files": [
