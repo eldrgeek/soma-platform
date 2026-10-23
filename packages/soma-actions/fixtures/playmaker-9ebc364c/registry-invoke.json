@@ -41,7 +41,8 @@
           "error": "Unknown command: no.such.command."
         }
       ],
-      "auditLength": 1
+      "auditLength": 1,
+      "runCallCount": 0
     },
     {
       "id": "invalid-args",
@@ -86,7 +87,8 @@
           "error": "Argument \"title\" must be a string."
         }
       ],
-      "auditLength": 1
+      "auditLength": 1,
+      "runCallCount": 0
     },
     {
       "id": "no-impl",
@@ -131,7 +133,8 @@
           "unavailable": "Command \"play.rename\" is unavailable on this page."
         }
       ],
-      "auditLength": 1
+      "auditLength": 1,
+      "runCallCount": 0
     },
     {
       "id": "impl-unavailable",
@@ -182,7 +185,8 @@
           "unavailable": "Scene editor is closed."
         }
       ],
-      "auditLength": 1
+      "auditLength": 1,
+      "runCallCount": 0
     },
     {
       "id": "impl-throws",
@@ -233,7 +237,8 @@
           "error": "boom"
         }
       ],
-      "auditLength": 1
+      "auditLength": 1,
+      "runCallCount": 1
     },
     {
       "id": "successful-impl",
@@ -289,7 +294,8 @@
           "ok": true
         }
       ],
-      "auditLength": 1
+      "auditLength": 1,
+      "runCallCount": 1
     },
     {
       "id": "async-resolve",
@@ -345,7 +351,8 @@
           "ok": true
         }
       ],
-      "auditLength": 1
+      "auditLength": 1,
+      "runCallCount": 1
     },
     {
       "id": "async-reject-error",
@@ -396,7 +403,8 @@
           "error": "async boom"
         }
       ],
-      "auditLength": 1
+      "auditLength": 1,
+      "runCallCount": 1
     },
     {
       "id": "async-reject-non-error",
@@ -449,7 +457,8 @@
           "error": "{\"code\":\"E_BUSY\"}"
         }
       ],
-      "auditLength": 1
+      "auditLength": 1,
+      "runCallCount": 1
     },
     {
       "id": "truncation-300-char",
@@ -508,7 +517,8 @@
           "ok": true
         }
       ],
-      "auditLength": 1
+      "auditLength": 1,
+      "runCallCount": 1
     },
     {
       "id": "audit-limit-501",
@@ -7043,7 +7053,8 @@
           "ok": true
         }
       ],
-      "auditLength": 500
+      "auditLength": 500,
+      "runCallCount": 501
     },
     {
       "id": "withdraw-unavailable-audit",
@@ -7129,7 +7140,8 @@
           "ok": true
         }
       ],
-      "auditLength": 1
+      "auditLength": 1,
+      "runCallCount": 1
     }
   ]
 }

@@ -52,11 +52,21 @@ const registryMutant = registryOriginal.replace(
   ".catch((cause) => fail(id, args, normalizedActor, { error: asMessage(cause) }));",
   ".then((result) => succeed(id, args, normalizedActor, result));",
 );
+const registryUnavailableMutant = registryOriginal.replace(
+  "        const unavailable = impl.unavailable?.(args) ?? null;\n        if (unavailable) return fail(id, args, normalizedActor, { unavailable });\n",
+  "",
+);
+const registryWithdrawMutant = registryOriginal.replace(
+  "record.auditId === auditId && Boolean(record.unavailable)",
+  "record.auditId === auditId",
+);
 
 const caughtValidation = withRestored(validationPath, validationMutant, "src/validation.mjs non-object args message");
 const caughtAsync = withRestored(registryPath, registryMutant, "src/registry.mjs async rejection handling");
+const caughtUnavailable = withRestored(registryPath, registryUnavailableMutant, "src/registry.mjs impl.unavailable gate");
+const caughtWithdraw = withRestored(registryPath, registryWithdrawMutant, "src/registry.mjs withdrawUnavailableAudit filter");
 
-if (caughtValidation && caughtAsync) {
+if (caughtValidation && caughtAsync && caughtUnavailable && caughtWithdraw) {
   process.exit(0);
 }
 process.exit(1);

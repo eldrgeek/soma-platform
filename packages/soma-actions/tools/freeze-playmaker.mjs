@@ -189,12 +189,13 @@ for (const caseDef of REGISTRY_CASE_SCRIPTS) {
   installDeterministicHarness();
   const registry = createCommandRegistry();
   registry.clearAudit();
-  const { invoke, stepResults } = await runRegistryScript(registry, caseDef.script);
+  const { invoke, stepResults, runCallCount } = await runRegistryScript(registry, caseDef.script);
   registryCases.push({
     id: caseDef.id,
     script: caseDef.script,
     invoke,
     stepResults,
+    runCallCount,
     audit: registry.audit(),
     auditLength: registry.audit().length,
   });
