@@ -24,18 +24,35 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const SCAFFOLDER_ROOT = join(__dirname, "..");
 const PLATFORM_ROOT = join(SCAFFOLDER_ROOT, "..", "..");
 const LEGENDS_SPEC = join(SCAFFOLDER_ROOT, "examples", "legends.soma.json");
+const APP_TEMPLATE_DIR = resolveAppTemplateDir();
+const APP_TEMPLATE_PRESENT = existsSync(APP_TEMPLATE_DIR);
+const SKIP_TEMPLATE_REASON =
+  "eldrgeek/soma-app-template is not on disk (private repo; CI has no clone token)";
+
+/** Integration tests that scaffold from soma-app-template; skipped when the template is absent. */
+function reactAppTest(title, fn) {
+  test(title, (t) => {
+    if (!APP_TEMPLATE_PRESENT) {
+      console.log(`skip: ${title} — ${SKIP_TEMPLATE_REASON}`);
+      t.skip(SKIP_TEMPLATE_REASON);
+      return;
+    }
+    return fn(t);
+  });
+}
+
 function scaffoldLegendsToTemp() {
   const outDir = join(tmpdir(), `soma-react-app-kit-${randomBytes(8).toString("hex")}`);
   const doc = loadSpec(LEGENDS_SPEC);
   scaffoldReactApp(doc, {
     outDir,
-    appTemplateDir: resolveAppTemplateDir(),
+    appTemplateDir: APP_TEMPLATE_DIR,
     platformRoot: PLATFORM_ROOT,
   });
   return outDir;
 }
 
-test("react-app scaffolds vendored @soma/tickets and @soma/meter trees", () => {
+reactAppTest("react-app scaffolds vendored @soma/tickets and @soma/meter trees", () => {
   const outDir = scaffoldLegendsToTemp();
   try {
     assert.ok(existsSync(join(outDir, VENDORED_TICKETS_DIR, "index.js")));
@@ -53,7 +70,7 @@ test("react-app scaffolds vendored @soma/tickets and @soma/meter trees", () => {
   }
 });
 
-test("react-app emits tickets and meter adapters wired to the spec APP_ID", () => {
+reactAppTest("react-app emits tickets and meter adapters wired to the spec APP_ID", () => {
   const outDir = scaffoldLegendsToTemp();
   try {
     const tickets = readFileSync(join(outDir, TICKETS_ADAPTER), "utf8");
@@ -78,7 +95,7 @@ test("scaffoldReactApp default template path honors SOMA_APP_TEMPLATE_DIR", () =
   assert.match(src, /process\.env\.SOMA_APP_TEMPLATE_DIR/);
 });
 
-test("react-app scaffolds vendored @soma/signin and wires auth routes", () => {
+reactAppTest("react-app scaffolds vendored @soma/signin and wires auth routes", () => {
   const outDir = scaffoldLegendsToTemp();
   try {
     assert.ok(existsSync(join(outDir, VENDORED_SIGNIN_DIR, "index.js")));
@@ -104,7 +121,7 @@ test("react-app scaffolds vendored @soma/signin and wires auth routes", () => {
   }
 });
 
-test("react-app scaffolds vendored @soma/feedback when affordances.feedback.enabled", () => {
+reactAppTest("react-app scaffolds vendored @soma/feedback when affordances.feedback.enabled", () => {
   const outDir = scaffoldLegendsToTemp();
   try {
     assert.ok(existsSync(join(outDir, VENDORED_FEEDBACK_DIR, "index.js")));
@@ -133,7 +150,7 @@ test("react-app scaffolds vendored @soma/feedback when affordances.feedback.enab
   }
 });
 
-test("SETUP.md documents shared kit schema.sql paths", () => {
+reactAppTest("SETUP.md documents shared kit schema.sql paths", () => {
   const outDir = scaffoldLegendsToTemp();
   try {
     const setup = readFileSync(join(outDir, "SETUP.md"), "utf8");
