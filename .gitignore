@@ -1,3 +1,11 @@
 # Local Netlify folder
 .netlify
 .DS_Store
+
+# Secrets and local config: never tracked (this repo is public)
+.env
+.env.*
+!.env.example
+
+# Dependencies: installed with npm ci, never tracked
+node_modules/
