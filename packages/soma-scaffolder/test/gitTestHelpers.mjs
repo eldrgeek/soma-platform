@@ -1,10 +1,11 @@
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { V1_KIT_PACKAGES } from "../src/assertCleanPlatformPackages.mjs";
 
 export const TEMPLATE_GITHUB_ORIGIN = "https://github.com/test/soma-app-template.git";
+export const TEMPLATE_LOCK_REPOSITORY = "test/soma-app-template";
 export const PLATFORM_GITHUB_ORIGIN = "https://github.com/test/soma-platform.git";
 
 export function runGit(cwd, args) {
@@ -21,6 +22,11 @@ export function runGit(cwd, args) {
   });
 }
 
+export function toFileOriginUrl(bareDir) {
+  if (bareDir.startsWith("file:")) return bareDir;
+  return `file://${bareDir}`;
+}
+
 export function initBareOrigin(repoRoot, branch = "main") {
   const bareDir = join(repoRoot, "origin.git");
   runGit(repoRoot, ["init", "--bare", bareDir]);
@@ -28,9 +34,19 @@ export function initBareOrigin(repoRoot, branch = "main") {
   return bareDir;
 }
 
-export function wireGithubOriginToBare(workDir, bareDir, githubUrl, branch = "main") {
-  runGit(workDir, ["remote", "add", "origin", githubUrl]);
-  runGit(workDir, ["config", `url.${bareDir}.insteadOf`, githubUrl]);
+/**
+ * Local bare origin via file:// (no url.insteadOf). Optional githubRepository sets the lock template id.
+ */
+export function wireFileOriginToBare(
+  workDir,
+  bareDir,
+  { branch = "main", githubRepository = null } = {},
+) {
+  const fileUrl = toFileOriginUrl(bareDir);
+  runGit(workDir, ["remote", "add", "origin", fileUrl]);
+  if (githubRepository) {
+    runGit(workDir, ["config", "remote.origin.githubRepository", githubRepository]);
+  }
   runGit(workDir, ["push", "-u", "origin", branch]);
 }
 
@@ -42,16 +58,39 @@ export function seedKitPackageDirs(platformRoot) {
   }
 }
 
-export function createCleanPlatformRepo() {
+function shouldCopyFromMonorepo(srcPath) {
+  const base = srcPath.split("/").pop();
+  return base !== "node_modules" && base !== ".git";
+}
+
+export function copyKitPackagesFromMonorepo(monorepoRoot, platformRoot) {
+  for (const name of V1_KIT_PACKAGES) {
+    const src = join(monorepoRoot, "packages", name);
+    const dest = join(platformRoot, "packages", name);
+    cpSync(src, dest, {
+      recursive: true,
+      filter: shouldCopyFromMonorepo,
+    });
+  }
+}
+
+/**
+ * @param {{ monorepoRoot?: string }} [options]
+ */
+export function createCleanPlatformRepo({ monorepoRoot = null } = {}) {
   const repoRoot = mkdtempSync(join(tmpdir(), "soma-platform-root-"));
   const bareDir = initBareOrigin(repoRoot);
 
   const platformRoot = mkdtempSync(join(tmpdir(), "soma-platform-"));
   runGit(platformRoot, ["init"]);
-  seedKitPackageDirs(platformRoot);
+  if (monorepoRoot) {
+    copyKitPackagesFromMonorepo(monorepoRoot, platformRoot);
+  } else {
+    seedKitPackageDirs(platformRoot);
+  }
   runGit(platformRoot, ["add", "."]);
   runGit(platformRoot, ["commit", "-m", "platform seed"]);
   runGit(platformRoot, ["branch", "-M", "main"]);
-  wireGithubOriginToBare(platformRoot, bareDir, PLATFORM_GITHUB_ORIGIN);
+  wireFileOriginToBare(platformRoot, bareDir, { branch: "main" });
   return { platformRoot, bareDir, repoRoot };
 }

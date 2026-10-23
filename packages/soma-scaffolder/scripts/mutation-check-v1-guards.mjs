@@ -21,8 +21,8 @@ const MUTANTS = [
   ],
   [
     "src/gitProvenance.mjs",
-    "if (\n    !gitOk(cwd, [",
-    "if (\n    false && !gitOk(cwd, [",
+    "  const onOrigin = assertGitAncestor(cwd, commit, `origin/${defaultBranch}`, { label });",
+    "  const onOrigin = true;",
     "platform commit off origin is allowed",
   ],
   [
@@ -33,9 +33,15 @@ const MUTANTS = [
   ],
   [
     "src/templateProvenance.mjs",
-    "fetchOrigin(templateDir, { label: \"template provenance\" });",
+    "  fetchOrigin(templateDir, { label: \"template provenance\" });",
     "",
     "template never fetches origin before branch check",
+  ],
+  [
+    "src/gitProvenance.mjs",
+    "  if (rawUrl !== resolvedUrl) {",
+    "  if (false && rawUrl !== resolvedUrl) {",
+    "url.insteadOf rewrite on origin is allowed",
   ],
   [
     "src/assertCleanPlatformPackages.mjs",
@@ -89,3 +95,12 @@ if (survivors > 0) {
   process.exit(1);
 }
 console.log("\nAll mutants caught.");
+
+try {
+  await run(process.execPath, ["--test"], { cwd: root, timeout: 300_000 });
+  console.log("Full soma-scaffolder test suite passed.");
+} catch (err) {
+  console.error("Full test suite failed after mutation checks.");
+  console.error(err.stderr || err.stdout || err.message);
+  process.exit(1);
+}

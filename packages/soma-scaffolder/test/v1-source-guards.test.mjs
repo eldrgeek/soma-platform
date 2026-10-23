@@ -15,7 +15,9 @@ import {
   initBareOrigin,
   runGit,
   TEMPLATE_GITHUB_ORIGIN,
-  wireGithubOriginToBare,
+  TEMPLATE_LOCK_REPOSITORY,
+  toFileOriginUrl,
+  wireFileOriginToBare,
 } from "./gitTestHelpers.mjs";
 
 const FIXTURE = join(dirname(fileURLToPath(import.meta.url)), "fixtures", "v1-disposable");
@@ -38,7 +40,10 @@ function createCleanTemplateRepo() {
   runGit(templateDir, ["add", "."]);
   runGit(templateDir, ["commit", "-m", "template seed"]);
   runGit(templateDir, ["branch", "-M", "main"]);
-  wireGithubOriginToBare(templateDir, bareDir, TEMPLATE_GITHUB_ORIGIN);
+  wireFileOriginToBare(templateDir, bareDir, {
+    branch: "main",
+    githubRepository: TEMPLATE_LOCK_REPOSITORY,
+  });
   return { templateDir, bareDir, repoRoot };
 }
 
@@ -99,18 +104,40 @@ test("soma-platform HEAD not on origin default branch is refused", () => {
       () => assertCleanPlatformProvenance(platformRoot),
       /is not on origin\/main/,
     );
+    assert.throws(
+      () => assertCleanPlatformProvenance(platformRoot),
+      /push and merge it, then scaffold/,
+    );
   } finally {
     cleanupFixture({ platformRoot, repoRoot });
   }
 });
 
 test("template git fetch origin failure is refused", () => {
-  const { templateDir, bareDir, repoRoot } = createCleanTemplateRepo();
+  const { templateDir, repoRoot } = createCleanTemplateRepo();
   try {
-    runGit(templateDir, ["config", "--unset", `url.${bareDir}.insteadOf`]);
+    runGit(templateDir, ["remote", "set-url", "origin", "file:///nonexistent-bare-origin.git"]);
     assert.throws(
       () => assertCleanTemplateProvenance(templateDir),
       /git fetch origin failed/,
+    );
+  } finally {
+    cleanupFixture({ templateDir, repoRoot });
+  }
+});
+
+test("origin url.insteadOf rewrite is refused", () => {
+  const { templateDir, bareDir, repoRoot } = createCleanTemplateRepo();
+  try {
+    runGit(templateDir, ["remote", "set-url", "origin", TEMPLATE_GITHUB_ORIGIN]);
+    runGit(templateDir, [
+      "config",
+      `url.${toFileOriginUrl(bareDir)}.insteadOf`,
+      TEMPLATE_GITHUB_ORIGIN,
+    ]);
+    assert.throws(
+      () => assertCleanTemplateProvenance(templateDir),
+      /origin URL is rewritten by url\.\*\.insteadOf/,
     );
   } finally {
     cleanupFixture({ templateDir, repoRoot });

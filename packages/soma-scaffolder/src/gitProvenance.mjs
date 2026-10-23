@@ -21,6 +21,28 @@ export function gitOk(cwd, args) {
   }
 }
 
+/**
+ * @returns {true} when `ancestor` is an ancestor of `descendant`
+ * @throws when git fails for reasons other than "not an ancestor" (exit 1)
+ */
+export function assertGitAncestor(cwd, ancestor, descendant, { label }) {
+  try {
+    execFileSync("git", ["merge-base", "--is-ancestor", ancestor, descendant], {
+      cwd,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+  } catch (err) {
+    const code = err && typeof err === "object" ? err.status : undefined;
+    if (code === 1) {
+      return false;
+    }
+    const detail = String(err?.message ?? err).split("\n")[0];
+    throw new Error(`${label}: git merge-base --is-ancestor failed: ${detail}`);
+  }
+  return true;
+}
+
 export function resolveDefaultBranch(cwd) {
   try {
     const symbolic = git(cwd, ["symbolic-ref", "refs/remotes/origin/HEAD"]);
@@ -38,6 +60,32 @@ export function resolveDefaultBranch(cwd) {
   throw new Error(
     "no fetched origin — set refs/remotes/origin/HEAD or origin/main or origin/master",
   );
+}
+
+/**
+ * Refuse when url.*.insteadOf makes `git remote get-url` differ from the stored remote URL.
+ * @param {string} cwd
+ * @param {{ label: string }} options
+ */
+export function assertOriginUrlNotRewritten(cwd, { label }) {
+  let rawUrl;
+  try {
+    rawUrl = git(cwd, ["config", "--get", "remote.origin.url"]);
+  } catch {
+    throw new Error(`${label}: no git remote named origin`);
+  }
+  let resolvedUrl;
+  try {
+    resolvedUrl = git(cwd, ["remote", "get-url", "origin"]);
+  } catch (err) {
+    const detail = String(err?.message ?? err).split("\n")[0];
+    throw new Error(`${label}: cannot read origin URL: ${detail}`);
+  }
+  if (rawUrl !== resolvedUrl) {
+    throw new Error(
+      `${label}: origin URL is rewritten by url.*.insteadOf (stored ${rawUrl}, resolved ${resolvedUrl}); remove insteadOf rules so provenance matches fetch`,
+    );
+  }
 }
 
 /**
@@ -59,14 +107,24 @@ export function fetchOrigin(cwd, { label }) {
   }
 }
 
+function notOnOriginMessage(label, commit, defaultBranch) {
+  return `${label}: commit ${commit} is not on origin/${defaultBranch}; push and merge it, then scaffold. A lock records only a published commit.`;
+}
+
 /**
  * Refuse when HEAD is not an ancestor of the tip of origin's default branch.
  * @param {string} cwd
- * @param {{ label: string }} options
+ * @param {{ label: string, fetch?: boolean }} options
  */
-export function assertHeadOnOriginDefaultBranch(cwd, { label }) {
+export function assertHeadOnOriginDefaultBranch(cwd, { label, fetch = true }) {
   if (!gitOk(cwd, ["rev-parse", "--git-dir"])) {
     throw new Error(`${label}: ${cwd} is not a git repository`);
+  }
+
+  assertOriginUrlNotRewritten(cwd, { label });
+
+  if (fetch) {
+    fetchOrigin(cwd, { label });
   }
 
   const commit = git(cwd, ["rev-parse", "HEAD"]);
@@ -77,16 +135,8 @@ export function assertHeadOnOriginDefaultBranch(cwd, { label }) {
     throw new Error(`${label}: ${err.message}`);
   }
 
-  if (
-    !gitOk(cwd, [
-      "merge-base",
-      "--is-ancestor",
-      commit,
-      `origin/${defaultBranch}`,
-    ])
-  ) {
-    throw new Error(
-      `${label}: current commit ${commit} is not on origin/${defaultBranch}`,
-    );
+  const onOrigin = assertGitAncestor(cwd, commit, `origin/${defaultBranch}`, { label });
+  if (!onOrigin) {
+    throw new Error(notOnOriginMessage(label, commit, defaultBranch));
   }
 }

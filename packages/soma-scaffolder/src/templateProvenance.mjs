@@ -1,6 +1,13 @@
 import { cpSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { fetchOrigin, git, gitOk, resolveDefaultBranch } from "./gitProvenance.mjs";
+import {
+  assertGitAncestor,
+  assertOriginUrlNotRewritten,
+  fetchOrigin,
+  git,
+  gitOk,
+  resolveDefaultBranch,
+} from "./gitProvenance.mjs";
 
 function parseGithubRepository(remoteUrl) {
   const normalized = String(remoteUrl)
@@ -13,6 +20,26 @@ function parseGithubRepository(remoteUrl) {
   const scp = normalized.match(/^ssh:\/\/git@github\.com\/([^/]+\/[^/]+)$/);
   if (scp) return scp[1];
   return null;
+}
+
+function resolveLockRepository(templateDir, rawRemoteUrl) {
+  const fromGithub = parseGithubRepository(rawRemoteUrl);
+  if (fromGithub) return fromGithub;
+  try {
+    const canonical = git(templateDir, [
+      "config",
+      "--get",
+      "remote.origin.githubRepository",
+    ]);
+    if (/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(canonical)) {
+      return canonical;
+    }
+  } catch {
+    // fall through
+  }
+  throw new Error(
+    `template provenance: origin URL is not a github.com repository: ${rawRemoteUrl}`,
+  );
 }
 
 /**
@@ -36,7 +63,6 @@ export function assertCleanTemplateProvenance(templateDir) {
 
   let remoteUrl;
   try {
-    // Use config, not `remote get-url`: url.*.insteadOf may make get-url show a local path.
     remoteUrl = git(templateDir, ["config", "--get", "remote.origin.url"]);
   } catch {
     throw new Error(
@@ -44,28 +70,24 @@ export function assertCleanTemplateProvenance(templateDir) {
     );
   }
 
-  const repository = parseGithubRepository(remoteUrl);
-  if (!repository) {
-    throw new Error(
-      `template provenance: origin URL is not a github.com repository: ${remoteUrl}`,
-    );
-  }
+  assertOriginUrlNotRewritten(templateDir, { label: "template provenance" });
+
+  const repository = resolveLockRepository(templateDir, remoteUrl);
 
   fetchOrigin(templateDir, { label: "template provenance" });
 
   const commit = git(templateDir, ["rev-parse", "HEAD"]);
   const defaultBranch = resolveDefaultBranch(templateDir);
 
-  if (
-    !gitOk(templateDir, [
-      "merge-base",
-      "--is-ancestor",
-      commit,
-      `origin/${defaultBranch}`,
-    ])
-  ) {
+  const onOrigin = assertGitAncestor(
+    templateDir,
+    commit,
+    `origin/${defaultBranch}`,
+    { label: "template provenance" },
+  );
+  if (!onOrigin) {
     throw new Error(
-      `template provenance: template commit ${commit} is not on origin/${defaultBranch}`,
+      `template provenance: commit ${commit} is not on origin/${defaultBranch}; push and merge it, then scaffold. A lock records only a published commit.`,
     );
   }
 
