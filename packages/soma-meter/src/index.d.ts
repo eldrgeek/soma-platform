@@ -87,6 +87,7 @@ export interface Meter {
 }
 
 export class CapError extends Error {
+  constructor(mtdUsd: number, capUsd: number, estimatedUsd: number);
   status: number;
   payload: {
     error: string;

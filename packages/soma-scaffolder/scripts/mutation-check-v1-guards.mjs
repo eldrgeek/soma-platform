@@ -27,8 +27,8 @@ const MUTANTS = [
   ],
   [
     "src/gitProvenance.mjs",
-    "  } catch (err) {\n    throw new Error(\n      `${label}: git fetch origin failed:",
-    "  } catch (err) {\n    return;\n    throw new Error(\n      `${label}: git fetch origin failed:",
+    "  } catch (err) {\n    throw new ScaffoldRefusal(\n      `${label}: git fetch origin failed: ${String(err.message).split(\"\\n\")[0]}`",
+    "  } catch (err) {\n    return;\n    throw new ScaffoldRefusal(\n      `${label}: git fetch origin failed: ${String(err.message).split(\"\\n\")[0]}`",
     "template fetch failure is ignored",
   ],
   [
@@ -45,8 +45,8 @@ const MUTANTS = [
   ],
   [
     "src/assertCleanPlatformPackages.mjs",
-    "    } catch (err) {\n      // A git failure is not a clean tree: refuse rather than skip the gate.\n      throw new Error(",
-    "    } catch (err) {\n      // A git failure is not a clean tree: refuse rather than skip the gate.\n      continue;\n      throw new Error(",
+    "    } catch (err) {\n      // A git failure is not a clean tree: refuse rather than skip the gate.\n      throw new ScaffoldRefusal(",
+    "    } catch (err) {\n      // A git failure is not a clean tree: refuse rather than skip the gate.\n      continue;\n      throw new ScaffoldRefusal(",
     "git status failure is treated as clean",
   ],
 ];
