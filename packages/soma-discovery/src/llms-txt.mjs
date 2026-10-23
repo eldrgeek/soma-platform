@@ -1,5 +1,3 @@
-import { SOMA_IDENTITY_ORIGIN } from "./constants.mjs";
-
 function publicKnowledgePath(sourcePath) {
   return `/${sourcePath}`;
 }
@@ -52,7 +50,10 @@ export function buildLlmsTxt(manifest, resolvedActions) {
     "Fetch-only assistants should read this file and the discovery JSON, then tell the person how to connect an AI that can act.",
   );
   lines.push(
-    `Tool-capable assistants pair through the identity broker at ${SOMA_IDENTITY_ORIGIN} (device authorization), receive per-app grants, then call /api/soma/v1/actions/{action_id}/prepare and /execute with bearer tokens.`,
+    "Device pairing and agent grants are not offered yet; outside AIs can read public knowledge and discovery documents but cannot call prepare or execute until the platform identity broker ships.",
+  );
+  lines.push(
+    "When pairing is available, tool-capable assistants will authorize through the app-declared identity broker, receive per-app grants, then call /api/soma/v1/actions/{action_id}/prepare and /execute with bearer tokens.",
   );
   lines.push(
     "Human-only approval and consent routes are not listed here; an outside AI must never be invited to approve its own request.",

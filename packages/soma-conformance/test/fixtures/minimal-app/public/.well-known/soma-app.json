@@ -137,11 +137,7 @@
     }
   },
   "identity": {
-    "device_authorization": "https://id.mike-wolf.com/agents/device-code",
-    "jwks": "https://id.mike-wolf.com/.well-known/jwks.json",
-    "oauth_authorization_server": "https://id.mike-wolf.com/.well-known/oauth-authorization-server",
-    "origin": "https://id.mike-wolf.com",
-    "token": "https://id.mike-wolf.com/agents/token"
+    "pairing": "not_available"
   },
   "legal": {
     "agent_revocation": "/settings/agents",

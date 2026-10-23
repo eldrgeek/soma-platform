@@ -1,6 +1,3 @@
-/** Identity origin for broker pairing URLs (kit plan §2.7). */
-export const SOMA_IDENTITY_ORIGIN = "https://id.mike-wolf.com";
-
 export const DISCOVERY_SCHEMA_VERSION = "soma.discovery/1";
 
 export const DISCOVERY_FILE_PATHS = {
