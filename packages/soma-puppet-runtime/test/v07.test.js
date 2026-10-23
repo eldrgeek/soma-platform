@@ -306,6 +306,8 @@ test('notes sent from the Mac carry whose they are and are always held, even tho
   await seeded(api);
   assert.equal((await api.call('video-team/boards/witness/notes', { method: 'POST', body: { text: 'e01: x', by: 'Eric' } })).status, 401);
   assert.equal((await api.call('video-team/boards/witness/notes', { method: 'POST', key: KEY, body: { text: 'e01: x' } })).status, 400);
+  assert.equal((await api.call('video-team/boards/witness/notes', { method: 'POST', key: KEY, body: { text: 'e01: x', by: '   ' } })).status, 400);
+  assert.equal((await api.call('video-team/boards/witness/notes', { method: 'POST', key: KEY, body: { text: 'e01: x', by: 'E'.repeat(121) } })).status, 400);
   const sent = await api.call('video-team/boards/witness/notes', { method: 'POST', key: KEY, body: { text: 'Scene 2 - too dark\n\n-- \nEric', by: 'Eric (email)' } });
   assert.equal(sent.status, 201, JSON.stringify(sent.body));
   assert.equal(sent.body.board.scenes[1].noteBy, 'Eric (email)');
