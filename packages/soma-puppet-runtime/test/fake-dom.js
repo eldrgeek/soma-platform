@@ -24,6 +24,7 @@ export class FakeNode {
     }
   }
   append(...nodes) { this.children.push(...nodes); nodes.forEach((node) => { node.parent = this; }); }
+  prepend(...nodes) { this.children.unshift(...nodes); nodes.forEach((node) => { node.parent = this; }); }
   replaceChildren() { this.children = []; }
   remove() { if (this.parent) this.parent.children = this.parent.children.filter((node) => node !== this); }
   addEventListener(type, listener) { (this.listeners[type] ??= []).push(listener); }
