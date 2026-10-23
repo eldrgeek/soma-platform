@@ -22,7 +22,6 @@ import {
   createCleanPlatformRepo,
   initBareOrigin,
   runGit,
-  TEMPLATE_LOCK_REPOSITORY,
   wireFileOriginToBare,
 } from "./gitTestHelpers.mjs";
 
@@ -75,11 +74,8 @@ function createCleanTemplateRepo() {
   runGit(templateDir, ["add", "."]);
   runGit(templateDir, ["commit", "-m", "template seed"]);
   runGit(templateDir, ["branch", "-M", "main"]);
-  wireFileOriginToBare(templateDir, bareDir, {
-    branch: "main",
-    githubRepository: TEMPLATE_LOCK_REPOSITORY,
-  });
-  return { templateDir, bareDir, repoRoot };
+  const templateOriginUrl = wireFileOriginToBare(templateDir, bareDir, { branch: "main" });
+  return { templateDir, bareDir, repoRoot, templateOriginUrl };
 }
 
 function createV1PlatformFixture() {
@@ -131,8 +127,12 @@ function cleanupConformanceFixture({
 
 function beginConformanceFixture() {
   const { platformRoot, repoRoot: platformRepoRoot } = createV1PlatformFixture();
-  const { templateDir, repoRoot: templateRepoRoot } = createCleanTemplateRepo();
-  return { platformRoot, platformRepoRoot, templateDir, templateRepoRoot };
+  const {
+    templateDir,
+    repoRoot: templateRepoRoot,
+    templateOriginUrl,
+  } = createCleanTemplateRepo();
+  return { platformRoot, platformRepoRoot, templateDir, templateRepoRoot, templateOriginUrl };
 }
 
 test("v1 disposable app passes local conformance", async () => {
@@ -143,6 +143,8 @@ test("v1 disposable app passes local conformance", async () => {
   });
   try {
     assert.ok(existsSync(join(outDir, "soma-kit.lock.json")));
+    const lock = JSON.parse(readFileSync(join(outDir, "soma-kit.lock.json"), "utf8"));
+    assert.equal(lock.template.repository, fx.templateOriginUrl);
     const report = runConformance(outDir);
     assert.equal(reportPassed(report), true);
   } finally {

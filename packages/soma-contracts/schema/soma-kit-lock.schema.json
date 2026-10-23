@@ -21,8 +21,16 @@
       "additionalProperties": false,
       "properties": {
         "repository": {
-          "type": "string",
-          "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+            },
+            {
+              "type": "string",
+              "pattern": "^file:///[^\\s\\u0000-\\u001F\\u007F]+$"
+            }
+          ]
         },
         "commit": { "$ref": "#/$defs/commit" }
       }

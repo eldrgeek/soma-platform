@@ -22,23 +22,15 @@ function parseGithubRepository(remoteUrl) {
   return null;
 }
 
-function resolveLockRepository(templateDir, rawRemoteUrl) {
-  const fromGithub = parseGithubRepository(rawRemoteUrl);
+function resolveLockRepository(rawRemoteUrl) {
+  const remote = String(rawRemoteUrl).trim();
+  const fromGithub = parseGithubRepository(remote);
   if (fromGithub) return fromGithub;
-  try {
-    const canonical = git(templateDir, [
-      "config",
-      "--get",
-      "remote.origin.githubRepository",
-    ]);
-    if (/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(canonical)) {
-      return canonical;
-    }
-  } catch {
-    // fall through
+  if (/^file:\/\/\/[^\s\u0000-\u001F\u007F]+$/.test(remote)) {
+    return remote;
   }
   throw new Error(
-    `template provenance: origin URL is not a github.com repository: ${rawRemoteUrl}`,
+    `template provenance: origin URL must be github.com or file://; got: ${rawRemoteUrl}`,
   );
 }
 
@@ -72,7 +64,7 @@ export function assertCleanTemplateProvenance(templateDir) {
 
   assertOriginUrlNotRewritten(templateDir, { label: "template provenance" });
 
-  const repository = resolveLockRepository(templateDir, remoteUrl);
+  const repository = resolveLockRepository(remoteUrl);
 
   fetchOrigin(templateDir, { label: "template provenance" });
 

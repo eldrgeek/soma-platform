@@ -5,7 +5,6 @@ import { join } from "node:path";
 import { V1_KIT_PACKAGES } from "../src/assertCleanPlatformPackages.mjs";
 
 export const TEMPLATE_GITHUB_ORIGIN = "https://github.com/test/soma-app-template.git";
-export const TEMPLATE_LOCK_REPOSITORY = "test/soma-app-template";
 export const PLATFORM_GITHUB_ORIGIN = "https://github.com/test/soma-platform.git";
 
 export function runGit(cwd, args) {
@@ -34,20 +33,12 @@ export function initBareOrigin(repoRoot, branch = "main") {
   return bareDir;
 }
 
-/**
- * Local bare origin via file:// (no url.insteadOf). Optional githubRepository sets the lock template id.
- */
-export function wireFileOriginToBare(
-  workDir,
-  bareDir,
-  { branch = "main", githubRepository = null } = {},
-) {
+/** Local bare origin via file:// (no url.insteadOf). */
+export function wireFileOriginToBare(workDir, bareDir, { branch = "main" } = {}) {
   const fileUrl = toFileOriginUrl(bareDir);
   runGit(workDir, ["remote", "add", "origin", fileUrl]);
-  if (githubRepository) {
-    runGit(workDir, ["config", "remote.origin.githubRepository", githubRepository]);
-  }
   runGit(workDir, ["push", "-u", "origin", branch]);
+  return fileUrl;
 }
 
 export function seedKitPackageDirs(platformRoot) {

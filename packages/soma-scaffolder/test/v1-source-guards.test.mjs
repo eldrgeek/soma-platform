@@ -15,7 +15,6 @@ import {
   initBareOrigin,
   runGit,
   TEMPLATE_GITHUB_ORIGIN,
-  TEMPLATE_LOCK_REPOSITORY,
   toFileOriginUrl,
   wireFileOriginToBare,
 } from "./gitTestHelpers.mjs";
@@ -40,10 +39,7 @@ function createCleanTemplateRepo() {
   runGit(templateDir, ["add", "."]);
   runGit(templateDir, ["commit", "-m", "template seed"]);
   runGit(templateDir, ["branch", "-M", "main"]);
-  wireFileOriginToBare(templateDir, bareDir, {
-    branch: "main",
-    githubRepository: TEMPLATE_LOCK_REPOSITORY,
-  });
+  wireFileOriginToBare(templateDir, bareDir, { branch: "main" });
   return { templateDir, bareDir, repoRoot };
 }
 

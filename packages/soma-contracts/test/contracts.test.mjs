@@ -15,6 +15,7 @@ import {
   contractSha256,
   readLock,
   readSourceFile,
+  validateLock,
   validateManifest,
   validateSourcePath,
 } from "../src/index.mjs";
@@ -379,10 +380,8 @@ test("safe source reader rejects a FIFO", (t) => {
   }
 });
 
-test("readLock accepts the exact lock shape and rejects extra fields", () => {
-  const directory = mkdtempSync(join(tmpdir(), "soma-lock-"));
-  const lockPath = join(directory, "soma-kit.lock.json");
-  const lock = {
+function minimalLock(overrides = {}) {
+  return {
     kit_version: "1.0.0",
     source_commit: "a".repeat(40),
     template: {
@@ -405,7 +404,34 @@ test("readLock accepts the exact lock shape and rejects extra fields", () => {
         sha256: "d".repeat(64),
       },
     },
+    ...overrides,
   };
+}
+
+test("kit lock template.repository accepts GitHub owner/name or absolute file:// URL", () => {
+  assert.equal(validateLock(minimalLock()).valid, true);
+
+  const fileLock = minimalLock();
+  fileLock.template.repository =
+    "file:///tmp/soma-app-template-origin.git";
+  assert.equal(validateLock(fileLock).valid, true);
+
+});
+
+test("kit lock template.repository rejects non-GitHub http URLs and relative paths", () => {
+  const httpLock = minimalLock();
+  httpLock.template.repository = "http://example.test/repo.git";
+  assert.equal(validateLock(httpLock).valid, false);
+
+  const relativeLock = minimalLock();
+  relativeLock.template.repository = "file://relative/path.git";
+  assert.equal(validateLock(relativeLock).valid, false);
+});
+
+test("readLock accepts the exact lock shape and rejects extra fields", () => {
+  const directory = mkdtempSync(join(tmpdir(), "soma-lock-"));
+  const lockPath = join(directory, "soma-kit.lock.json");
+  const lock = minimalLock();
 
   try {
     writeFileSync(lockPath, JSON.stringify(lock));
