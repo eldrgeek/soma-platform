@@ -1,7 +1,10 @@
 import {
+  APPROVAL_REQUIRED_SCHEMA,
   COMMON_ERROR_SCHEMA,
+  NOT_LIVE_ROUTE_DESCRIPTION,
   RATE_LIMIT_DESCRIPTION,
 } from "./constants.mjs";
+import { embedSchemaForOpenApi } from "./schema-ref.mjs";
 
 function schemaNameForAction(actionId, suffix) {
   return `${actionId.replace(/[^A-Za-z0-9]+/g, "_")}_${suffix}`;
@@ -22,18 +25,31 @@ function bearerSecurity() {
   return [{ somaAgentBearer: [] }];
 }
 
+function markOperationsNotLive(pathItem) {
+  for (const [key, operation] of Object.entries(pathItem)) {
+    if (key === "parameters" || !operation || typeof operation !== "object") {
+      continue;
+    }
+    operation["x-soma-status"] = "not_live";
+  }
+  return pathItem;
+}
+
 export function buildOpenApiDocument(manifest, resolvedActions) {
   const schemas = {
     SomaErrorResponse: COMMON_ERROR_SCHEMA,
+    SomaApprovalRequired: APPROVAL_REQUIRED_SCHEMA,
   };
 
   for (const { action, inputSchema, outputSchema } of resolvedActions) {
-    schemas[schemaNameForAction(action.id, "Input")] = inputSchema;
-    schemas[schemaNameForAction(action.id, "Output")] = outputSchema;
+    const inputName = schemaNameForAction(action.id, "Input");
+    const outputName = schemaNameForAction(action.id, "Output");
+    schemas[inputName] = embedSchemaForOpenApi(inputSchema, inputName);
+    schemas[outputName] = embedSchemaForOpenApi(outputSchema, outputName);
   }
 
   const paths = {
-    "/api/soma/v1/ask": {
+    "/api/soma/v1/ask": markOperationsNotLive({
       post: {
         operationId: "ask",
         summary: "Ask the app host from declared knowledge",
@@ -67,8 +83,8 @@ export function buildOpenApiDocument(manifest, resolvedActions) {
           429: jsonErrorResponse("Admission limit"),
         },
       },
-    },
-    "/api/soma/v1/contact": {
+    }),
+    "/api/soma/v1/contact": markOperationsNotLive({
       post: {
         operationId: "contact",
         summary: "Contact the human host",
@@ -78,8 +94,8 @@ export function buildOpenApiDocument(manifest, resolvedActions) {
           429: jsonErrorResponse("Admission limit"),
         },
       },
-    },
-    "/api/soma/v1/actions": {
+    }),
+    "/api/soma/v1/actions": markOperationsNotLive({
       get: {
         operationId: "listActions",
         summary: "List remote actions visible to the caller",
@@ -89,8 +105,8 @@ export function buildOpenApiDocument(manifest, resolvedActions) {
           401: jsonErrorResponse("Missing or invalid authentication"),
         },
       },
-    },
-    "/api/soma/v1/status": {
+    }),
+    "/api/soma/v1/status": markOperationsNotLive({
       get: {
         operationId: "status",
         summary: "Release and dependency status",
@@ -99,8 +115,8 @@ export function buildOpenApiDocument(manifest, resolvedActions) {
           200: { description: "Status snapshot" },
         },
       },
-    },
-    "/api/soma/v1/approvals/{approval_id}": {
+    }),
+    "/api/soma/v1/approvals/{approval_id}": markOperationsNotLive({
       get: {
         operationId: "getApproval",
         summary: "Poll an approval by id",
@@ -119,8 +135,8 @@ export function buildOpenApiDocument(manifest, resolvedActions) {
           404: jsonErrorResponse("Not found"),
         },
       },
-    },
-    "/api/soma/v1/receipts/{receipt_id}": {
+    }),
+    "/api/soma/v1/receipts/{receipt_id}": markOperationsNotLive({
       get: {
         operationId: "getReceipt",
         summary: "Fetch a receipt by id",
@@ -139,16 +155,16 @@ export function buildOpenApiDocument(manifest, resolvedActions) {
           404: jsonErrorResponse("Not found"),
         },
       },
-    },
+    }),
   };
 
-  for (const { action, inputSchema, outputSchema } of resolvedActions) {
+  for (const { action } of resolvedActions) {
     const inputRef = `#/components/schemas/${schemaNameForAction(action.id, "Input")}`;
     const outputRef = `#/components/schemas/${schemaNameForAction(action.id, "Output")}`;
     const preparePath = `/api/soma/v1/actions/${action.id}/prepare`;
     const executePath = `/api/soma/v1/actions/${action.id}/execute`;
 
-    paths[preparePath] = {
+    paths[preparePath] = markOperationsNotLive({
       post: {
         operationId: `prepare_${action.id.replace(/[^A-Za-z0-9]+/g, "_")}`,
         summary: `Prepare ${action.id}`,
@@ -171,10 +187,10 @@ export function buildOpenApiDocument(manifest, resolvedActions) {
             },
           },
           202: {
-            description: "Approval required",
+            description: "Approval required before execution",
             content: {
               "application/json": {
-                schema: { $ref: "#/components/schemas/SomaErrorResponse" },
+                schema: { $ref: "#/components/schemas/SomaApprovalRequired" },
               },
             },
           },
@@ -185,7 +201,7 @@ export function buildOpenApiDocument(manifest, resolvedActions) {
         "x-soma-action-version": action.version,
         "x-soma-action-kind": action.kind,
       },
-    };
+    });
 
     const executeOperation = {
       operationId: `execute_${action.id.replace(/[^A-Za-z0-9]+/g, "_")}`,
@@ -230,7 +246,7 @@ export function buildOpenApiDocument(manifest, resolvedActions) {
       executeOperation["x-soma-requires-idempotency-key"] = true;
     }
 
-    paths[executePath] = { post: executeOperation };
+    paths[executePath] = markOperationsNotLive({ post: executeOperation });
   }
 
   return {
@@ -240,6 +256,7 @@ export function buildOpenApiDocument(manifest, resolvedActions) {
       version: "1.0.0",
       description: [
         "Routes intended for outside AIs at this app origin.",
+        NOT_LIVE_ROUTE_DESCRIPTION,
         RATE_LIMIT_DESCRIPTION,
         "Every response carries X-Request-Id.",
         "Errors use the SomaErrorResponse schema; responses never include stack traces, SQL, provider payloads, or credentials.",

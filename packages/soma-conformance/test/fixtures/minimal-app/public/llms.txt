@@ -19,8 +19,12 @@ Manifest schema: soma.app/1
 - coaching.inspect-agenda@1 kind=observe scopes=agenda:read role=member
 - coaching.save-reflection@1 kind=effect risk=consequential scopes=reflection:write role=member
 
+## SOMA API routes (not live yet)
+Every /api/soma/v1/* route in OpenAPI is planned contract documentation only; this app does not serve those endpoints yet.
+An outside AI can read public pages and knowledge today; it cannot call prepare, execute, ask, contact, or other SOMA API routes until the app ships them.
+
 ## Acting as an outside AI
 Fetch-only assistants should read this file and the discovery JSON, then tell the person how to connect an AI that can act.
 Device pairing and agent grants are not offered yet; outside AIs can read public knowledge and discovery documents but cannot call prepare or execute until the platform identity broker ships.
 When pairing is available, tool-capable assistants will authorize through the app-declared identity broker, receive per-app grants, then call /api/soma/v1/actions/{action_id}/prepare and /execute with bearer tokens.
-Human-only approval and consent routes are not listed here; an outside AI must never be invited to approve its own request.
+Human-only authorization flows are not listed here; an outside AI must never be invited to authorize its own request.

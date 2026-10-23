@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["payload"],
+  "properties": {
+    "payload": { "$ref": "#/$defs/payload" }
+  },
+  "$defs": {
+    "payload": {
+      "type": "object",
+      "required": ["note"],
+      "properties": {
+        "note": { "type": "string" }
+      }
+    }
+  }
+}

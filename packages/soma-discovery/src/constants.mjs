@@ -8,6 +8,9 @@ export const DISCOVERY_FILE_PATHS = {
 
 /** Route path fragments that must never appear in AI discovery (kit plan §2.7). */
 export const FORBIDDEN_ROUTE_MARKERS = [
+  "approve",
+  "approval/decision",
+  "consent",
   "/decision",
   "/api/soma/v1/me/concepts",
   "/api/soma/v1/me/answers",
@@ -25,6 +28,24 @@ export const RATE_LIMIT_DESCRIPTION = [
   "A 429 response, and a retryable 409 or 503 response, includes Retry-After.",
 ].join(" ");
 
+export const NOT_LIVE_ROUTE_DESCRIPTION =
+  "Contract routes under /api/soma/v1 are documented for future outside-AI access; this app does not serve them yet (x-soma-status: not_live).";
+
+export const APPROVAL_REQUIRED_SCHEMA = {
+  type: "object",
+  required: ["status"],
+  additionalProperties: false,
+  properties: {
+    status: { const: "approval_required" },
+    approval_id: { type: "string" },
+    approval_url: {
+      type: "string",
+      description:
+        "Human-facing page URL for the account holder to approve or deny; outside AIs must not treat it as an API route.",
+    },
+  },
+};
+
 export const COMMON_ERROR_SCHEMA = {
   type: "object",
   required: ["error"],
@@ -40,7 +61,11 @@ export const COMMON_ERROR_SCHEMA = {
         retryable: { type: "boolean" },
         request_id: { type: "string" },
         receipt_id: { type: "string" },
-        approval_url: { type: "string" },
+        approval_url: {
+          type: "string",
+          description:
+            "Human-facing page URL for the account holder to approve or deny; outside AIs must not treat it as an API route.",
+        },
       },
     },
   },

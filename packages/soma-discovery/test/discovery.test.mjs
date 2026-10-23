@@ -8,6 +8,7 @@ import {
   remoteActions,
   assertNoForbiddenRoutes,
 } from "../src/index.mjs";
+import { embedSchemaForOpenApi, resolveJsonPointer } from "../src/schema-ref.mjs";
 
 const testDirectory = dirname(fileURLToPath(import.meta.url));
 const fixtureRoot = join(testDirectory, "..", "..", "soma-conformance", "test", "fixtures", "minimal-app");
@@ -72,6 +73,53 @@ test("OpenAPI documents common error schema and bearer authentication", async ()
   assert.ok(openapi.components.schemas.SomaErrorResponse);
   assert.ok(openapi.components.securitySchemes.somaAgentBearer);
   assert.match(openapi.info.description, /Rate limits use platform-derived/);
+});
+
+test("embedded action schemas rewrite local $ref pointers into OpenAPI components", () => {
+  const inputSchema = JSON.parse(
+    readFileSync(join(testDirectory, "fixtures", "with-local-ref.input.json"), "utf8"),
+  );
+  const componentName = "demo_Input";
+  const embedded = embedSchemaForOpenApi(inputSchema, componentName);
+  const ref = embedded.properties.payload.$ref;
+  assert.equal(ref, `#/components/schemas/${componentName}/$defs/payload`);
+  const openapi = {
+    components: {
+      schemas: {
+        [componentName]: embedded,
+      },
+    },
+  };
+  const resolved = resolveJsonPointer(openapi, ref);
+  assert.equal(resolved.type, "object");
+  assert.equal(resolved.properties.note.type, "string");
+});
+
+test("embedded action schemas refuse external $ref pointers", () => {
+  assert.throws(
+    () => embedSchemaForOpenApi({ $ref: "other.schema.json" }, "demo_Input"),
+    /external \$ref is not supported/,
+  );
+});
+
+test("OpenAPI marks every /api/soma/v1 path as not_live and uses a dedicated 202 schema", async () => {
+  const manifest = readManifest();
+  const { openapi } = await generateDiscoveryFromRepository(manifest, fixtureRoot);
+  assert.match(openapi.info.description, /does not serve them yet/);
+  for (const [path, item] of Object.entries(openapi.paths)) {
+    assert.match(path, /^\/api\/soma\/v1\//);
+    for (const operation of Object.values(item)) {
+      if (operation && typeof operation === "object" && "responses" in operation) {
+        assert.equal(operation["x-soma-status"], "not_live");
+      }
+    }
+  }
+  const preparePath = "/api/soma/v1/actions/coaching.save-reflection/prepare";
+  const response202 = openapi.paths[preparePath].post.responses["202"];
+  assert.match(
+    response202.content["application/json"].schema.$ref,
+    /SomaApprovalRequired$/,
+  );
 });
 
 test("discovery documents name no identity origin until the broker ships", async () => {
