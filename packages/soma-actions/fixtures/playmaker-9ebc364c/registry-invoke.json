@@ -25,6 +25,7 @@
           "error": "Unknown command: no.such.command."
         }
       ],
+      "runCallCount": 0,
       "audit": [
         {
           "auditId": "audit:00000000-0000-4000-8000-000000000001",
@@ -41,8 +42,7 @@
           "error": "Unknown command: no.such.command."
         }
       ],
-      "auditLength": 1,
-      "runCallCount": 0
+      "auditLength": 1
     },
     {
       "id": "invalid-args",
@@ -69,6 +69,7 @@
           "error": "Argument \"title\" must be a string."
         }
       ],
+      "runCallCount": 0,
       "audit": [
         {
           "auditId": "audit:00000000-0000-4000-8000-000000000001",
@@ -87,8 +88,7 @@
           "error": "Argument \"title\" must be a string."
         }
       ],
-      "auditLength": 1,
-      "runCallCount": 0
+      "auditLength": 1
     },
     {
       "id": "no-impl",
@@ -115,6 +115,7 @@
           "unavailable": "Command \"play.rename\" is unavailable on this page."
         }
       ],
+      "runCallCount": 0,
       "audit": [
         {
           "auditId": "audit:00000000-0000-4000-8000-000000000001",
@@ -133,8 +134,7 @@
           "unavailable": "Command \"play.rename\" is unavailable on this page."
         }
       ],
-      "auditLength": 1,
-      "runCallCount": 0
+      "auditLength": 1
     },
     {
       "id": "impl-unavailable",
@@ -169,6 +169,7 @@
           "unavailable": "Scene editor is closed."
         }
       ],
+      "runCallCount": 0,
       "audit": [
         {
           "auditId": "audit:00000000-0000-4000-8000-000000000001",
@@ -185,8 +186,7 @@
           "unavailable": "Scene editor is closed."
         }
       ],
-      "auditLength": 1,
-      "runCallCount": 0
+      "auditLength": 1
     },
     {
       "id": "impl-throws",
@@ -221,6 +221,7 @@
           "error": "boom"
         }
       ],
+      "runCallCount": 1,
       "audit": [
         {
           "auditId": "audit:00000000-0000-4000-8000-000000000001",
@@ -237,8 +238,7 @@
           "error": "boom"
         }
       ],
-      "auditLength": 1,
-      "runCallCount": 1
+      "auditLength": 1
     },
     {
       "id": "successful-impl",
@@ -279,6 +279,7 @@
           }
         }
       ],
+      "runCallCount": 1,
       "audit": [
         {
           "auditId": "audit:00000000-0000-4000-8000-000000000001",
@@ -294,8 +295,7 @@
           "ok": true
         }
       ],
-      "auditLength": 1,
-      "runCallCount": 1
+      "auditLength": 1
     },
     {
       "id": "async-resolve",
@@ -336,6 +336,7 @@
           }
         }
       ],
+      "runCallCount": 1,
       "audit": [
         {
           "auditId": "audit:00000000-0000-4000-8000-000000000001",
@@ -351,8 +352,7 @@
           "ok": true
         }
       ],
-      "auditLength": 1,
-      "runCallCount": 1
+      "auditLength": 1
     },
     {
       "id": "async-reject-error",
@@ -387,6 +387,7 @@
           "error": "async boom"
         }
       ],
+      "runCallCount": 1,
       "audit": [
         {
           "auditId": "audit:00000000-0000-4000-8000-000000000001",
@@ -403,8 +404,7 @@
           "error": "async boom"
         }
       ],
-      "auditLength": 1,
-      "runCallCount": 1
+      "auditLength": 1
     },
     {
       "id": "async-reject-non-error",
@@ -441,6 +441,7 @@
           "error": "{\"code\":\"E_BUSY\"}"
         }
       ],
+      "runCallCount": 1,
       "audit": [
         {
           "auditId": "audit:00000000-0000-4000-8000-000000000001",
@@ -457,8 +458,7 @@
           "error": "{\"code\":\"E_BUSY\"}"
         }
       ],
-      "auditLength": 1,
-      "runCallCount": 1
+      "auditLength": 1
     },
     {
       "id": "truncation-300-char",
@@ -499,6 +499,7 @@
           "result": true
         }
       ],
+      "runCallCount": 1,
       "audit": [
         {
           "auditId": "audit:00000000-0000-4000-8000-000000000001",
@@ -517,8 +518,7 @@
           "ok": true
         }
       ],
-      "auditLength": 1,
-      "runCallCount": 1
+      "auditLength": 1
     },
     {
       "id": "audit-limit-501",
@@ -551,6 +551,7 @@
           "auditId": "audit:00000000-0000-4000-8000-000000000501"
         }
       ],
+      "runCallCount": 501,
       "audit": [
         {
           "auditId": "audit:00000000-0000-4000-8000-000000000002",
@@ -7053,8 +7054,7 @@
           "ok": true
         }
       ],
-      "auditLength": 500,
-      "runCallCount": 501
+      "auditLength": 500
     },
     {
       "id": "withdraw-unavailable-audit",
@@ -7125,6 +7125,7 @@
         },
         false
       ],
+      "runCallCount": 1,
       "audit": [
         {
           "auditId": "audit:00000000-0000-4000-8000-000000000002",
@@ -7140,8 +7141,7 @@
           "ok": true
         }
       ],
-      "auditLength": 1,
-      "runCallCount": 1
+      "auditLength": 1
     }
   ]
 }
