@@ -31,7 +31,6 @@ async function scaffoldLegendsToTemp() {
     outDir,
     appTemplateDir: resolveAppTemplateDir(),
     platformRoot: PLATFORM_ROOT,
-    skipTemplateProvenance: true,
   });
   return outDir;
 }

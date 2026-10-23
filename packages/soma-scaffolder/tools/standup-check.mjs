@@ -80,9 +80,9 @@ try {
   const scaffoldStart = Date.now();
   await scaffoldReactApp(doc, {
     outDir: workDir,
+    manifestDir: dirname(LEGENDS_SPEC),
     appTemplateDir: templateDir,
     platformRoot: PLATFORM_ROOT,
-    skipTemplateProvenance: true,
   });
   result.scaffold_s = elapsedSeconds(scaffoldStart);
 

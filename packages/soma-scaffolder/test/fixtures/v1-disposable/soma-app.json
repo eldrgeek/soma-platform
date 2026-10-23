@@ -1,5 +1,5 @@
 {
-  "$schema": "./vendor/soma/soma-app-v1.schema.json",
+  "$schema": "./schemas/soma-app-v1.schema.json",
   "schema_version": "soma.app/1",
   "app": {
     "id": "veric-coaching",

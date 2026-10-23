@@ -24,45 +24,27 @@ function readScaffolderVersion() {
   return JSON.parse(readFileSync(join(SCAFFOLDER_ROOT, "package.json"), "utf8")).version;
 }
 
-function guideSectionFromManifest(manifest, platformRoot) {
-  const guideRequired = manifest?.dependencies?.guide_cdn?.required === true;
-  const distGuide = join(platformRoot, "dist", "soma-guide.js");
-  const distCss = join(platformRoot, "dist", "soma-guide.css");
+function guideAssetsFromPlatform(platformRoot) {
+  const guidePkg = join(platformRoot, "packages", "soma-guide", "package.json");
+  const version = existsSync(guidePkg)
+    ? JSON.parse(readFileSync(guidePkg, "utf8")).version
+    : "1.0.0";
 
-  if (guideRequired && existsSync(distGuide)) {
-    const versionMatch = readFileSync(distGuide, "utf8").match(
-      /SOMA_GUIDE_VERSION = '([^']+)'/,
-    );
-    const version = versionMatch?.[1] ?? "0.0.0";
-    const assets = [];
-    for (const [file, urlPath] of [
-      [distGuide, `https://soma-guide.netlify.app/soma-guide.js`],
-      [distCss, `https://soma-guide.netlify.app/soma-guide.css`],
-    ]) {
-      try {
-        const bytes = readFileSync(file);
-        const integrity =
-          "sha384-" + createHash("sha384").update(bytes).digest("base64");
-        assets.push({ url: urlPath, integrity });
-      } catch {
-        // skip missing css
-      }
+  const assets = [];
+  for (const [fileName, url] of [
+    ["soma-guide.js", "https://soma-guide.netlify.app/soma-guide.js"],
+    ["soma-guide.css", "https://soma-guide.netlify.app/soma-guide.css"],
+  ]) {
+    const filePath = join(platformRoot, "packages", "soma-guide", fileName);
+    if (!existsSync(filePath)) {
+      throw new Error(`writeKitLock: missing Guide asset ${filePath}`);
     }
-    if (assets.length > 0) {
-      return { version, assets };
-    }
+    const bytes = readFileSync(filePath);
+    const integrity =
+      "sha384-" + createHash("sha384").update(bytes).digest("base64");
+    assets.push({ url, integrity });
   }
-
-  // Guide CDN not required — pin a schema-valid placeholder (integrity not verified in M1 local mode).
-  return {
-    version: "1.0.0",
-    assets: [
-      {
-        url: "https://soma-guide.netlify.app/v1.0.0/soma-guide.js",
-        integrity: "sha384-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-      },
-    ],
-  };
+  return { version, assets };
 }
 
 /**
@@ -105,7 +87,7 @@ export async function writeKitLock({
     source_commit: sourceCommit,
     template,
     contract_sha256,
-    guide: guideSectionFromManifest(manifest, platformRoot),
+    guide: guideAssetsFromPlatform(platformRoot),
     packages,
   };
 
