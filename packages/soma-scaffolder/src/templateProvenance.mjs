@@ -1,27 +1,6 @@
-import { execFileSync } from "node:child_process";
 import { cpSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
-
-function git(cwd, args) {
-  return execFileSync("git", args, {
-    cwd,
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "pipe"],
-  }).trim();
-}
-
-function gitOk(cwd, args) {
-  try {
-    execFileSync("git", args, {
-      cwd,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-    return true;
-  } catch {
-    return false;
-  }
-}
+import { fetchOrigin, git, gitOk, resolveDefaultBranch } from "./gitProvenance.mjs";
 
 function parseGithubRepository(remoteUrl) {
   const normalized = String(remoteUrl)
@@ -34,28 +13,6 @@ function parseGithubRepository(remoteUrl) {
   const scp = normalized.match(/^ssh:\/\/git@github\.com\/([^/]+\/[^/]+)$/);
   if (scp) return scp[1];
   return null;
-}
-
-function resolveDefaultBranch(templateDir) {
-  try {
-    const symbolic = git(templateDir, [
-      "symbolic-ref",
-      "refs/remotes/origin/HEAD",
-    ]);
-    const match = symbolic.match(/^refs\/remotes\/origin\/(.+)$/);
-    if (match) return match[1];
-  } catch {
-    // fall through
-  }
-  if (gitOk(templateDir, ["show-ref", "--verify", "--quiet", "refs/remotes/origin/main"])) {
-    return "main";
-  }
-  if (gitOk(templateDir, ["show-ref", "--verify", "--quiet", "refs/remotes/origin/master"])) {
-    return "master";
-  }
-  throw new Error(
-    "template provenance: no fetched origin — set refs/remotes/origin/HEAD or origin/main or origin/master",
-  );
 }
 
 /**
@@ -79,7 +36,8 @@ export function assertCleanTemplateProvenance(templateDir) {
 
   let remoteUrl;
   try {
-    remoteUrl = git(templateDir, ["remote", "get-url", "origin"]);
+    // Use config, not `remote get-url`: url.*.insteadOf may make get-url show a local path.
+    remoteUrl = git(templateDir, ["config", "--get", "remote.origin.url"]);
   } catch {
     throw new Error(
       "template provenance: template has no git remote named origin",
@@ -93,10 +51,19 @@ export function assertCleanTemplateProvenance(templateDir) {
     );
   }
 
+  fetchOrigin(templateDir, { label: "template provenance" });
+
   const commit = git(templateDir, ["rev-parse", "HEAD"]);
   const defaultBranch = resolveDefaultBranch(templateDir);
 
-  if (!gitOk(templateDir, ["merge-base", "--is-ancestor", commit, `origin/${defaultBranch}`])) {
+  if (
+    !gitOk(templateDir, [
+      "merge-base",
+      "--is-ancestor",
+      commit,
+      `origin/${defaultBranch}`,
+    ])
+  ) {
     throw new Error(
       `template provenance: template commit ${commit} is not on origin/${defaultBranch}`,
     );

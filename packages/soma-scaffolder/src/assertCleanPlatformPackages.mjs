@@ -1,9 +1,12 @@
 import { execFileSync } from "node:child_process";
-const V1_KIT_PACKAGES = [
+export const V1_KIT_PACKAGES = [
   "soma-tickets",
   "soma-meter",
   "soma-signin",
   "soma-feedback",
+  "soma-guide",
+  "soma-contracts",
+  "soma-conformance",
 ];
 
 /**
