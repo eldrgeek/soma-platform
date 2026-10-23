@@ -159,6 +159,7 @@ const storyboardApi = {
   listJobs: (id) => api(boardsPath(id, '/jobs')),
   createJob: (id, job) => api(boardsPath(id, '/jobs'), { method: 'POST', body: job }),
   decideJob: (id, jobId, release) => api(boardsPath(id, `/jobs/${encodeURIComponent(jobId)}`), { method: 'POST', body: { release } }),
+  sendNotes: (id, notes) => api(boardsPath(id, '/notes'), { method: 'POST', body: notes }),
   async fetchFile(id, name) {
     const response = await fetch(`/api/app/${encodeURIComponent(appId)}/${boardsPath(id, `/files/${encodeURIComponent(name)}`)}`, { headers: authHeaders() });
     if (!response.ok) throw new Error(`Could not load ${name} (${response.status})`);

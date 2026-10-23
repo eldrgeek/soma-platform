@@ -10,8 +10,15 @@
  * and put back an earlier picture. The cuts (full song, 60-second cut, shorts) say when a change means
  * they need rendering again, and render through the team on Mike's Mac.
  *
+ * Fast notes and rerolls (2026-10-23, "notes from eric and reroll fast"): "Reroll" on a card asks for a new
+ * take of the same prompt in one click. The "Notes and redos" panel takes an artist's notes as written (an
+ * email or a text pasted in; notes.js finds the cards they name), shows where each note will land, and puts
+ * them on the cards with one batch request; redoes every card marked redo in one batch; lets every held
+ * request run (host only); and asks for every cut that needs a new render.
+ *
  * api: { listBoards(), createBoard({ title, project }), getBoard(id), changeBoard(id, ops), listJobs(id),
- *        createJob(id, { step, scene?, cut?, note? }), decideJob(id, jobId, release), fetchFile(id, name) }
+ *        createJob(id, { step, scene?, scenes?, cut?, note? }), decideJob(id, jobId, release), fetchFile(id, name),
+ *        sendNotes(id, { text }) }
  * fetchFile returns a Blob; pictures, the song and renders play from object URLs, never the API address.
  * host: whether the reader is the app's host (starts boards, lets held jobs run).
  * initial: a board id to open; onOpen(id or null) is told when the reader opens or leaves a board.
@@ -22,6 +29,7 @@ import { ago } from './video-jobs.js';
 import {
   ASPECT_LABEL, ASPECTS, BOARD_STEPS, clockOf, cutLength, cutScenes, cutState, parseClock, parseRanges, rangesText, SCENE_STATUSES,
 } from './storyboard.js';
+import { jobScenes, parseNotes, redoQueue } from './notes.js';
 
 const STYLE_ID = 'soma-video-storyboard-style';
 const CSS = `
@@ -42,6 +50,9 @@ const CSS = `
 .svs-boards li { border: 1px solid var(--svs-line); border-radius: 8px; padding: 10px 12px; background: var(--svs-paper); cursor: pointer; }
 .svs-boards li:hover { border-color: var(--svs-accent); }
 .svs-boards small { color: var(--svs-muted); display: block; }
+.svs-notes-preview { list-style: none; margin: 6px 0; padding: 0; font-size: 13px; display: grid; gap: 4px; }
+.svs-notes-preview li { border-left: 3px solid var(--svs-accent); padding-left: 6px; white-space: pre-wrap; }
+.svs-notes-preview li.svs-general { border-left-color: var(--svs-line); color: var(--svs-muted); }
 .svs-new { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .svs-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 12px; }
 .svs-bar .svs-grow { flex: 1; }
@@ -300,6 +311,7 @@ export function mountStoryboards(container, { api, host = false, initial = null,
     body.append(el(document, 'p', 'svs-lead', `${board.scenes.length} scenes${board.song?.duration ? ` · song ${clockOf(board.song.duration)}` : ''} · changed ${ago(board.updatedAt)}${board.updatedBy ? ` by ${board.updatedBy}` : ''}. Changes save as you make them. A redo or a render goes to the team on Mike's Mac${host ? '' : ' once the host lets it run'}.`));
     if (board.role === 'owner') body.append(drawSharing());
     body.append(drawCuts());
+    body.append(drawQuick());
     const grid = el(document, 'div', `svs-grid${aspect === '16x9' ? ' svs-wide' : ''}`);
     board.scenes.forEach((scene, index) => grid.append(drawCard(scene, index)));
     if (!board.scenes.length) {
@@ -455,7 +467,7 @@ export function mountStoryboards(container, { api, host = false, initial = null,
     const pic = el(document, 'div', 'svs-pic');
     picture(pic, scene.pictures[aspect], `${scene.id}: ${scene.lyric}`);
     pic.append(progress);
-    const job = jobs.find((candidate) => candidate.scene === scene.id && isOpen(candidate));
+    const job = jobs.find((candidate) => jobScenes(candidate).includes(scene.id) && isOpen(candidate));
     if (job) pic.append(el(document, 'span', `svs-state svs-job svs-state-${job.status}`, `${STEP_LABEL[job.step] ?? job.step}: ${JOB_WORDS[job.status]}`));
     card.append(pic);
 
@@ -501,6 +513,14 @@ export function mountStoryboards(container, { api, host = false, initial = null,
       await change([{ op: 'set', scene: scene.id, field: 'note', value: note.value }, { op: 'set', scene: scene.id, field: 'status', value: step === 'redo' ? 'redo' : 'new' }]);
       await ask({ step, scene: scene.id }, `Asked for new pictures for ${scene.id}.`);
     }, 'svs-btn svs-primary'));
+    if (Object.keys(scene.pictures).length && !job) {
+      const reroll = button('Reroll', async () => {
+        await change([{ op: 'set', scene: scene.id, field: 'status', value: 'redo' }]);
+        await ask({ step: 'redo', scene: scene.id, ...(note.value.trim() ? {} : { note: 'Reroll: same prompt, a different take.' }) }, `Asked for another take of ${scene.id}.`);
+      });
+      reroll.title = 'Another take of the same prompt (and the redo note, if there is one), in one click';
+      redo.append(reroll);
+    }
     content.append(redo);
 
     const promptBox = el(document, 'details');
@@ -567,6 +587,72 @@ export function mountStoryboards(container, { api, host = false, initial = null,
     return box;
   }
 
+  // ---------- notes and fast redos ----------
+  let notesDraft = '';
+  function drawQuick() {
+    const panel = el(document, 'section', 'svs-panel');
+    panel.append(el(document, 'h3', '', 'Notes and redos'));
+    const row = el(document, 'div', 'svs-row');
+    const queue = redoQueue(board, jobs);
+    const batch = button(queue.length ? `Redo the ${queue.length} marked scene${queue.length === 1 ? '' : 's'} in one batch` : 'No scenes marked redo', async () => {
+      const scenes = redoQueue(board, jobs).slice(0, 24);
+      if (!scenes.length) return say('Mark scenes redo (or write notes below) first.');
+      await ask({ step: 'batch', scenes }, `Asked for new pictures for ${scenes.join(', ')} in one batch.`);
+    }, 'svs-btn svs-primary');
+    batch.disabled = !queue.length;
+    row.append(batch);
+    const held = jobs.filter((job) => job.status === 'held');
+    if (host && held.length) {
+      row.append(button(`Let all ${held.length} waiting request${held.length === 1 ? '' : 's'} run`, async () => {
+        for (const job of held) await api.decideJob(board.id, job.id, true);
+        say(`${held.length} request${held.length === 1 ? '' : 's'} will run on the Mac, oldest first.`);
+        await loadJobs();
+      }));
+    }
+    const stale = board.cuts.filter((cut) => cutState(board, cut).state === 'stale' && !jobs.some((job) => job.cut === cut.id && isOpen(job)));
+    if (stale.length) {
+      row.append(button(`Render the ${stale.length} out-of-date cut${stale.length === 1 ? '' : 's'}`, async () => {
+        for (const cut of stale) await api.createJob(board.id, { step: 'render', cut: cut.id });
+        say(host ? `Asked for ${stale.length} render${stale.length === 1 ? '' : 's'}.` : `Asked for ${stale.length} render${stale.length === 1 ? '' : 's'}; they wait for the host to let them run.`);
+        await loadJobs();
+      }));
+    }
+    panel.append(row);
+
+    const notes = el(document, 'details');
+    notes.open = Boolean(notesDraft);
+    notes.append(el(document, 'summary', '', 'Paste notes (an email or a text from the artist)'));
+    notes.append(el(document, 'p', 'svs-lead', 'Write or paste notes as they came. A note names its scene by id (e05: older), by number (scene 5, #5) or by quoting its lyric. Each note goes on its card and the cards are redone in one batch.'));
+    const text = hold(el(document, 'textarea'));
+    text.setAttribute('aria-label', 'Notes from the artist');
+    text.placeholder = 'e05: he looks too young here\n"so this is how it ends" is too dark\nscene 12 - lose the hat';
+    text.value = notesDraft;
+    const preview = el(document, 'ul', 'svs-notes-preview');
+    const show = () => {
+      notesDraft = text.value;
+      const found = parseNotes(board, text.value);
+      preview.replaceChildren();
+      for (const n of found.notes) preview.append(el(document, 'li', '', `${n.scene}${n.keep ? ' (keep)' : ''}: ${n.note}`));
+      for (const line of found.general) preview.append(el(document, 'li', 'svs-general', `On no card: ${line}`));
+      return found;
+    };
+    text.addEventListener('input', show);
+    show();
+    notes.append(text, preview, button('Put the notes on the cards and redo them', async () => {
+      const found = show();
+      if (!found.notes.length) return say('None of these notes names a scene. Start a line with its id, such as e05:, or quote its lyric.');
+      const sent = await api.sendNotes(board.id, { text: text.value });
+      notesDraft = '';
+      if (sent.board) board = sent.board;
+      const where = sent.notes.map((n) => n.scene).join(', ');
+      say(sent.job ? `Notes put on ${where}; ${sent.job.status === 'held' ? 'the batch waits for the host to let it run' : 'the batch is queued for the Mac'}.` : `Notes put on ${where}.`);
+      await loadJobs();
+      draw();
+    }, 'svs-btn svs-primary'));
+    panel.append(notes);
+    return panel;
+  }
+
   // ---------- jobs ----------
   function drawJobs() {
     const panel = el(document, 'section', 'svs-panel');
@@ -575,7 +661,7 @@ export function mountStoryboards(container, { api, host = false, initial = null,
     if (!jobs.length) list.append(el(document, 'li', 'svs-lead', 'No requests yet.'));
     for (const job of jobs.slice(0, 15)) {
       const item = el(document, 'li');
-      const what = job.cut ? board.cuts.find((c) => c.id === job.cut)?.name ?? job.cut : job.scene;
+      const what = job.cut ? board.cuts.find((c) => c.id === job.cut)?.name ?? job.cut : jobScenes(job).join(', ');
       item.append(el(document, 'b', '', `${STEP_LABEL[job.step] ?? job.step}: ${what} `), el(document, 'span', `svs-state svs-state-${job.status}`, JOB_WORDS[job.status] ?? job.status));
       item.append(el(document, 'span', 'svs-lead', ` asked by ${job.by} ${ago(job.createdAt)}`));
       if (job.note) item.append(el(document, 'p', '', job.note));

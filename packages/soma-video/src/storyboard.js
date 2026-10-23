@@ -26,10 +26,11 @@ export const BOARD_STEPS = [
   { step: 'redo', label: 'Redo the pictures', about: 'New pictures for one scene, from its prompt, its reference photos and the redo note.' },
   { step: 'add', label: 'Make the new scene', about: 'Pictures for a scene that has none yet.' },
   { step: 'render', label: 'Render the cut', about: 'Build one cut from the storyboard: its scenes, in order, over its stretches of the song.' },
+  { step: 'batch', label: 'Redo several scenes', about: 'New pictures for several scenes in one run on the Mac: one generator session, one request to let run.' },
 ];
 export const BOARD_STEP_NAMES = BOARD_STEPS.map((s) => s.step);
 
-export const LIMITS = { scenes: 200, cuts: 40, history: 30, artists: 20, text: 4000, short: 300, refs: 12, shots: 200, audio: 20, spec: 20000 };
+export const LIMITS = { scenes: 200, cuts: 40, history: 30, artists: 20, text: 4000, short: 300, refs: 12, shots: 200, audio: 20, spec: 20000, batch: 24 };
 const ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$/;
 /** A board file is one path segment, as an asset name is. */
 export const FILE_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/;
@@ -369,6 +370,19 @@ export function cutState(board, cut) {
 /** Seconds of song a cut uses. */
 export const cutLength = (cut) => (cut.audio ?? []).reduce((sum, [a, b]) => sum + (b - a), 0);
 
+/** What the team needs to know about one scene, headed by what to make of it. */
+function sceneLines(scene, what = 'Scene') {
+  const out = [
+    `${what}: ${scene.id}.`,
+    `Section: ${scene.section || '(none)'}. Lyric line: ${scene.lyric || '(none)'}. Song time: ${clockOf(scene.start) || '?'} to ${clockOf(scene.end) || '?'}.`,
+    `Shot: ${scene.shot || '(any)'}. Reference photos: ${scene.refs.join(', ') || '(none)'}.`,
+    `Prompt: ${scene.prompt || '(none yet: write one that fits the lyric and the scenes around it)'}`,
+  ];
+  if (scene.note) out.push(`Redo note from ${scene.noteBy || 'the artist'}: ${scene.note}`);
+  else out.push('No redo note: a reroll. Keep the prompt and make a different take of it.');
+  return out;
+}
+
 /**
  * The words the team on the Mac works from for a storyboard job: the worker passes them to Claude Code in
  * the board's project folder, where it has also written the board as storyboard.json. Kept here so the
@@ -380,17 +394,34 @@ export function jobBrief(board, job) {
     'Picture paths in a scene\'s "source" are relative to this folder. Reference photo ids (o47, opa) name the',
     'project\'s reference photos; README.md or the album\'s own notes say where they are.',
   ];
+  if (job.step === 'batch') {
+    const scenes = (job.scenes ?? []).map((id) => board.scenes.find((s) => s.id === id)).filter(Boolean);
+    const gone = (job.scenes ?? []).filter((id) => !board.scenes.some((s) => s.id === id));
+    if (!scenes.length) return `${lines.join('\n')}\n\nNone of the scenes ${(job.scenes ?? []).join(', ')} is still on the board. Report that and stop.`;
+    lines.push('', `Job: make new pictures for ${scenes.length} scene${scenes.length === 1 ? '' : 's'} in this one run: ${scenes.map((s) => s.id).join(', ')}.`);
+    if (gone.length) lines.push(`(No longer on the board, so skip them: ${gone.join(', ')}.)`);
+    for (const scene of scenes) lines.push('', ...sceneLines(scene, Object.keys(scene.pictures).length ? 'New pictures' : 'Pictures for the new scene'));
+    if (job.note) lines.push('', `Also asked, for every scene: ${job.note}`);
+    lines.push(
+      '',
+      'For each scene make one picture in each of 9:16 and 16:9 with the same generator, rules and reference photos',
+      'the board\'s other pictures were made with. Keep one generator session open for the whole list instead of',
+      'starting over for each scene, and keep the earlier pictures: write new files, never over old ones.',
+      `After each scene is made, rewrite storyboard-out/${job.id}.json in this folder with every scene done so far:`,
+      '{"scenes": [{"scene": "<id>", "pictures": {"9x16": "<path>", "16x9": "<path>"}, "prompt": "<the prompt you used>"}, ...]}',
+      'with paths relative to this folder, so the scenes already made reach the board even if a later one fails.',
+      'The worker sends them to the board from that file. Name in your report any scene you could not make, and why.',
+    );
+    return lines.join('\n');
+  }
   if (job.step === 'redo' || job.step === 'add') {
     const scene = board.scenes.find((s) => s.id === job.scene);
     if (!scene) return `${lines.join('\n')}\n\nThe scene ${job.scene} is no longer on the board. Report that and stop.`;
     lines.push(
       '',
       job.step === 'redo' ? `Job: make new pictures for scene ${scene.id}.` : `Job: make the pictures for the new scene ${scene.id}.`,
-      `Section: ${scene.section || '(none)'}. Lyric line: ${scene.lyric || '(none)'}. Song time: ${clockOf(scene.start) || '?'} to ${clockOf(scene.end) || '?'}.`,
-      `Shot: ${scene.shot || '(any)'}. Reference photos: ${scene.refs.join(', ') || '(none)'}.`,
-      `Prompt: ${scene.prompt || '(none yet: write one that fits the lyric and the scenes around it)'}`,
+      ...sceneLines(scene).slice(1),
     );
-    if (scene.note) lines.push(`Redo note from ${scene.noteBy || 'the artist'}: ${scene.note}`);
     if (job.note) lines.push(`Also asked: ${job.note}`);
     lines.push(
       '',
