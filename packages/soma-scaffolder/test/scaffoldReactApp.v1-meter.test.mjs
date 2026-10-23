@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -80,6 +80,16 @@ test("v1 disposable scaffold type-checks netlify functions with vendored meter",
     );
     assert.match(vendoredMeter, /resolveBillingSubject/);
 
+    const vendoredMeterTypes = readFileSync(
+      join(outDir, "vendor", "soma", "meter", "index.d.ts"),
+      "utf8",
+    );
+    assert.match(vendoredMeterTypes, /resolveBillingSubject/);
+    assert.doesNotMatch(
+      readFileSync(join(outDir, "src", "soma-vendor.d.ts"), "utf8"),
+      /@vendor\/soma\/meter/,
+    );
+
     const install = spawnSync("npm", ["install"], {
       cwd: outDir,
       encoding: "utf8",
@@ -98,6 +108,52 @@ test("v1 disposable scaffold type-checks netlify functions with vendored meter",
       },
     );
     assert.equal(typecheck.status, 0, typecheck.stderr || typecheck.stdout);
+  } finally {
+    cleanup({
+      outDir,
+      templateDir,
+      templateRepoRoot,
+      platformRoot,
+      platformRepoRoot,
+    });
+  }
+});
+
+test("v1 disposable scaffold tsc fails when meter adapter calls a missing meter API", async () => {
+  const { platformRoot, repoRoot: platformRepoRoot } = createCleanPlatformRepo({
+    monorepoRoot: MONOREPO_ROOT,
+  });
+  const cli = installScaffolderInPlatform(platformRoot, SCAFFOLDER_ROOT);
+  const { templateDir, repoRoot: templateRepoRoot } = createCleanTemplateRepo();
+  const outDir = join(tmpdir(), `soma-v1-meter-bad-${randomBytes(8).toString("hex")}`);
+  try {
+    const scaffold = runCli(cli, outDir, templateDir);
+    assert.equal(scaffold.status, 0, scaffold.stderr || scaffold.stdout);
+
+    const install = spawnSync("npm", ["install"], {
+      cwd: outDir,
+      encoding: "utf8",
+      timeout: 600_000,
+    });
+    assert.equal(install.status, 0, install.stderr || install.stdout);
+
+    const meterPath = join(outDir, METER_ADAPTER);
+    writeFileSync(
+      meterPath,
+      `${readFileSync(meterPath, "utf8")}\nmeter.notARealMeterMethod();\n`,
+    );
+
+    const typecheck = spawnSync(
+      "npx",
+      ["tsc", "-b", "tsconfig.functions.json"],
+      {
+        cwd: outDir,
+        encoding: "utf8",
+        timeout: 120_000,
+      },
+    );
+    assert.notEqual(typecheck.status, 0, "expected tsc to reject invalid meter API usage");
+    assert.match(typecheck.stderr + typecheck.stdout, /notARealMeterMethod/);
   } finally {
     cleanup({
       outDir,
