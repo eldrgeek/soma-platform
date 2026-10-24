@@ -1,0 +1,67 @@
+{
+  "word": "video-storyboards",
+  "summary": "Storyboards as scene cards (picture, lyric and time, keep/redo/new, prompts, reorder) and cuts that know when they need rendering.",
+  "since": "0.7",
+  "rendering": "drawn",
+  "component": "soma-video",
+  "export": "mountStoryboards",
+  "placement": "screen",
+  "label": "none",
+  "template": "video-storyboards",
+  "params": [],
+  "data": {
+    "reads": "The boards the reader may open.",
+    "writes": "Board ops, held jobs, files in the soma-video-studio Blobs store."
+  },
+  "routes": [
+    {
+      "method": "GET",
+      "path": "/api/app/:appId/video-boards",
+      "who": "owner, host or a listed artist",
+      "purpose": "boards the reader may open; POST starts one (host)"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/app/:appId/video-boards/:id",
+      "who": "owner, host or artist",
+      "purpose": "Body { ops }"
+    },
+    {
+      "method": "POST",
+      "path": "/api/app/:appId/video-boards/:id/jobs",
+      "who": "owner, host or artist",
+      "purpose": "redo, add or render; anyone but the host starts held"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/app/:appId/video-team/boards/:id",
+      "who": "team key",
+      "purpose": "seed a board, send pictures and renders"
+    }
+  ],
+  "permissions": "Owner and host: everything. An artist (sign-in email on the board's list): change cards and cuts, ask for jobs, which wait for the host. Anyone else: the board does not exist.",
+  "enforcement": "server",
+  "cost": {
+    "service": "Claude Code on Mike's Mac",
+    "key": "STUDIO_TEAM_KEY (server only)",
+    "allowance": "Held jobs need the host's \"Let it run\""
+  },
+  "runsOn": "browser+server+mac",
+  "tags": [
+    "video",
+    "storyboard",
+    "collaboration",
+    "mac",
+    "music"
+  ],
+  "docs": "packages/soma-puppet-runtime/GRAMMAR-v0.7.md",
+  "source": [
+    "packages/soma-video/src/video-storyboard.js",
+    "packages/soma-video/src/storyboard.js",
+    "packages/soma-video/server/boards.js"
+  ],
+  "tests": [
+    "packages/soma-video/test/storyboard.test.js",
+    "packages/soma-puppet-runtime/test/v07.test.js"
+  ]
+}

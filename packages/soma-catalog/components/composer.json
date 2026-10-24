@@ -1,0 +1,52 @@
+{
+  "word": "composer",
+  "summary": "A message box with a mic slot (filled by soma-speech when present) and Send, which runs the hook.",
+  "since": "0.1",
+  "rendering": "drawn",
+  "component": null,
+  "placement": "any",
+  "label": "optional",
+  "template": "composer \"Write a message\" field: Message -> toast \"Sent: {form.Message}\"",
+  "params": [
+    {
+      "name": "placeholder",
+      "in": "label",
+      "required": false,
+      "description": "Placeholder text"
+    },
+    {
+      "name": "field",
+      "in": "prop",
+      "required": false,
+      "description": "The form label Send reads (default Message)"
+    },
+    {
+      "name": "hook",
+      "in": "hook",
+      "required": false,
+      "description": "What Send does"
+    }
+  ],
+  "data": {
+    "reads": "nothing",
+    "writes": "Through its hook, usually adds to."
+  },
+  "routes": [],
+  "permissions": "As its hook.",
+  "enforcement": "server",
+  "runsOn": "browser",
+  "tags": [
+    "forms",
+    "chat",
+    "voice"
+  ],
+  "docs": "packages/soma-puppet-runtime/README.md#example-apps",
+  "source": [
+    "packages/soma-puppet-runtime/src/parser.js",
+    "packages/soma-puppet-runtime/src/render.js"
+  ],
+  "tests": [
+    "packages/soma-puppet-runtime/test/parser.test.js",
+    "packages/soma-puppet-runtime/test/render.test.js"
+  ]
+}
