@@ -29,11 +29,15 @@ export async function loadComponents(uses, manifest, importer) {
     at(video, 'video-jobs.js'),
     at(video, 'video-storyboard.js'),
   ]);
+  // Run lines (v0.8) is newer than the first published soma-play build, so an app pinned to that build
+  // has no line-run.js; it gets every other component, and its line-run says it is not available.
+  const lineRun = await at(play, 'line-run.js').catch(() => ({}));
   return {
     key: `${play.base} ${video.base}`,
     notices: [play.notice, video.notice].filter(Boolean),
     mountPlayView: playView.mountPlayView,
     mountStageRead: stageRead.mountStageRead,
+    mountLineRun: lineRun.mountLineRun,
     mountVideoView: videoView.mountVideoView,
     mountVideoRead: videoRead.mountVideoRead,
     mountVideoAssets: videoAssets.mountVideoAssets,

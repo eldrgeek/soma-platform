@@ -1,6 +1,6 @@
 # `@soma/play`
 
-Two parts of PlayMaker, wrapped as SOMA component library components for any
+Parts of PlayMaker, wrapped as SOMA component library components for any
 SOMA Studio app. Plain browser modules, no framework, no build step.
 
 - **`play-view`**: one scene drawn read-only in Diana's script format, the
@@ -9,6 +9,11 @@ SOMA Studio app. Plain browser modules, no framework, no build step.
   inches in, technical cues at the margin, US Letter pages).
 - **`stage-read`**: the scene read aloud, each character in its own voice,
   with the line being read highlighted in the play view.
+- **`line-run`** (Puppet v0.8): run lines. The actor picks their part; Stage
+  Read reads every other character, and on each of the actor's own lines the
+  run stops with the line hidden (or shown as initials) until they tap Next.
+  It uses Stage Read's route, checks and allowance, and never asks for the
+  actor's own lines.
 
 In a Puppet description (v0.4) they are the elements `play-view "{row.text}"`
 and `stage-read "{row.text}"` on a screen that shows one row; see
@@ -25,6 +30,7 @@ changing `src/`, copy it there and run `node scripts/vendor-store.mjs` in
 | `src/script.js` | The scene's plain script text, read the way PlayMaker reads it: `parseScript`, `spokenLines`, `isTechnicalCue`, `castVoices`, `VOICES`. Shared by the page and the server, so the line the page highlights is the line the server speaks. |
 | `src/play-view.js` | `mountPlayView(container, text)` returns `{ blocks, highlight(blockIndex), destroy() }`. |
 | `src/stage-read.js` | `mountStageRead(container, { text, speak(line), onActive(blockIndex), lines?, label? })`. `speak` names a line by number and resolves to a `Response` with its audio. `lines` and `label` let another script format reuse the player (soma-video's narration read). |
+| `src/line-run.js` | `mountLineRun(container, { text, speak(line), onActive(blockIndex), hint? })` returns `{ lines, parts, stop(), destroy() }`; also `characters(lines)`, `runPlan(lines, part)`, `initials(text)`. `hint` is `none` (default) or `initials`. |
 | `server/stage-read.js` | `createStageReader({ apiKey, store, limits, readScript?, prefix? })` returns `speak({ who, scope, text, line })`. The caller passes text it has already allowed this reader to read. `readScript` and `prefix` let another format reuse it with its own lines, voices and allowance (soma-video). |
 
 ## The text

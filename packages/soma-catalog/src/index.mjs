@@ -99,7 +99,7 @@ const indent = (snippet, by = '  ') => snippet.split('\n').map((l) => by + l).jo
 
 // A small app that holds one record's template in its placement, used by the tests to prove each record's
 // metadata against the real parser. Pass placement to put it somewhere else on purpose.
-export function exampleApp(record, { version = '0.7', placement = record.placement } = {}) {
+export function exampleApp(record, { version = latestVersion(loadRecords()), placement = record.placement } = {}) {
   const snippet = fill(record.template, { data: 'items', field: 'text', rowScreen: 'Item' });
   const home = placement === 'row' ? '' : `\n${indent(snippet)}`;
   const row = placement === 'row' ? `\n${indent(snippet)}` : '';

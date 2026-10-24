@@ -118,6 +118,14 @@ button { cursor: pointer; }
 .puppet-runtime-script { white-space: pre-wrap; font-family: "Times New Roman", Times, serif; }
 .soma-stage-read { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 12px 0; }
 .soma-stage-read-status { color: #4a5a6e; font-size: 14px; }
+/* Puppet v0.8 run lines: the bar (part, Run lines, status), then the hidden-line card on your own lines. */
+.soma-line-run-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 12px 0; }
+.soma-line-run-part { font: inherit; padding: 6px 8px; }
+.soma-line-run-status { color: #4a5a6e; font-size: 14px; }
+.soma-line-run-cue { border: 1px solid #c9d3df; border-radius: 8px; padding: 12px 16px; margin: 8px 0 16px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.soma-line-run-cue[hidden] { display: none; }
+.soma-line-run-who { flex-basis: 100%; margin: 0; font-weight: 600; letter-spacing: .02em; }
+.soma-line-run-line { flex-basis: 100%; margin: 0 0 4px; font-family: "Times New Roman", Times, serif; font-size: 18px; }
 
 
 .auth-card, .host-panel {
