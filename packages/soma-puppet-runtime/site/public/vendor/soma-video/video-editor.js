@@ -120,14 +120,14 @@ const CSS = `
 .sve { --sve-bg: #121417; --sve-panel: #1a1d22; --sve-panel-2: #22262c; --sve-line: #2e333b; --sve-fg: #e7e9ec; --sve-muted: #8d95a1;
   --sve-accent: #f2b544; --sve-accent-ink: #1b1406; --sve-pic: #4f8fd6; --sve-cap: #c98bd9; --sve-fx: #5fc2a8; --sve-song: #7c8aa0; --sve-note: #ef7f66; --sve-ok: #7ccf86;
   color-scheme: dark; color: var(--sve-fg); background: var(--sve-bg); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
-  position: relative; left: 50%; transform: translateX(-50%); width: calc(100vw - 40px); box-sizing: border-box; border-radius: 10px; padding: 1px; }
-.sve:fullscreen { width: 100vw; left: 0; transform: none; border-radius: 0; overflow: auto; }
+  position: fixed; inset: 0; z-index: 2147483000; overflow: auto; box-sizing: border-box; padding: 10px; }
+.sve:fullscreen { padding: 0; }
 .sve * { box-sizing: border-box; }
 .sve button, .sve select, .sve input, .sve textarea { font: inherit; color: inherit; }
 .sve button { cursor: pointer; }
 .sve :focus-visible { outline: 2px solid var(--sve-accent); outline-offset: 2px; }
 .sve-suite { display: grid; gap: 1px; background: var(--sve-line); border-radius: 9px; overflow: hidden;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.45fr) minmax(0, 300px); grid-template-rows: auto 540px auto;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.45fr) minmax(0, 300px); grid-template-rows: auto minmax(340px, 1fr) auto; min-height: 100%;
   grid-template-areas: "top top top" "script preview inspect" "tl tl tl"; }
 .sve-suite > * { background: var(--sve-panel); min-width: 0; min-height: 0; }
 .sve-top { grid-area: top; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 8px 12px; }
@@ -210,7 +210,8 @@ const CSS = `
 .sve-seam::before { content: ""; position: absolute; left: 5px; top: 8px; bottom: 8px; width: 2px; background: rgb(255 255 255 / .25); border-radius: 1px; }
 .sve-seam:hover::before { background: var(--sve-accent); }
 .sve-chip { position: absolute; top: 50%; transform: translate(-50%, -50%); z-index: 4; border: 1px solid var(--sve-fx); background: #12302a; color: #c9f0e5; border-radius: 4px; font: 10px ui-monospace, Menlo, monospace; padding: 2px 5px; white-space: nowrap; }
-.sve-chip.sve-auto { border-color: var(--sve-line); background: var(--sve-panel-2); color: var(--sve-muted); }
+.sve-chip.sve-auto { width: 10px; height: 10px; padding: 0; border-radius: 50%; font-size: 0; border-color: var(--sve-muted); background: var(--sve-panel-2); }
+.sve-chip.sve-auto:hover { width: auto; height: auto; padding: 2px 5px; border-radius: 4px; font-size: 10px; }
 .sve-wave { position: absolute; left: 0; top: 0; height: 70px; }
 .sve-wave-msg { position: absolute; left: 12px; top: 26px; font-size: 12px; color: var(--sve-muted); }
 .sve-marker { position: absolute; top: 4px; display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: var(--sve-note); white-space: nowrap; cursor: pointer; background: none; border: 0; padding: 0; max-width: 360px; overflow: hidden; text-overflow: ellipsis; }
@@ -222,7 +223,6 @@ const CSS = `
   .sve-suite { grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); grid-template-rows: auto 480px auto auto; grid-template-areas: "top top" "script preview" "inspect inspect" "tl tl"; }
 }
 @media (max-width: 720px) {
-  .sve { width: 100%; left: 0; transform: none; }
   .sve-suite { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto 340px auto auto; grid-template-areas: "top" "preview" "script" "inspect" "tl"; }
   .sve-stage { flex: none; height: 300px; }
 }
@@ -303,7 +303,7 @@ export function mountVideoEditor(container, { board: initial, api, host = false,
       <div class="sve-transport">
         <button type="button" class="sve-play" data-r="play" aria-label="Play">▶</button>
         <span class="sve-tc" data-r="tc"></span>
-        <span class="sve-msg">Space plays · ← → one second</span>
+        <span class="sve-msg">Space plays · ← → one second · Esc back to the cards</span>
       </div>
     </section>
     <aside class="sve-inspect" aria-label="Scene"><div class="sve-pane-h"><span>Scene</span><span data-r="sid"></span></div><div class="sve-insp" data-r="insp"></div></aside>
@@ -325,7 +325,8 @@ export function mountVideoEditor(container, { board: initial, api, host = false,
       </div>
     </section>
   </div>`;
-  container.append(root);
+  // The editor covers the whole window (an editing suite, not a panel in the page), so no page layout clips it.
+  (document.body ?? container).append(root);
   const $ = (name) => root.querySelector(`[data-r="${name}"]`);
   const ta = $('text');
   const backdrop = $('backdrop');
@@ -1038,12 +1039,20 @@ export function mountVideoEditor(container, { board: initial, api, host = false,
     if (e.code === 'Space') { e.preventDefault(); setPlaying(!playing); }
     if (e.key === 'ArrowRight') seek(time + 1);
     if (e.key === 'ArrowLeft') seek(time - 1);
+    if (e.key === 'Escape' && !document.fullscreenElement) onClose();
   };
   document.addEventListener('keydown', keys);
   window.addEventListener('resize', drawOverview);
 
   setBoard(board);
   setShape();
+  // Open with the whole song across the timeline; the zoom goes in from there.
+  const fit = Math.round(Math.max(4, Math.min(48, (($('tscroll').clientWidth || 800) - 52) / duration)));
+  if (fit !== pps) {
+    pps = fit;
+    $('zoom').value = String(fit);
+    drawTimeline();
+  }
   writeScript();
   seek(0);
   loadSong();
