@@ -243,7 +243,10 @@ uses soma-video@4fc900785602
 The page then loads that app's `soma-video` from the pinned folder; an app with
 no pin loads the latest, exactly as before pins existed. Pins move with the
 description, so changing one goes through Propose and Approve, and Undo puts the
-old pin back. The page loads the components again only when the pins change, so
+old pin back. The host panel's Components section lists each published build
+by hash and date; choosing one and pressing Propose proposes the description
+with that `uses` line changed (or removed, for "latest"), and Approve makes it
+live for that one app. The page loads the components again only when the pins change, so
 an approved pin takes effect at the next check without a reload. A pin the
 store does not have falls back to the latest and says so in the status line.
 

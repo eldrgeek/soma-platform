@@ -6,7 +6,7 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import { guestSource, parse } from '../src/parser.js';
-import { componentBase, loadComponents } from '../site/public/components.js';
+import { componentBase, loadComponents, withPin } from '../site/public/components.js';
 import { PINNABLE, VENDOR, checkStore, hashFolder, publish } from '../scripts/vendor-store.mjs';
 
 const pinned = (uses) => `puppet "Pins" version "0.7"
@@ -151,4 +151,29 @@ test('the page imports no shared component statically, so a pin can choose its b
   const app = await readFile(new URL('../site/public/app.js', import.meta.url), 'utf8');
   assert.doesNotMatch(app, /^import .* from '\/vendor\/soma-(play|video)\//m);
   assert.match(app, /loadComponents\(uses, manifest \?\? \{\}, \(url\) => import\(url\)\)/);
+});
+
+test('moving a pin changes only that uses line, and the result parses to the new pin', () => {
+  const plain = pinned('');
+  const one = withPin(plain, 'soma-video', '0123456789ab');
+  assert.equal(one.split('\n')[1], 'uses soma-video@0123456789ab', 'added right after the puppet line');
+  assert.deepEqual(parse(one).errors, []);
+  assert.deepEqual(parse(one).sketch.uses, { 'soma-video': '0123456789ab' });
+
+  const two = withPin(one, 'soma-play', 'ba9876543210');
+  const moved = withPin(two, 'soma-video', 'ffffffffffff');
+  assert.deepEqual(parse(moved).sketch.uses, { 'soma-video': 'ffffffffffff', 'soma-play': 'ba9876543210' });
+  assert.equal(moved.split('\n').length, two.split('\n').length, 'replaced in place, not added twice');
+
+  const unpinned = withPin(moved, 'soma-video', null);
+  assert.deepEqual(parse(unpinned).sketch.uses, { 'soma-play': 'ba9876543210' });
+  assert.equal(withPin(withPin(plain, 'soma-video', '0123456789ab'), 'soma-video', null), plain, 'unpinning restores the description');
+});
+
+test('the host panel moves a pin by proposing the description, never by changing it live', async () => {
+  const app = await readFile(new URL('../site/public/app.js', import.meta.url), 'utf8');
+  const panel = app.slice(app.indexOf('async function showPins()'), app.indexOf('async function loadCurrent('));
+  assert.match(panel, /api\('propose', \{[\s\S]*source: withPin\(current\.source, pkg, hash\)/);
+  assert.doesNotMatch(panel, /api\('approve'/);
+  assert.match(app, /hostRoot\.append\(list\);\n  await showPins\(\);/, 'shown only in the host panel');
 });

@@ -41,3 +41,19 @@ export async function loadComponents(uses, manifest, importer) {
     mountStoryboards: storyboards.mountStoryboards,
   };
 }
+
+// The description with one component's pin changed: `hash` pins that build,
+// null removes the pin so the app follows the latest. The pin goes right after
+// the `puppet` line, or replaces the one already there. The host proposes the
+// result, and it is live only once approved, like any other change.
+export function withPin(source, pkg, hash) {
+  const lines = source.replace(/\r/g, '').split('\n');
+  const pinLine = (line) => new RegExp(`^uses\\s+${pkg}@`).test(line.trim());
+  const at = lines.findIndex(pinLine);
+  const kept = lines.filter((line) => !pinLine(line));
+  if (hash) {
+    const where = at >= 0 ? at : kept.findIndex((line) => /^puppet\s/.test(line.trim())) + 1;
+    kept.splice(where, 0, `uses ${pkg}@${hash}`);
+  }
+  return kept.join('\n');
+}
