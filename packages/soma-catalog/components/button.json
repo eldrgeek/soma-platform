@@ -1,0 +1,73 @@
+{
+  "word": "button",
+  "summary": "A pressable control whose hook runs actions: open a screen or dialog, add or remove a row, set a status, toast, back.",
+  "since": "0.1",
+  "rendering": "drawn",
+  "component": null,
+  "placement": "any",
+  "label": "text",
+  "template": "button \"Say hello\" @secondary -> toast \"Hello, {me.name}\"",
+  "params": [
+    {
+      "name": "text",
+      "in": "label",
+      "required": true,
+      "description": "Button text"
+    },
+    {
+      "name": "@primary @secondary @danger @ghost",
+      "in": "role",
+      "required": false,
+      "description": "Emphasis; at most one @primary per screen"
+    },
+    {
+      "name": "hook",
+      "in": "hook",
+      "required": false,
+      "description": "-> action ; action. Inside a list or table it is drawn on every row and acts on that row."
+    }
+  ],
+  "data": {
+    "reads": "Form fields on the same screen or dialog through {form.Label}.",
+    "writes": "Through adds to, removes from and sets status."
+  },
+  "routes": [
+    {
+      "method": "POST",
+      "path": "/api/app/:appId/data/:name",
+      "who": "signed in",
+      "purpose": "adds to: the row must match a visible action exactly"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/app/:appId/data/:name/:rowId",
+      "who": "row author (while pending) or host",
+      "purpose": "removes from"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/app/:appId/data/:name/:rowId",
+      "who": "host",
+      "purpose": "sets status confirmed or declined"
+    }
+  ],
+  "permissions": "A write is accepted only if it matches an action the sender can see; sets status only on a host-only screen; removes only by author or host.",
+  "enforcement": "server",
+  "runsOn": "browser",
+  "tags": [
+    "actions",
+    "forms",
+    "write"
+  ],
+  "replaces": "Hand-written submit handlers and row-ownership checks.",
+  "docs": "packages/soma-puppet-runtime/GRAMMAR-v0.3.md",
+  "source": [
+    "packages/soma-puppet-runtime/src/parser.js",
+    "packages/soma-puppet-runtime/src/render.js"
+  ],
+  "tests": [
+    "packages/soma-puppet-runtime/test/render.test.js",
+    "packages/soma-puppet-runtime/test/v03.test.js",
+    "packages/soma-puppet-runtime/test/store.test.js"
+  ]
+}

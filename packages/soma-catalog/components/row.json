@@ -1,0 +1,31 @@
+{
+  "word": "row",
+  "summary": "Lays its children out side by side.",
+  "since": "0.1",
+  "rendering": "drawn",
+  "component": null,
+  "placement": "any",
+  "label": "none",
+  "template": "row {\n  text \"Left\"\n  text \"Right\"\n}",
+  "params": [],
+  "data": {
+    "reads": "nothing",
+    "writes": "nothing"
+  },
+  "routes": [],
+  "permissions": "none",
+  "enforcement": "none",
+  "runsOn": "browser",
+  "tags": [
+    "layout"
+  ],
+  "docs": "packages/soma-puppet-runtime/GRAMMAR-v0.1.md#4-layout--positioning-syntax",
+  "source": [
+    "packages/soma-puppet-runtime/src/parser.js",
+    "packages/soma-puppet-runtime/src/render.js"
+  ],
+  "tests": [
+    "packages/soma-puppet-runtime/test/parser.test.js",
+    "packages/soma-puppet-runtime/test/render.test.js"
+  ]
+}

@@ -126,15 +126,35 @@ test('the page imports every component from the folders the pins choose', async 
     const exported = {
       'play-view.js': 'mountPlayView', 'stage-read.js': 'mountStageRead', 'video-view.js': 'mountVideoView',
       'video-read.js': 'mountVideoRead', 'video-assets.js': 'mountVideoAssets', 'video-jobs.js': 'mountVideoJobs',
-      'video-storyboard.js': 'mountStoryboards',
+      'video-storyboard.js': 'mountStoryboards', 'line-run.js': 'mountLineRun', 'evidence.js': 'mountVideoEvidence',
     }[name];
     return { [exported]: url };
   });
   assert.equal(lib.mountPlayView, '/vendor/soma-play@ba9876543210/play-view.js');
   assert.equal(lib.mountStageRead, '/vendor/soma-play@ba9876543210/stage-read.js');
   assert.equal(lib.mountStoryboards, '/vendor/soma-video/video-storyboard.js');
-  assert.equal(asked.length, 7);
+  assert.equal(lib.mountLineRun, '/vendor/soma-play@ba9876543210/line-run.js');
+  assert.equal(lib.mountVideoEvidence, '/vendor/soma-video/evidence.js');
+  assert.equal(asked.length, 9);
   assert.deepEqual(lib.notices, []);
+});
+
+test('an app pinned to a soma-play build from before run lines keeps every other component', async () => {
+  const manifest = JSON.parse(await readFile(join(VENDOR, 'manifest.json'), 'utf8'));
+  const site = fileURLToPath(new URL('../site/public', import.meta.url));
+  const lib = await loadComponents({ 'soma-play': '888a2da1f147' }, manifest, (url) => import(join(site, url)));
+  assert.equal(typeof lib.mountStageRead, 'function');
+  assert.equal(typeof lib.mountPlayView, 'function');
+  assert.equal(lib.mountLineRun, undefined, 'the v0.7-era build has no line-run.js');
+});
+
+test('an app pinned to a soma-video build from before the evidence ledger keeps every other component', async () => {
+  const manifest = JSON.parse(await readFile(join(VENDOR, 'manifest.json'), 'utf8'));
+  const site = fileURLToPath(new URL('../site/public', import.meta.url));
+  const lib = await loadComponents({ 'soma-video': '4fc900785602' }, manifest, (url) => import(join(site, url)));
+  assert.equal(typeof lib.mountVideoView, 'function');
+  assert.equal(typeof lib.mountStoryboards, 'function');
+  assert.equal(lib.mountVideoEvidence, undefined, 'the v0.7-era build has no evidence.js');
 });
 
 test('the real published builds load and export what the page uses', async () => {
@@ -142,7 +162,7 @@ test('the real published builds load and export what the page uses', async () =>
   const uses = Object.fromEntries(PINNABLE.map((pkg) => [pkg, manifest[pkg].latest]));
   const site = fileURLToPath(new URL('../site/public', import.meta.url));
   const lib = await loadComponents(uses, manifest, (url) => import(join(site, url)));
-  for (const name of ['mountPlayView', 'mountStageRead', 'mountVideoView', 'mountVideoRead', 'mountVideoAssets', 'mountVideoJobs', 'mountStoryboards']) {
+  for (const name of ['mountPlayView', 'mountStageRead', 'mountLineRun', 'mountVideoView', 'mountVideoEvidence', 'mountVideoRead', 'mountVideoAssets', 'mountVideoJobs', 'mountStoryboards']) {
     assert.equal(typeof lib[name], 'function', name);
   }
 });

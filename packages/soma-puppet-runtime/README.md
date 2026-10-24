@@ -89,6 +89,18 @@ storyboard as scene cards that the host and the artists the host names can
 change, with cuts that know when they need rendering again. An artist's request
 to the Mac waits until the host lets it run.
 
+### Puppet v0.8: run lines
+
+[`GRAMMAR-v0.8.md`](./GRAMMAR-v0.8.md) adds `line-run "{row.text}"`: the actor picks a part, Stage Read
+reads the others, and the run stops on each of the actor's lines with the line hidden (or as initials,
+`hint: initials`). It uses Stage Read's route, checks and allowance. `examples/monologues.puppet` has it.
+
+### Puppet v0.9: the evidence ledger
+
+[`GRAMMAR-v0.9.md`](./GRAMMAR-v0.9.md) adds `video-evidence "{row.text}"`: every narrator line and card in a
+video script next to its `[[src: ...]]` notes, with the claims that have none marked. No server route.
+`examples/videomaker.puppet` has it on the Script screen.
+
 ## Browser renderer
 
 `src/render.js` exports:

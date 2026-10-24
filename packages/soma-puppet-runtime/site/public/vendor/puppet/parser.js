@@ -1,5 +1,5 @@
 /* Puppet Script v0.5 parser + validator. Deliberately no framework dependency. */
-  const KINDS=new Set('navbar sidebar toolbar hero button link field card list table text label image avatar badge tabs host-panel composer toast xbox spacer region row stack play-view stage-read video-view video-read script-editor video-assets video-jobs video-storyboards'.split(' '));
+  const KINDS=new Set('navbar sidebar toolbar hero button link field card list table text label image avatar badge tabs host-panel composer toast xbox spacer region row stack play-view stage-read video-view video-read script-editor video-assets video-jobs video-storyboards line-run video-evidence'.split(' '));
   const ROLES=new Set('@primary @secondary @danger @ghost @voice @ai @inert @required @multiline @select @toggle @text @date @top @bottom @left @right @main @center @overlay @top-right @bottom-right @modal'.split(' '));
   const ACTIONS=/^(opens (screen|dialog) "[^"]+"|closes (self|dialog "[^"]+")|back|toast "[^"]+"|starts host "[^"]+"|sets field "[^"]+" = "[^"]+"|sets status "[^"]+"|adds to stub [\w-]+ \{.*\}|adds to [\w-]+ \{.*\}|removes from [\w-]+|goto story "[^"]+"|no-op)$/;
   const STATE_WHERE=new Set('localStorage sessionStorage database memory url'.split(' '));
@@ -77,6 +77,8 @@
   const V05=new Set(['video-view','video-read','script-editor']);
   /* v0.6 words (VideoMaker studio): video-assets and video-jobs, each on one field of a row. */
   const V06=new Set(['video-assets','video-jobs']);
+  /* v0.9 word (VideoMaker evidence): video-evidence, every claim in a script next to its source; text like video-view. */
+  /* v0.8 word (run lines): line-run, one field of a row, read by Stage Read except the reader's own part. */
   /* v0.7 word (VideoMaker storyboards): video-storyboards, the storyboards the reader may open, on a screen not from data. */
   function v04(root,errors,warnings){
     const version=parseFloat(root.meta?.version),level=Number.isNaN(version)||version>=0.4?errors:version>=0.2?warnings:null;
@@ -97,6 +99,8 @@
         if(el.kind==='stage-read'){const m=String(el.label??'').match(/^\{row\.([\w-]+)\}$/);if(!m||!o.from)errors.push({line:el.line,message:'stage-read reads one field of a row: write stage-read "{row.text}" on a screen from your data'});else el.field=m[1]}
         if(V05.has(el.kind)){if(!(version>=0.5))errors.push({line:el.line,message:`${el.kind} is a Puppet v0.5 element; write version "0.5"`});if(el.kind==='video-view'&&el.label==null)errors.push({line:el.line,message:'video-view needs its text in quotes, usually video-view "{row.text}"'});
           if(el.kind!=='video-view'){const m=String(el.label??'').match(/^\{row\.([\w-]+)\}$/);if(!m||!o.from)errors.push({line:el.line,message:`${el.kind} works on one field of a row: write ${el.kind} "{row.text}" on a screen from your data`});else{el.field=m[1];if(el.kind==='script-editor'&&m[1]==='status')errors.push({line:el.line,message:'script-editor may not change status; only the host sets it'})}}}
+        if(el.kind==='video-evidence'){if(!(version>=0.9))errors.push({line:el.line,message:'video-evidence is a Puppet v0.9 element; write version "0.9"'});if(el.label==null)errors.push({line:el.line,message:'video-evidence needs its text in quotes, usually video-evidence "{row.text}"'})}
+        if(el.kind==='line-run'){if(!(version>=0.8))errors.push({line:el.line,message:'line-run is a Puppet v0.8 element; write version "0.8"'});const m=String(el.label??'').match(/^\{row\.([\w-]+)\}$/);if(!m||!o.from)errors.push({line:el.line,message:'line-run runs one field of a row: write line-run "{row.text}" on a screen from your data'});else el.field=m[1];if(el.props.hint!==undefined&&!['none','initials'].includes(el.props.hint))errors.push({line:el.line,message:`hint: takes none or initials, not ${el.props.hint}`})}
         if(el.kind==='video-storyboards'){if(!(version>=0.7))errors.push({line:el.line,message:'video-storyboards is a Puppet v0.7 element; write version "0.7"'});if(o.from)errors.push({line:el.line,message:'video-storyboards shows every storyboard the reader may open, so it goes on a screen that is not from data'})}
         if(V06.has(el.kind)){if(!(version>=0.6))errors.push({line:el.line,message:`${el.kind} is a Puppet v0.6 element; write version "0.6"`});const m=String(el.label??'').match(/^\{row\.([\w-]+)\}$/);if(!m||!o.from)errors.push({line:el.line,message:`${el.kind} works on one field of a row: write ${el.kind} "{row.text}" on a screen from your data`});else el.field=m[1]}
       }}

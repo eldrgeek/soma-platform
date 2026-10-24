@@ -1,0 +1,66 @@
+{
+  "word": "list",
+  "summary": "Rows of a declared data collection (or stub). With a hook that opens a screen from that data, each row opens it.",
+  "since": "0.1",
+  "rendering": "drawn",
+  "component": null,
+  "placement": "any",
+  "label": "optional",
+  "template": "list \"Items\" from $data empty: \"Nothing yet.\" -> opens screen \"$rowScreen\"",
+  "params": [
+    {
+      "name": "title",
+      "in": "label",
+      "required": false,
+      "description": "Heading"
+    },
+    {
+      "name": "from",
+      "in": "label",
+      "required": true,
+      "description": "from <data or stub>"
+    },
+    {
+      "name": "empty",
+      "in": "prop",
+      "required": false,
+      "description": "Text shown when there are no rows"
+    },
+    {
+      "name": "hook",
+      "in": "hook",
+      "required": false,
+      "description": "opens screen \"<row screen>\" makes each row open it"
+    }
+  ],
+  "data": {
+    "reads": "The rows this reader may read under the collection's read rule.",
+    "writes": "nothing"
+  },
+  "routes": [
+    {
+      "method": "GET",
+      "path": "/api/app/:appId/data/:name",
+      "who": "signed in (or anyone with publicRead)",
+      "purpose": "rows; read: own gives a person only their rows, read: private gives everyone, the host included, only their own"
+    }
+  ],
+  "permissions": "The server filters rows by the read rule; the page never receives rows it may not show.",
+  "enforcement": "server",
+  "runsOn": "browser",
+  "tags": [
+    "data",
+    "collection",
+    "read"
+  ],
+  "replaces": "Per-user row filtering and list rendering.",
+  "docs": "packages/soma-puppet-runtime/GRAMMAR-v0.4.md#1-a-screen-that-shows-one-row-screen-name-from-data",
+  "source": [
+    "packages/soma-puppet-runtime/src/parser.js",
+    "packages/soma-puppet-runtime/src/render.js"
+  ],
+  "tests": [
+    "packages/soma-puppet-runtime/test/render.test.js",
+    "packages/soma-puppet-runtime/test/v04.test.js"
+  ]
+}

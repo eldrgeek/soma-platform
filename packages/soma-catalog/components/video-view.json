@@ -1,0 +1,41 @@
+{
+  "word": "video-view",
+  "summary": "A video script (Fountain plus CAST) drawn as a two-column AV script with per-scene length and \"Before you render\" checks. Its label may be any text; with {row.text} it goes on a row screen, which is how apps use it.",
+  "since": "0.5",
+  "rendering": "drawn",
+  "component": "soma-video",
+  "export": "mountVideoView",
+  "placement": "row",
+  "label": "text",
+  "template": "video-view \"{row.$field}\"",
+  "params": [
+    {
+      "name": "text",
+      "in": "label",
+      "required": true,
+      "description": "The script; usually {row.text}"
+    }
+  ],
+  "data": {
+    "reads": "The text in its label, live from a script-editor of the same field.",
+    "writes": "nothing"
+  },
+  "routes": [],
+  "permissions": "Anyone who can see the screen.",
+  "enforcement": "none",
+  "runsOn": "browser",
+  "tags": [
+    "video",
+    "script",
+    "fountain"
+  ],
+  "docs": "packages/soma-puppet-runtime/GRAMMAR-v0.5.md#1-video-view-a-video-script-as-an-av-script",
+  "source": [
+    "packages/soma-video/src/video-view.js",
+    "packages/soma-video/src/film.js"
+  ],
+  "tests": [
+    "packages/soma-video/test/film.test.js",
+    "packages/soma-puppet-runtime/test/v05.test.js"
+  ]
+}

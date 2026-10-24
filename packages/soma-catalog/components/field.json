@@ -1,0 +1,61 @@
+{
+  "word": "field",
+  "summary": "An input. @text (default), @multiline, @select with items:, @date with days:, @required.",
+  "since": "0.1",
+  "rendering": "drawn",
+  "component": null,
+  "placement": "any",
+  "label": "text",
+  "template": "field \"Title\" @required",
+  "params": [
+    {
+      "name": "label",
+      "in": "label",
+      "required": true,
+      "description": "Shown as written (no tokens); read by {form.Label}"
+    },
+    {
+      "name": "@multiline @select @date @required",
+      "in": "role",
+      "required": false,
+      "description": "Control type and required"
+    },
+    {
+      "name": "items",
+      "in": "prop",
+      "required": false,
+      "description": "Choices for @select; the server refuses other values"
+    },
+    {
+      "name": "days",
+      "in": "prop",
+      "required": false,
+      "description": "Allowed weekdays for @date: Mon Tue Wed Thu Fri Sat Sun"
+    }
+  ],
+  "data": {
+    "reads": "nothing",
+    "writes": "Nothing by itself; a button on the same screen sends it with {form.Label}."
+  },
+  "routes": [],
+  "permissions": "Anyone who can see the screen.",
+  "enforcement": "server",
+  "runsOn": "browser",
+  "tags": [
+    "forms",
+    "input",
+    "date"
+  ],
+  "limits": [
+    "A new row field holds at most 10,000 characters."
+  ],
+  "docs": "packages/soma-puppet-runtime/GRAMMAR-v0.3.md",
+  "source": [
+    "packages/soma-puppet-runtime/src/parser.js",
+    "packages/soma-puppet-runtime/src/render.js"
+  ],
+  "tests": [
+    "packages/soma-puppet-runtime/test/parser.test.js",
+    "packages/soma-puppet-runtime/test/render.test.js"
+  ]
+}

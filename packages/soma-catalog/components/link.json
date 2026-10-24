@@ -1,0 +1,44 @@
+{
+  "word": "link",
+  "summary": "Text navigation; drawn as a button with the same hooks.",
+  "since": "0.1",
+  "rendering": "drawn",
+  "component": null,
+  "placement": "any",
+  "label": "text",
+  "template": "link \"About\" -> opens dialog \"About\"",
+  "params": [
+    {
+      "name": "text",
+      "in": "label",
+      "required": true,
+      "description": "Link text"
+    },
+    {
+      "name": "hook",
+      "in": "hook",
+      "required": false,
+      "description": "Usually opens a screen or dialog"
+    }
+  ],
+  "data": {
+    "reads": "nothing",
+    "writes": "nothing"
+  },
+  "routes": [],
+  "permissions": "Anyone who can see the screen.",
+  "enforcement": "none",
+  "runsOn": "browser",
+  "tags": [
+    "navigation"
+  ],
+  "docs": "packages/soma-puppet-runtime/GRAMMAR-v0.1.md",
+  "source": [
+    "packages/soma-puppet-runtime/src/parser.js",
+    "packages/soma-puppet-runtime/src/render.js"
+  ],
+  "tests": [
+    "packages/soma-puppet-runtime/test/parser.test.js",
+    "packages/soma-puppet-runtime/test/render.test.js"
+  ]
+}

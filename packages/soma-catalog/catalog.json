@@ -1,0 +1,1655 @@
+{
+  "catalog": "soma-component/1",
+  "about": "Every Puppet Script word: what it does, where it may go, what it reads and writes, its routes and who may call them, and the shared component that draws it. Pins name the latest published build; an app with no pin loads the latest.",
+  "grammarVersion": "0.9",
+  "grammar": {
+    "roles": [
+      "@primary",
+      "@secondary",
+      "@danger",
+      "@ghost",
+      "@voice",
+      "@ai",
+      "@inert",
+      "@required",
+      "@multiline",
+      "@select",
+      "@toggle",
+      "@text",
+      "@date",
+      "@top",
+      "@bottom",
+      "@left",
+      "@right",
+      "@main",
+      "@center",
+      "@overlay",
+      "@top-right",
+      "@bottom-right",
+      "@modal"
+    ],
+    "tokens": {
+      "{me.name}": "the signed-in person's name; anywhere",
+      "{Name.count}": "rows of declared data Name this reader can read",
+      "{form.Label}": "what was typed in the field labelled Label on the same screen or dialog",
+      "{row.field}": "a field of the row, only on a screen from data, never in an adds to"
+    },
+    "actions": [
+      "opens screen \"Name\"",
+      "opens dialog \"Name\"",
+      "closes self",
+      "closes dialog \"Name\"",
+      "back",
+      "toast \"Words\"",
+      "adds to data { field: \"value\" }",
+      "removes from data",
+      "sets status \"confirmed\"|\"declined\" (host-only screen, button in a list)",
+      "starts host \"Name\"",
+      "sets field \"Label\" = \"value\"",
+      "goto story \"Name\"",
+      "no-op"
+    ],
+    "blocks": {
+      "puppet": "puppet \"Title\" version \"0.x\" (first line)",
+      "uses": "uses <component>@<12-hex hash>: pin a shared component build (top level)",
+      "app": "app \"Name\" { promise: \"...\", requires: signin }",
+      "data": "data name { fields: [a, b], read: own|private }; own = the host reads all, private = everyone only their own",
+      "screen": "screen \"Name\" { ... }; requires: host makes it host-only; screen \"Name\" from data shows one row and needs a list or table of that data to open it, never first",
+      "dialog": "dialog \"Name\" { ... } opened by opens dialog",
+      "stub": "stub name { {a: \"x\"} } fake rows"
+    }
+  },
+  "pinnable": [
+    "soma-play",
+    "soma-video"
+  ],
+  "components": [
+    {
+      "word": "avatar",
+      "summary": "Placeholder mark for a person.",
+      "since": "0.1",
+      "rendering": "placeholder",
+      "component": null,
+      "placement": "any",
+      "label": "optional",
+      "template": "avatar \"{me.name}\"",
+      "params": [],
+      "data": {
+        "reads": "nothing",
+        "writes": "nothing"
+      },
+      "routes": [],
+      "permissions": "Anyone who can see the screen.",
+      "enforcement": "none",
+      "runsOn": "browser",
+      "tags": [
+        "people"
+      ],
+      "limits": [
+        "The renderer draws this as a plain labelled box; its look is not built yet."
+      ],
+      "docs": "packages/soma-puppet-runtime/GRAMMAR-v0.1.md#33-element-kinds-inside-screendialog",
+      "source": [
+        "packages/soma-puppet-runtime/src/parser.js",
+        "packages/soma-puppet-runtime/src/render.js"
+      ],
+      "tests": [
+        "packages/soma-puppet-runtime/test/parser.test.js",
+        "packages/soma-puppet-runtime/test/render.test.js"
+      ]
+    },
+    {
+      "word": "badge",
+      "summary": "A small count or status chip.",
+      "since": "0.1",
+      "rendering": "drawn",
+      "component": null,
+      "placement": "any",
+      "label": "text",
+      "template": "badge \"{$data.count}\"",
+      "params": [
+        {
+          "name": "text",
+          "in": "label",
+          "required": true,
+          "description": "Usually a count token"
+        }
+      ],
+      "data": {
+        "reads": "Tokens only.",
+        "writes": "nothing"
+      },
+      "routes": [],
+      "permissions": "Anyone who can see the screen.",
+      "enforcement": "none",
+      "runsOn": "browser",
+      "tags": [
+        "text",
+        "status"
+      ],
+      "docs": "packages/soma-puppet-runtime/GRAMMAR-v0.1.md",
+      "source": [
+        "packages/soma-puppet-runtime/src/parser.js",
+        "packages/soma-puppet-runtime/src/render.js"
+      ],
+      "tests": [
+        "packages/soma-puppet-runtime/test/parser.test.js",
+        "packages/soma-puppet-runtime/test/render.test.js"
+      ]
+    },
+    {
+      "word": "button",
+      "summary": "A pressable control whose hook runs actions: open a screen or dialog, add or remove a row, set a status, toast, back.",
+      "since": "0.1",
+      "rendering": "drawn",
+      "component": null,
+      "placement": "any",
+      "label": "text",
+      "template": "button \"Say hello\" @secondary -> toast \"Hello, {me.name}\"",
+      "params": [
+        {
+          "name": "text",
+          "in": "label",
+          "required": true,
+          "description": "Button text"
+        },
+        {
+          "name": "@primary @secondary @danger @ghost",
+          "in": "role",
+          "required": false,
+          "description": "Emphasis; at most one @primary per screen"
+        },
+        {
+          "name": "hook",
+          "in": "hook",
+          "required": false,
+          "description": "-> action ; action. Inside a list or table it is drawn on every row and acts on that row."
+        }
+      ],
+      "data": {
+        "reads": "Form fields on the same screen or dialog through {form.Label}.",
+        "writes": "Through adds to, removes from and sets status."
+      },
+      "routes": [
+        {
+          "method": "POST",
+          "path": "/api/app/:appId/data/:name",
+          "who": "signed in",
+          "purpose": "adds to: the row must match a visible action exactly"
+        },
+        {
+          "method": "DELETE",
+          "path": "/api/app/:appId/data/:name/:rowId",
+          "who": "row author (while pending) or host",
+          "purpose": "removes from"
+        },
+        {
+          "method": "PATCH",
+          "path": "/api/app/:appId/data/:name/:rowId",
+          "who": "host",
+          "purpose": "sets status confirmed or declined"
+        }
+      ],
+      "permissions": "A write is accepted only if it matches an action the sender can see; sets status only on a host-only screen; removes only by author or host.",
+      "enforcement": "server",
+      "runsOn": "browser",
+      "tags": [
+        "actions",
+        "forms",
+        "write"
+      ],
+      "replaces": "Hand-written submit handlers and row-ownership checks.",
+      "docs": "packages/soma-puppet-runtime/GRAMMAR-v0.3.md",
+      "source": [
+        "packages/soma-puppet-runtime/src/parser.js",
+        "packages/soma-puppet-runtime/src/render.js"
+      ],
+      "tests": [
+        "packages/soma-puppet-runtime/test/render.test.js",
+        "packages/soma-puppet-runtime/test/v03.test.js",
+        "packages/soma-puppet-runtime/test/store.test.js"
+      ]
+    },
+    {
+      "word": "card",
+      "summary": "A titled group of other elements; its hook makes the whole card pressable.",
+      "since": "0.1",
+      "rendering": "drawn",
+      "component": null,
+      "placement": "any",
+      "label": "optional",
+      "template": "card \"Tonight\" {\n  text \"Doors at seven\"\n}",
+      "params": [
+        {
+          "name": "title",
+          "in": "label",
+          "required": false,
+          "description": "Card heading"
+        }
+      ],
+      "data": {
+        "reads": "nothing",
+        "writes": "nothing"
+      },
+      "routes": [],
+      "permissions": "Anyone who can see the screen.",
+      "enforcement": "none",
+      "runsOn": "browser",
+      "tags": [
+        "layout"
+      ],
+      "docs": "packages/soma-puppet-runtime/GRAMMAR-v0.1.md",
+      "source": [
+        "packages/soma-puppet-runtime/src/parser.js",
+        "packages/soma-puppet-runtime/src/render.js"
+      ],
+      "tests": [
+        "packages/soma-puppet-runtime/test/parser.test.js",
+        "packages/soma-puppet-runtime/test/render.test.js"
+      ]
+    },
+    {
+      "word": "composer",
+      "summary": "A message box with a mic slot (filled by soma-speech when present) and Send, which runs the hook.",
+      "since": "0.1",
+      "rendering": "drawn",
+      "component": null,
+      "placement": "any",
+      "label": "optional",
+      "template": "composer \"Write a message\" field: Message -> toast \"Sent: {form.Message}\"",
+      "params": [
+        {
+          "name": "placeholder",
+          "in": "label",
+          "required": false,
+          "description": "Placeholder text"
+        },
+        {
+          "name": "field",
+          "in": "prop",
+          "required": false,
+          "description": "The form label Send reads (default Message)"
+        },
+        {
+          "name": "hook",
+          "in": "hook",
+          "required": false,
+          "description": "What Send does"
+        }
+      ],
+      "data": {
+        "reads": "nothing",
+        "writes": "Through its hook, usually adds to."
+      },
+      "routes": [],
+      "permissions": "As its hook.",
+      "enforcement": "server",
+      "runsOn": "browser",
+      "tags": [
+        "forms",
+        "chat",
+        "voice"
+      ],
+      "docs": "packages/soma-puppet-runtime/README.md#example-apps",
+      "source": [
+        "packages/soma-puppet-runtime/src/parser.js",
+        "packages/soma-puppet-runtime/src/render.js"
+      ],
+      "tests": [
+        "packages/soma-puppet-runtime/test/parser.test.js",
+        "packages/soma-puppet-runtime/test/render.test.js"
+      ]
+    },
+    {
+      "word": "field",
+      "summary": "An input. @text (default), @multiline, @select with items:, @date with days:, @required.",
+      "since": "0.1",
+      "rendering": "drawn",
+      "component": null,
+      "placement": "any",
+      "label": "text",
+      "template": "field \"Title\" @required",
+      "params": [
+        {
+          "name": "label",
+          "in": "label",
+          "required": true,
+          "description": "Shown as written (no tokens); read by {form.Label}"
+        },
+        {
+          "name": "@multiline @select @date @required",
+          "in": "role",
+          "required": false,
+          "description": "Control type and required"
+        },
+        {
+          "name": "items",
+          "in": "prop",
+          "required": false,
+          "description": "Choices for @select; the server refuses other values"
+        },
+        {
+          "name": "days",
+          "in": "prop",
+          "required": false,
+          "description": "Allowed weekdays for @date: Mon Tue Wed Thu Fri Sat Sun"
+        }
+      ],
+      "data": {
+        "reads": "nothing",
+        "writes": "Nothing by itself; a button on the same screen sends it with {form.Label}."
+      },
+      "routes": [],
+      "permissions": "Anyone who can see the screen.",
+      "enforcement": "server",
+      "runsOn": "browser",
+      "tags": [
+        "forms",
+        "input",
+        "date"
+      ],
+      "limits": [
+        "A new row field holds at most 10,000 characters."
+      ],
+      "docs": "packages/soma-puppet-runtime/GRAMMAR-v0.3.md",
+      "source": [
+        "packages/soma-puppet-runtime/src/parser.js",
+        "packages/soma-puppet-runtime/src/render.js"
+      ],
+      "tests": [
+        "packages/soma-puppet-runtime/test/parser.test.js",
+        "packages/soma-puppet-runtime/test/render.test.js"
+      ]
+    },
+    {
+      "word": "hero",
+      "summary": "Page intro band with a title and a subtitle.",
+      "since": "0.1",
+      "rendering": "drawn",
+      "component": null,
+      "placement": "any",
+      "label": "none",
+      "template": "hero { title: \"Welcome\", subtitle: \"Hello, {me.name}.\" }",
+      "params": [
+        {
+          "name": "title",
+          "in": "prop",
+          "required": true,
+          "description": "Heading text; tokens allowed"
+        },
+        {
+          "name": "subtitle",
+          "in": "prop",
+          "required": false,
+          "description": "Line under the heading; tokens allowed"
+        }
+      ],
+      "data": {
+        "reads": "Tokens only ({me.name}, {Name.count}, {row.field} on a row screen).",
+        "writes": "nothing"
+      },
+      "routes": [],
+      "permissions": "Anyone who can see the screen.",
+      "enforcement": "none",
+      "runsOn": "browser",
+      "tags": [
+        "text",
+        "layout"
+      ],
+      "docs": "packages/soma-puppet-runtime/GRAMMAR-v0.1.md",
+      "source": [
+        "packages/soma-puppet-runtime/src/parser.js",
+        "packages/soma-puppet-runtime/src/render.js"
+      ],
+      "tests": [
+        "packages/soma-puppet-runtime/test/parser.test.js",
+        "packages/soma-puppet-runtime/test/render.test.js"
+      ]
+    },
+    {
+      "word": "host-panel",
+      "summary": "Names a host affordance (such as a voice host). Drawn as a box; no host is started.",
+      "since": "0.1",
+      "rendering": "placeholder",
+      "component": null,
+      "placement": "any",
+      "label": "optional",
+      "template": "host-panel \"Bill\" @voice",
+      "params": [],
+      "data": {
+        "reads": "nothing",
+        "writes": "nothing"
+      },
+      "routes": [],
+      "permissions": "Anyone who can see the screen.",
+      "enforcement": "none",
+      "runsOn": "browser",
+      "tags": [
+        "ai",
+        "voice"
+      ],
+      "limits": [
+        "The renderer draws this as a plain labelled box; its look is not built yet."
+      ],
+      "docs": "packages/soma-puppet-runtime/GRAMMAR-v0.1.md#33-element-kinds-inside-screendialog",
+      "source": [
+        "packages/soma-puppet-runtime/src/parser.js",
+        "packages/soma-puppet-runtime/src/render.js"
+      ],
+      "tests": [
+        "packages/soma-puppet-runtime/test/parser.test.js",
+        "packages/soma-puppet-runtime/test/render.test.js"
+      ]
+    },
+    {
+      "word": "image",
+      "summary": "Placeholder for a picture, labelled with its alt text.",
+      "since": "0.1",
+      "rendering": "placeholder",
+      "component": null,
+      "placement": "any",
+      "label": "optional",
+      "template": "image \"A photo of the stage\"",
+      "params": [],
+      "data": {
+        "reads": "nothing",
+        "writes": "nothing"
+      },
+      "routes": [],
+      "permissions": "Anyone who can see the screen.",
+      "enforcement": "none",
+      "runsOn": "browser",
+      "tags": [
+        "media"
+      ],
+      "limits": [
+        "The renderer draws this as a plain labelled box; its look is not built yet."
+      ],
+      "docs": "packages/soma-puppet-runtime/GRAMMAR-v0.1.md#33-element-kinds-inside-screendialog",
+      "source": [
+        "packages/soma-puppet-runtime/src/parser.js",
+        "packages/soma-puppet-runtime/src/render.js"
+      ],
+      "tests": [
+        "packages/soma-puppet-runtime/test/parser.test.js",
+        "packages/soma-puppet-runtime/test/render.test.js"
+      ]
+    },
+    {
+      "word": "label",
+      "summary": "A short line of static copy, drawn like text with its own class.",
+      "since": "0.1",
+      "rendering": "drawn",
+      "component": null,
+      "placement": "any",
+      "label": "text",
+      "template": "label \"Only you see this\"",
+      "params": [
+        {
+          "name": "text",
+          "in": "label",
+          "required": true,
+          "description": "The words; tokens allowed"
+        }
+      ],
+      "data": {
+        "reads": "nothing",
+        "writes": "nothing"
+      },
+      "routes": [],
+      "permissions": "Anyone who can see the screen.",
+      "enforcement": "none",
+      "runsOn": "browser",
+      "tags": [
+        "text"
+      ],
+      "docs": "packages/soma-puppet-runtime/GRAMMAR-v0.1.md",
+      "source": [
+        "packages/soma-puppet-runtime/src/parser.js",
+        "packages/soma-puppet-runtime/src/render.js"
+      ],
+      "tests": [
+        "packages/soma-puppet-runtime/test/parser.test.js",
+        "packages/soma-puppet-runtime/test/render.test.js"
+      ]
+    },
+    {
+      "word": "line-run",
+      "summary": "Run lines: the actor picks a part, Stage Read reads every other character, and the run stops on each of the actor's lines with the line hidden until they tap Next.",
+      "since": "0.8",
+      "rendering": "drawn",
+      "component": "soma-play",
+      "export": "mountLineRun",
+      "placement": "row",
+      "label": "row-field",
+      "template": "line-run \"{row.$field}\" hint: initials",
+      "params": [
+        {
+          "name": "text",
+          "in": "label",
+          "required": true,
+          "description": "Exactly one {row.field}"
+        },
+        {
+          "name": "hint",
+          "in": "prop",
+          "required": false,
+          "description": "none (default) hides the actor's line; initials shows the first letter of each word"
+        }
+      ],
+      "data": {
+        "reads": "One field of the screen's row; the page sends only the row id and line numbers of the other parts.",
+        "writes": "Stage Read's spend counters and audio cache."
+      },
+      "routes": [
+        {
+          "method": "POST",
+          "path": "/api/app/:appId/stage-read",
+          "who": "signed in reader of the row",
+          "purpose": "Body { data, rowId, field, line }; answers audio/mpeg",
+          "checks": [
+            "signed in",
+            "a stage-read or line-run of this field on a screen the reader can see",
+            "the reader may read the row",
+            "the line exists",
+            "spend allowance"
+          ]
+        }
+      ],
+      "permissions": "As stage-read: only a reader of the row. A line-run never offers the narration read.",
+      "enforcement": "server",
+      "cost": {
+        "service": "ElevenLabs text to speech",
+        "key": "ELEVENLABS_API_KEY (server only)",
+        "allowance": "Stage Read's allowance, shared with stage-read"
+      },
+      "runsOn": "browser+server",
+      "tags": [
+        "play",
+        "voice",
+        "tts",
+        "theatre",
+        "audio",
+        "rehearsal",
+        "actors"
+      ],
+      "replaces": "A rehearsal partner reading the other parts.",
+      "limits": [
+        "Stage Read's five fixed voices.",
+        "The chosen part is not remembered between visits."
+      ],
+      "docs": "packages/soma-puppet-runtime/GRAMMAR-v0.8.md",
+      "source": [
+        "packages/soma-play/src/line-run.js",
+        "packages/soma-play/src/script.js",
+        "packages/soma-puppet-runtime/site/functions/api.mjs"
+      ],
+      "tests": [
+        "packages/soma-play/test/line-run.test.js",
+        "packages/soma-puppet-runtime/test/v08.test.js"
+      ]
+    },
+    {
+      "word": "link",
+      "summary": "Text navigation; drawn as a button with the same hooks.",
+      "since": "0.1",
+      "rendering": "drawn",
+      "component": null,
+      "placement": "any",
+      "label": "text",
+      "template": "link \"About\" -> opens dialog \"About\"",
+      "params": [
+        {
+          "name": "text",
+          "in": "label",
+          "required": true,
+          "description": "Link text"
+        },
+        {
+          "name": "hook",
+          "in": "hook",
+          "required": false,
+          "description": "Usually opens a screen or dialog"
+        }
+      ],
+      "data": {
+        "reads": "nothing",
+        "writes": "nothing"
+      },
+      "routes": [],
+      "permissions": "Anyone who can see the screen.",
+      "enforcement": "none",
+      "runsOn": "browser",
+      "tags": [
+        "navigation"
+      ],
+      "docs": "packages/soma-puppet-runtime/GRAMMAR-v0.1.md",
+      "source": [
+        "packages/soma-puppet-runtime/src/parser.js",
+        "packages/soma-puppet-runtime/src/render.js"
+      ],
+      "tests": [
+        "packages/soma-puppet-runtime/test/parser.test.js",
+        "packages/soma-puppet-runtime/test/render.test.js"
+      ]
+    },
+    {
+      "word": "list",
+      "summary": "Rows of a declared data collection (or stub). With a hook that opens a screen from that data, each row opens it.",
+      "since": "0.1",
+      "rendering": "drawn",
+      "component": null,
+      "placement": "any",
+      "label": "optional",
+      "template": "list \"Items\" from $data empty: \"Nothing yet.\" -> opens screen \"$rowScreen\"",
+      "params": [
+        {
+          "name": "title",
+          "in": "label",
+          "required": false,
+          "description": "Heading"
+        },
+        {
+          "name": "from",
+          "in": "label",
+          "required": true,
+          "description": "from <data or stub>"
+        },
+        {
+          "name": "empty",
+          "in": "prop",
+          "required": false,
+          "description": "Text shown when there are no rows"
+        },
+        {
+          "name": "hook",
+          "in": "hook",
+          "required": false,
+          "description": "opens screen \"<row screen>\" makes each row open it"
+        }
+      ],
+      "data": {
+        "reads": "The rows this reader may read under the collection's read rule.",
+        "writes": "nothing"
+      },
+      "routes": [
+        {
+          "method": "GET",
+          "path": "/api/app/:appId/data/:name",
+          "who": "signed in (or anyone with publicRead)",
+          "purpose": "rows; read: own gives a person only their rows, read: private gives everyone, the host included, only their own"
+        }
+      ],
+      "permissions": "The server filters rows by the read rule; the page never receives rows it may not show.",
+      "enforcement": "server",
+      "runsOn": "browser",
+      "tags": [
+        "data",
+        "collection",
+        "read"
+      ],
+      "replaces": "Per-user row filtering and list rendering.",
+      "docs": "packages/soma-puppet-runtime/GRAMMAR-v0.4.md#1-a-screen-that-shows-one-row-screen-name-from-data",
+      "source": [
+        "packages/soma-puppet-runtime/src/parser.js",
+        "packages/soma-puppet-runtime/src/render.js"
+      ],
+      "tests": [
+        "packages/soma-puppet-runtime/test/render.test.js",
+        "packages/soma-puppet-runtime/test/v04.test.js"
+      ]
+    },
+    {
+      "word": "navbar",
+      "summary": "Top or bottom app navigation strip.",
+      "since": "0.1",
+      "rendering": "placeholder",
+      "component": null,
+      "placement": "any",
+      "label": "optional",
+      "template": "navbar top { items: [Home, About] }",
+      "params": [
+        {
+          "name": "position",
+          "in": "label",
+          "required": false,
+          "description": "top or bottom"
+        },
+        {
+          "name": "items",
+          "in": "prop",
+          "required": false,
+          "description": "List of item names"
+        }
+      ],
+      "data": {
+        "reads": "nothing",
+        "writes": "nothing"
+      },
+      "routes": [],
+      "permissions": "Anyone who can see the screen.",
+      "enforcement": "none",
+      "runsOn": "browser",
+      "tags": [
+        "layout",
+        "navigation"
+      ],
+      "limits": [
+        "The renderer draws this as a plain labelled box; its look is not built yet."
+      ],
+      "docs": "packages/soma-puppet-runtime/GRAMMAR-v0.1.md#33-element-kinds-inside-screendialog",
+      "source": [
+        "packages/soma-puppet-runtime/src/parser.js",
+        "packages/soma-puppet-runtime/src/render.js"
+      ],
+      "tests": [
+        "packages/soma-puppet-runtime/test/parser.test.js",
+        "packages/soma-puppet-runtime/test/render.test.js"
+      ]
+    },
+    {
+      "word": "play-view",
+      "summary": "A scene drawn read-only as script pages in Diana's house format (PlayMaker). Its label may be any text; with {row.text} it goes on a row screen, which is how apps use it.",
+      "since": "0.4",
+      "rendering": "drawn",
+      "component": "soma-play",
+      "export": "mountPlayView",
+      "placement": "row",
+      "label": "text",
+      "template": "play-view \"{row.$field}\"",
+      "params": [
+        {
+          "name": "text",
+          "in": "label",
+          "required": true,
+          "description": "The scene; usually {row.text} on a row screen"
+        }
+      ],
+      "data": {
+        "reads": "The text in its label.",
+        "writes": "nothing"
+      },
+      "routes": [],
+      "permissions": "Anyone who can see the screen.",
+      "enforcement": "none",
+      "runsOn": "browser",
+      "tags": [
+        "play",
+        "script",
+        "theatre",
+        "writing"
+      ],
+      "docs": "packages/soma-puppet-runtime/GRAMMAR-v0.4.md#play-view-a-scene-in-dianas-script-format",
+      "source": [
+        "packages/soma-play/src/play-view.js",
+        "packages/soma-play/src/script.js"
+      ],
+      "tests": [
+        "packages/soma-play/test/script.test.js",
+        "packages/soma-puppet-runtime/test/render-v04.test.js"
+      ]
+    },
+    {
+      "word": "region",
+      "summary": "A named layout group (main, editor, view...).",
+      "since": "0.1",
+      "rendering": "drawn",
+      "component": null,
+      "placement": "any",
+      "label": "optional",
+      "template": "region main {\n  text \"Inside the region\"\n}",
+      "params": [
+        {
+          "name": "name",
+          "in": "label",
+          "required": false,
+          "description": "Region name, used by screen layouts"
+        }
+      ],
+      "data": {
+        "reads": "nothing",
+        "writes": "nothing"
+      },
+      "routes": [],
+      "permissions": "none",
+      "enforcement": "none",
+      "runsOn": "browser",
+      "tags": [
+        "layout"
+      ],
+      "docs": "packages/soma-puppet-runtime/GRAMMAR-v0.1.md#4-layout--positioning-syntax",
+      "source": [
+        "packages/soma-puppet-runtime/src/parser.js",
+        "packages/soma-puppet-runtime/src/render.js"
+      ],
+      "tests": [
+        "packages/soma-puppet-runtime/test/parser.test.js",
+        "packages/soma-puppet-runtime/test/render.test.js"
+      ]
+    },
+    {
+      "word": "row",
+      "summary": "Lays its children out side by side.",
+      "since": "0.1",
+      "rendering": "drawn",
+      "component": null,
+      "placement": "any",
+      "label": "none",
+      "template": "row {\n  text \"Left\"\n  text \"Right\"\n}",
+      "params": [],
+      "data": {
+        "reads": "nothing",
+        "writes": "nothing"
+      },
+      "routes": [],
+      "permissions": "none",
+      "enforcement": "none",
+      "runsOn": "browser",
+      "tags": [
+        "layout"
+      ],
+      "docs": "packages/soma-puppet-runtime/GRAMMAR-v0.1.md#4-layout--positioning-syntax",
+      "source": [
+        "packages/soma-puppet-runtime/src/parser.js",
+        "packages/soma-puppet-runtime/src/render.js"
+      ],
+      "tests": [
+        "packages/soma-puppet-runtime/test/parser.test.js",
+        "packages/soma-puppet-runtime/test/render.test.js"
+      ]
+    },
+    {
+      "word": "script-editor",
+      "summary": "Edits one text field of the row in a box with Save; typing redraws video-views of the same field.",
+      "since": "0.5",
+      "rendering": "drawn",
+      "component": null,
+      "placement": "row",
+      "label": "row-field",
+      "template": "script-editor \"{row.$field}\"",
+      "params": [
+        {
+          "name": "text",
+          "in": "label",
+          "required": true,
+          "description": "Exactly one {row.field}, not status"
+        }
+      ],
+      "data": {
+        "reads": "The row field.",
+        "writes": "The row field (at most 40,000 characters)."
+      },
+      "routes": [
+        {
+          "method": "PUT",
+          "path": "/api/app/:appId/data/:name/:rowId",
+          "who": "the row's author",
+          "purpose": "Body { field, value }",
+          "checks": [
+            "signed in",
+            "body is one text field and a text value",
+            "at most 40,000 characters",
+            "a script-editor of this field on a screen the reader can see",
+            "the reader is the author"
+          ]
+        }
+      ],
+      "permissions": "Only the row's author edits it; the host does not edit other people's rows.",
+      "enforcement": "server",
+      "runsOn": "browser+server",
+      "tags": [
+        "editing",
+        "write",
+        "script"
+      ],
+      "replaces": "Hand-written edit endpoints with author checks.",
+      "docs": "packages/soma-puppet-runtime/GRAMMAR-v0.5.md#3-script-editor-change-a-rows-text",
+      "source": [
+        "packages/soma-puppet-runtime/src/render.js",
+        "packages/soma-puppet-runtime/site/functions/api.mjs"
+      ],
+      "tests": [
+        "packages/soma-puppet-runtime/test/v05.test.js"
+      ]
+    },
+    {
+      "word": "sidebar",
+      "summary": "Side rail for secondary navigation.",
+      "since": "0.1",
+      "rendering": "placeholder",
+      "component": null,
+      "placement": "any",
+      "label": "optional",
+      "template": "sidebar left { items: [One, Two] }",
+      "params": [
+        {
+          "name": "position",
+          "in": "label",
+          "required": false,
+          "description": "left or right"
+        },
+        {
+          "name": "items",
+          "in": "prop",
+          "required": false,
+          "description": "List of item names"
+        }
+      ],
+      "data": {
+        "reads": "nothing",
+        "writes": "nothing"
+      },
+      "routes": [],
+      "permissions": "Anyone who can see the screen.",
+      "enforcement": "none",
+      "runsOn": "browser",
+      "tags": [
+        "layout",
+        "navigation"
+      ],
+      "limits": [
+        "The renderer draws this as a plain labelled box; its look is not built yet."
+      ],
+      "docs": "packages/soma-puppet-runtime/GRAMMAR-v0.1.md#33-element-kinds-inside-screendialog",
+      "source": [
+        "packages/soma-puppet-runtime/src/parser.js",
+        "packages/soma-puppet-runtime/src/render.js"
+      ],
+      "tests": [
+        "packages/soma-puppet-runtime/test/parser.test.js",
+        "packages/soma-puppet-runtime/test/render.test.js"
+      ]
+    },
+    {
+      "word": "spacer",
+      "summary": "Flexible empty space.",
+      "since": "0.1",
+      "rendering": "placeholder",
+      "component": null,
+      "placement": "any",
+      "label": "optional",
+      "template": "spacer",
+      "params": [],
+      "data": {
+        "reads": "nothing",
+        "writes": "nothing"
+      },
+      "routes": [],
+      "permissions": "Anyone who can see the screen.",
+      "enforcement": "none",
+      "runsOn": "browser",
+      "tags": [
+        "layout"
+      ],
+      "limits": [
+        "The renderer draws this as a plain labelled box; its look is not built yet."
+      ],
+      "docs": "packages/soma-puppet-runtime/GRAMMAR-v0.1.md#33-element-kinds-inside-screendialog",
+      "source": [
+        "packages/soma-puppet-runtime/src/parser.js",
+        "packages/soma-puppet-runtime/src/render.js"
+      ],
+      "tests": [
+        "packages/soma-puppet-runtime/test/parser.test.js",
+        "packages/soma-puppet-runtime/test/render.test.js"
+      ]
+    },
+    {
+      "word": "stack",
+      "summary": "Lays its children out top to bottom.",
+      "since": "0.1",
+      "rendering": "drawn",
+      "component": null,
+      "placement": "any",
+      "label": "none",
+      "template": "stack {\n  text \"First\"\n  text \"Second\"\n}",
+      "params": [],
+      "data": {
+        "reads": "nothing",
+        "writes": "nothing"
+      },
+      "routes": [],
+      "permissions": "none",
+      "enforcement": "none",
+      "runsOn": "browser",
+      "tags": [
+        "layout"
+      ],
+      "docs": "packages/soma-puppet-runtime/GRAMMAR-v0.1.md#4-layout--positioning-syntax",
+      "source": [
+        "packages/soma-puppet-runtime/src/parser.js",
+        "packages/soma-puppet-runtime/src/render.js"
+      ],
+      "tests": [
+        "packages/soma-puppet-runtime/test/parser.test.js",
+        "packages/soma-puppet-runtime/test/render.test.js"
+      ]
+    },
+    {
+      "word": "stage-read",
+      "summary": "Reads a scene aloud line by line, a voice per character; highlights the line in a play-view of the same field.",
+      "since": "0.4",
+      "rendering": "drawn",
+      "component": "soma-play",
+      "export": "mountStageRead",
+      "placement": "row",
+      "label": "row-field",
+      "template": "stage-read \"{row.$field}\"",
+      "params": [
+        {
+          "name": "text",
+          "in": "label",
+          "required": true,
+          "description": "Exactly one {row.field}"
+        }
+      ],
+      "data": {
+        "reads": "One field of the screen's row; the page sends only the row id and a line number.",
+        "writes": "Spend counters and an audio cache."
+      },
+      "routes": [
+        {
+          "method": "POST",
+          "path": "/api/app/:appId/stage-read",
+          "who": "signed in reader of the row",
+          "purpose": "Body { data, rowId, field, line }; answers audio/mpeg",
+          "checks": [
+            "signed in",
+            "a stage-read of this field on a screen the reader can see",
+            "the reader may read the row",
+            "the line exists",
+            "spend allowance"
+          ]
+        }
+      ],
+      "permissions": "Only a reader of the row; a row they may not read answers like a missing row.",
+      "enforcement": "server",
+      "cost": {
+        "service": "ElevenLabs text to speech",
+        "key": "ELEVENLABS_API_KEY (server only)",
+        "allowance": "Characters per line, per person per day and per app per day, plus lines per person per day; cached lines are free"
+      },
+      "runsOn": "browser+server",
+      "tags": [
+        "play",
+        "voice",
+        "tts",
+        "theatre",
+        "audio"
+      ],
+      "limits": [
+        "Five fixed voices chosen from the character name; no voice picker yet."
+      ],
+      "docs": "packages/soma-puppet-runtime/GRAMMAR-v0.4.md#stage-read-the-scene-read-aloud-a-voice-per-character",
+      "source": [
+        "packages/soma-play/src/stage-read.js",
+        "packages/soma-play/src/script.js",
+        "packages/soma-play/server/stage-read.js"
+      ],
+      "tests": [
+        "packages/soma-play/test/stage-read.test.js",
+        "packages/soma-puppet-runtime/test/v04.test.js"
+      ]
+    },
+    {
+      "word": "table",
+      "summary": "Rows of a declared collection drawn as a table; same rules as list.",
+      "since": "0.1",
+      "rendering": "drawn",
+      "component": null,
+      "placement": "any",
+      "label": "optional",
+      "template": "table \"All items\" from $data",
+      "params": [
+        {
+          "name": "title",
+          "in": "label",
+          "required": false,
+          "description": "Heading"
+        },
+        {
+          "name": "from",
+          "in": "label",
+          "required": true,
+          "description": "from <data or stub>"
+        }
+      ],
+      "data": {
+        "reads": "The rows this reader may read.",
+        "writes": "nothing"
+      },
+      "routes": [
+        {
+          "method": "GET",
+          "path": "/api/app/:appId/data/:name",
+          "who": "signed in (or anyone with publicRead)",
+          "purpose": "rows under the read rule"
+        }
+      ],
+      "permissions": "Same as list.",
+      "enforcement": "server",
+      "runsOn": "browser",
+      "tags": [
+        "data",
+        "collection",
+        "read"
+      ],
+      "docs": "packages/soma-puppet-runtime/GRAMMAR-v0.3.md",
+      "source": [
+        "packages/soma-puppet-runtime/src/parser.js",
+        "packages/soma-puppet-runtime/src/render.js"
+      ],
+      "tests": [
+        "packages/soma-puppet-runtime/test/parser.test.js",
+        "packages/soma-puppet-runtime/test/render.test.js"
+      ]
+    },
+    {
+      "word": "tabs",
+      "summary": "In-page switcher. Screens already get a tab bar, so this is rarely needed.",
+      "since": "0.1",
+      "rendering": "placeholder",
+      "component": null,
+      "placement": "any",
+      "label": "optional",
+      "template": "tabs { items: [Day, Week] }",
+      "params": [],
+      "data": {
+        "reads": "nothing",
+        "writes": "nothing"
+      },
+      "routes": [],
+      "permissions": "Anyone who can see the screen.",
+      "enforcement": "none",
+      "runsOn": "browser",
+      "tags": [
+        "layout",
+        "navigation"
+      ],
+      "limits": [
+        "The renderer draws this as a plain labelled box; its look is not built yet."
+      ],
+      "docs": "packages/soma-puppet-runtime/GRAMMAR-v0.1.md#33-element-kinds-inside-screendialog",
+      "source": [
+        "packages/soma-puppet-runtime/src/parser.js",
+        "packages/soma-puppet-runtime/src/render.js"
+      ],
+      "tests": [
+        "packages/soma-puppet-runtime/test/parser.test.js",
+        "packages/soma-puppet-runtime/test/render.test.js"
+      ]
+    },
+    {
+      "word": "text",
+      "summary": "A paragraph of static copy; tokens are filled.",
+      "since": "0.1",
+      "rendering": "drawn",
+      "component": null,
+      "placement": "any",
+      "label": "text",
+      "template": "text \"{$data.count} so far\"",
+      "params": [
+        {
+          "name": "text",
+          "in": "label",
+          "required": true,
+          "description": "The words; tokens allowed"
+        }
+      ],
+      "data": {
+        "reads": "Tokens only.",
+        "writes": "nothing"
+      },
+      "routes": [],
+      "permissions": "Anyone who can see the screen.",
+      "enforcement": "none",
+      "runsOn": "browser",
+      "tags": [
+        "text"
+      ],
+      "docs": "packages/soma-puppet-runtime/GRAMMAR-v0.1.md",
+      "source": [
+        "packages/soma-puppet-runtime/src/parser.js",
+        "packages/soma-puppet-runtime/src/render.js"
+      ],
+      "tests": [
+        "packages/soma-puppet-runtime/test/parser.test.js",
+        "packages/soma-puppet-runtime/test/render.test.js"
+      ]
+    },
+    {
+      "word": "toast",
+      "summary": "An inline status line. Usually reached through the toast action on a hook instead.",
+      "since": "0.1",
+      "rendering": "drawn",
+      "component": null,
+      "placement": "any",
+      "label": "text",
+      "template": "toast \"Saved\"",
+      "params": [
+        {
+          "name": "text",
+          "in": "label",
+          "required": true,
+          "description": "The message"
+        }
+      ],
+      "data": {
+        "reads": "nothing",
+        "writes": "nothing"
+      },
+      "routes": [],
+      "permissions": "Anyone who can see the screen.",
+      "enforcement": "none",
+      "runsOn": "browser",
+      "tags": [
+        "feedback"
+      ],
+      "docs": "packages/soma-puppet-runtime/GRAMMAR-v0.1.md",
+      "source": [
+        "packages/soma-puppet-runtime/src/parser.js",
+        "packages/soma-puppet-runtime/src/render.js"
+      ],
+      "tests": [
+        "packages/soma-puppet-runtime/test/parser.test.js",
+        "packages/soma-puppet-runtime/test/render.test.js"
+      ]
+    },
+    {
+      "word": "toolbar",
+      "summary": "Strip of contextual actions.",
+      "since": "0.1",
+      "rendering": "placeholder",
+      "component": null,
+      "placement": "any",
+      "label": "optional",
+      "template": "toolbar { actions: [Save, Share] }",
+      "params": [],
+      "data": {
+        "reads": "nothing",
+        "writes": "nothing"
+      },
+      "routes": [],
+      "permissions": "Anyone who can see the screen.",
+      "enforcement": "none",
+      "runsOn": "browser",
+      "tags": [
+        "layout",
+        "actions"
+      ],
+      "limits": [
+        "The renderer draws this as a plain labelled box; its look is not built yet."
+      ],
+      "docs": "packages/soma-puppet-runtime/GRAMMAR-v0.1.md#33-element-kinds-inside-screendialog",
+      "source": [
+        "packages/soma-puppet-runtime/src/parser.js",
+        "packages/soma-puppet-runtime/src/render.js"
+      ],
+      "tests": [
+        "packages/soma-puppet-runtime/test/parser.test.js",
+        "packages/soma-puppet-runtime/test/render.test.js"
+      ]
+    },
+    {
+      "word": "video-assets",
+      "summary": "A script's assets by scene: song times with play buttons, cards as 16:9 frames, pictures and their cut pieces.",
+      "since": "0.6",
+      "rendering": "drawn",
+      "component": "soma-video",
+      "export": "mountVideoAssets",
+      "placement": "row",
+      "label": "row-field",
+      "template": "video-assets \"{row.$field}\"",
+      "params": [
+        {
+          "name": "text",
+          "in": "label",
+          "required": true,
+          "description": "Exactly one {row.field}"
+        }
+      ],
+      "data": {
+        "reads": "The row and its asset files.",
+        "writes": "nothing (the team writes assets)"
+      },
+      "routes": [
+        {
+          "method": "GET",
+          "path": "/api/app/:appId/video/:data/:rowId/assets",
+          "who": "reader of the row",
+          "purpose": "list assets; .../assets/:name returns one file"
+        },
+        {
+          "method": "PUT",
+          "path": "/api/app/:appId/video-team/assets/:data/:rowId/:name",
+          "who": "team key",
+          "purpose": "the Mac sends a file (at most 4,500,000 bytes)"
+        }
+      ],
+      "permissions": "Readers of the row read; only the team writes.",
+      "enforcement": "server",
+      "runsOn": "browser+server",
+      "tags": [
+        "video",
+        "media",
+        "assets",
+        "audio"
+      ],
+      "docs": "packages/soma-puppet-runtime/GRAMMAR-v0.6.md#2-video-assets-the-scripts-assets",
+      "source": [
+        "packages/soma-video/src/video-assets.js",
+        "packages/soma-video/server/studio.js"
+      ],
+      "tests": [
+        "packages/soma-puppet-runtime/test/v06.test.js"
+      ]
+    },
+    {
+      "word": "video-evidence",
+      "summary": "The evidence ledger: every narrator line and card in a video script next to its [[src: ...]] notes, with the claims that have no source marked.",
+      "since": "0.9",
+      "rendering": "drawn",
+      "component": "soma-video",
+      "export": "mountVideoEvidence",
+      "placement": "row",
+      "label": "text",
+      "template": "video-evidence \"{row.$field}\"",
+      "params": [
+        {
+          "name": "text",
+          "in": "label",
+          "required": true,
+          "description": "The script; usually {row.text}. Its label may be any text; with {row.text} it goes on a row screen."
+        }
+      ],
+      "data": {
+        "reads": "The text in its label, live from a script-editor of the same field.",
+        "writes": "nothing"
+      },
+      "routes": [],
+      "permissions": "Anyone who can see the screen; it shows only text the page already has.",
+      "enforcement": "none",
+      "runsOn": "browser",
+      "tags": [
+        "video",
+        "script",
+        "evidence",
+        "review",
+        "documentary",
+        "fountain"
+      ],
+      "replaces": "The hand-written EVIDENCE.md beside each making-of draft.",
+      "limits": [
+        "A source note inside a speech is reported, not used, because a reading would speak it.",
+        "It checks that a source is named, not that the source says what the line claims."
+      ],
+      "docs": "packages/soma-puppet-runtime/GRAMMAR-v0.9.md",
+      "source": [
+        "packages/soma-video/src/evidence.js",
+        "packages/soma-video/src/film.js"
+      ],
+      "tests": [
+        "packages/soma-video/test/evidence.test.js",
+        "packages/soma-puppet-runtime/test/v09.test.js"
+      ]
+    },
+    {
+      "word": "video-jobs",
+      "summary": "\"Make it\" panel: buttons that ask the team on Mike's Mac to time the song, make pictures, render, or anything in words.",
+      "since": "0.6",
+      "rendering": "drawn",
+      "component": "soma-video",
+      "export": "mountVideoJobs",
+      "placement": "row",
+      "label": "row-field",
+      "template": "video-jobs \"{row.$field}\"",
+      "params": [
+        {
+          "name": "text",
+          "in": "label",
+          "required": true,
+          "description": "Exactly one {row.field}"
+        }
+      ],
+      "data": {
+        "reads": "The row; job states, logs and reports.",
+        "writes": "Jobs in Blobs."
+      },
+      "routes": [
+        {
+          "method": "POST",
+          "path": "/api/app/:appId/video/:data/:rowId/jobs",
+          "who": "host",
+          "purpose": "Body { step, note }; a job runs with Claude Code on the host's Mac"
+        },
+        {
+          "method": "GET",
+          "path": "/api/app/:appId/video-team/jobs",
+          "who": "team key",
+          "purpose": "The Mac worker reads open jobs"
+        }
+      ],
+      "permissions": "Host only, because a job runs on the host's Mac.",
+      "enforcement": "server",
+      "cost": {
+        "service": "Claude Code on Mike's Mac",
+        "key": "STUDIO_TEAM_KEY (server only)",
+        "allowance": "none"
+      },
+      "runsOn": "browser+server+mac",
+      "tags": [
+        "video",
+        "jobs",
+        "mac",
+        "render"
+      ],
+      "limits": [
+        "Nothing runs unless the Mac worker (launchd com.soma.videomaker-worker) is up."
+      ],
+      "docs": "packages/soma-puppet-runtime/GRAMMAR-v0.6.md#1-video-jobs-ask-the-team",
+      "source": [
+        "packages/soma-video/src/video-jobs.js",
+        "packages/soma-video/src/jobs.js",
+        "packages/soma-video/server/studio.js"
+      ],
+      "tests": [
+        "packages/soma-puppet-runtime/test/v06.test.js"
+      ]
+    },
+    {
+      "word": "video-read",
+      "summary": "Reads a video script's narration aloud, each narrator in their CAST voice.",
+      "since": "0.5",
+      "rendering": "drawn",
+      "component": "soma-video",
+      "export": "mountVideoRead",
+      "placement": "row",
+      "label": "row-field",
+      "template": "video-read \"{row.$field}\"",
+      "params": [
+        {
+          "name": "text",
+          "in": "label",
+          "required": true,
+          "description": "Exactly one {row.field}"
+        }
+      ],
+      "data": {
+        "reads": "The saved field of the row.",
+        "writes": "Spend counters and an audio cache."
+      },
+      "routes": [
+        {
+          "method": "POST",
+          "path": "/api/app/:appId/video-read",
+          "who": "signed in reader of the row",
+          "purpose": "Body { data, rowId, field, line }; Stage Read's checks"
+        }
+      ],
+      "permissions": "As stage-read.",
+      "enforcement": "server",
+      "cost": {
+        "service": "ElevenLabs text to speech",
+        "key": "ELEVENLABS_API_KEY (server only)",
+        "allowance": "600 characters per line, 6,000 per person per day, 16,000 per app per day, 400 lines per person per day"
+      },
+      "runsOn": "browser+server",
+      "tags": [
+        "video",
+        "voice",
+        "tts",
+        "audio"
+      ],
+      "docs": "packages/soma-puppet-runtime/GRAMMAR-v0.5.md#2-video-read-the-narration-read-aloud",
+      "source": [
+        "packages/soma-video/src/video-read.js",
+        "packages/soma-video/server/video-read.js"
+      ],
+      "tests": [
+        "packages/soma-puppet-runtime/test/v05.test.js"
+      ]
+    },
+    {
+      "word": "video-storyboards",
+      "summary": "Storyboards as scene cards (picture, lyric and time, keep/redo/new, prompts, reorder) and cuts that know when they need rendering.",
+      "since": "0.7",
+      "rendering": "drawn",
+      "component": "soma-video",
+      "export": "mountStoryboards",
+      "placement": "screen",
+      "label": "none",
+      "template": "video-storyboards",
+      "params": [],
+      "data": {
+        "reads": "The boards the reader may open.",
+        "writes": "Board ops, held jobs, files in the soma-video-studio Blobs store."
+      },
+      "routes": [
+        {
+          "method": "GET",
+          "path": "/api/app/:appId/video-boards",
+          "who": "owner, host or a listed artist",
+          "purpose": "boards the reader may open; POST starts one (host)"
+        },
+        {
+          "method": "PATCH",
+          "path": "/api/app/:appId/video-boards/:id",
+          "who": "owner, host or artist",
+          "purpose": "Body { ops }"
+        },
+        {
+          "method": "POST",
+          "path": "/api/app/:appId/video-boards/:id/jobs",
+          "who": "owner, host or artist",
+          "purpose": "redo, add or render; anyone but the host starts held"
+        },
+        {
+          "method": "PUT",
+          "path": "/api/app/:appId/video-team/boards/:id",
+          "who": "team key",
+          "purpose": "seed a board, send pictures and renders"
+        }
+      ],
+      "permissions": "Owner and host: everything. An artist (sign-in email on the board's list): change cards and cuts, ask for jobs, which wait for the host. Anyone else: the board does not exist.",
+      "enforcement": "server",
+      "cost": {
+        "service": "Claude Code on Mike's Mac",
+        "key": "STUDIO_TEAM_KEY (server only)",
+        "allowance": "Held jobs need the host's \"Let it run\""
+      },
+      "runsOn": "browser+server+mac",
+      "tags": [
+        "video",
+        "storyboard",
+        "collaboration",
+        "mac",
+        "music"
+      ],
+      "docs": "packages/soma-puppet-runtime/GRAMMAR-v0.7.md",
+      "source": [
+        "packages/soma-video/src/video-storyboard.js",
+        "packages/soma-video/src/storyboard.js",
+        "packages/soma-video/server/boards.js"
+      ],
+      "tests": [
+        "packages/soma-video/test/storyboard.test.js",
+        "packages/soma-puppet-runtime/test/v07.test.js"
+      ]
+    },
+    {
+      "word": "video-view",
+      "summary": "A video script (Fountain plus CAST) drawn as a two-column AV script with per-scene length and \"Before you render\" checks. Its label may be any text; with {row.text} it goes on a row screen, which is how apps use it.",
+      "since": "0.5",
+      "rendering": "drawn",
+      "component": "soma-video",
+      "export": "mountVideoView",
+      "placement": "row",
+      "label": "text",
+      "template": "video-view \"{row.$field}\"",
+      "params": [
+        {
+          "name": "text",
+          "in": "label",
+          "required": true,
+          "description": "The script; usually {row.text}"
+        }
+      ],
+      "data": {
+        "reads": "The text in its label, live from a script-editor of the same field.",
+        "writes": "nothing"
+      },
+      "routes": [],
+      "permissions": "Anyone who can see the screen.",
+      "enforcement": "none",
+      "runsOn": "browser",
+      "tags": [
+        "video",
+        "script",
+        "fountain"
+      ],
+      "docs": "packages/soma-puppet-runtime/GRAMMAR-v0.5.md#1-video-view-a-video-script-as-an-av-script",
+      "source": [
+        "packages/soma-video/src/video-view.js",
+        "packages/soma-video/src/film.js"
+      ],
+      "tests": [
+        "packages/soma-video/test/film.test.js",
+        "packages/soma-puppet-runtime/test/v05.test.js"
+      ]
+    },
+    {
+      "word": "xbox",
+      "summary": "Explicit close control. Dialogs already draw their own close button.",
+      "since": "0.1",
+      "rendering": "placeholder",
+      "component": null,
+      "placement": "any",
+      "label": "optional",
+      "template": "xbox top-right",
+      "params": [],
+      "data": {
+        "reads": "nothing",
+        "writes": "nothing"
+      },
+      "routes": [],
+      "permissions": "Anyone who can see the screen.",
+      "enforcement": "none",
+      "runsOn": "browser",
+      "tags": [
+        "layout"
+      ],
+      "limits": [
+        "The renderer draws this as a plain labelled box; its look is not built yet."
+      ],
+      "docs": "packages/soma-puppet-runtime/GRAMMAR-v0.1.md#33-element-kinds-inside-screendialog",
+      "source": [
+        "packages/soma-puppet-runtime/src/parser.js",
+        "packages/soma-puppet-runtime/src/render.js"
+      ],
+      "tests": [
+        "packages/soma-puppet-runtime/test/parser.test.js",
+        "packages/soma-puppet-runtime/test/render.test.js"
+      ]
+    }
+  ]
+}

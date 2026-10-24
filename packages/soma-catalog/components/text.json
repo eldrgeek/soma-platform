@@ -1,0 +1,38 @@
+{
+  "word": "text",
+  "summary": "A paragraph of static copy; tokens are filled.",
+  "since": "0.1",
+  "rendering": "drawn",
+  "component": null,
+  "placement": "any",
+  "label": "text",
+  "template": "text \"{$data.count} so far\"",
+  "params": [
+    {
+      "name": "text",
+      "in": "label",
+      "required": true,
+      "description": "The words; tokens allowed"
+    }
+  ],
+  "data": {
+    "reads": "Tokens only.",
+    "writes": "nothing"
+  },
+  "routes": [],
+  "permissions": "Anyone who can see the screen.",
+  "enforcement": "none",
+  "runsOn": "browser",
+  "tags": [
+    "text"
+  ],
+  "docs": "packages/soma-puppet-runtime/GRAMMAR-v0.1.md",
+  "source": [
+    "packages/soma-puppet-runtime/src/parser.js",
+    "packages/soma-puppet-runtime/src/render.js"
+  ],
+  "tests": [
+    "packages/soma-puppet-runtime/test/parser.test.js",
+    "packages/soma-puppet-runtime/test/render.test.js"
+  ]
+}

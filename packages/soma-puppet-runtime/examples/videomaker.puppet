@@ -1,4 +1,4 @@
-puppet "VideoMaker" version "0.7"
+puppet "VideoMaker" version "0.9"
 
 app "VideoMaker" {
   promise: "Write a video script, hear each narrator in their own voice, and hand it to the renderer."
@@ -47,6 +47,7 @@ screen "Script" from scripts {
       video-view "{row.text}"
     }
   }
+  video-evidence "{row.text}"
   video-jobs "{row.text}"
   video-assets "{row.text}"
   button "How to write a video script" @ghost -> opens dialog "How to write a video script"

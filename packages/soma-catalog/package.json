@@ -1,0 +1,20 @@
+{
+  "name": "@soma/catalog",
+  "version": "0.1.0",
+  "description": "SOMA component catalog: one machine-readable record per Puppet word (what it does, where it goes, data, routes, permissions, pinnable component and hash), and a skeleton writer a Designer AI uses to start an app.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.mjs",
+    "./catalog.json": "./catalog.json",
+    "./schema/soma-component-v1.schema.json": "./schema/soma-component-v1.schema.json"
+  },
+  "bin": { "soma-catalog": "./bin/soma-catalog.mjs" },
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "build": "node bin/soma-catalog.mjs build"
+  },
+  "dependencies": {
+    "ajv": "^8.17.1"
+  },
+  "license": "UNLICENSED"
+}
