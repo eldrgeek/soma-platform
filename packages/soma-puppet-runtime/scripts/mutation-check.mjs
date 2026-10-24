@@ -6,7 +6,16 @@
 // match cannot be what catches it.
 //
 //   node scripts/mutation-check.mjs        (exit 0 only if every mutant is caught)
+//   node scripts/mutation-check.mjs --full (ignore the cache and run every mutant)
+//
+// Incremental: a caught mutant is remembered in .mutation-cache.json under a
+// hash of the mutant, the file it changes and the test files that caught it
+// (with the shared test helpers). While none of those change it is not run
+// again. When they do, the tests that caught it last time run first, and the
+// whole suite only if they no longer catch it. A survivor is never cached.
+// MUTATION_FULL=1 is the same as --full.
 import { execFile } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { cp, mkdtemp, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
@@ -176,13 +185,36 @@ const BROWSER_COPY = {
   'src/render.js': 'site/public/vendor/puppet/render.js',
 };
 
-async function suitePasses() {
+// Runs the given test files (none: the whole suite). Returns the files that failed; empty means it passed.
+async function failingFiles(files = []) {
+  const args = ['--test', '--test-reporter=./scripts/failing-files-reporter.mjs', '--test-reporter-destination=stdout', ...files];
   try {
-    await run(process.execPath, ['--test'], { cwd: work, timeout: 120000 });
-    return true;
-  } catch {
-    return false;
+    await run(process.execPath, args, { cwd: work, timeout: 120000 });
+    return [];
+  } catch (error) {
+    const failed = String(error.stdout ?? '').split('\n').filter(Boolean);
+    // A crash before any test reported still counts as a failure of the whole run.
+    return failed.length ? failed : ['(the run)'];
   }
+}
+
+const suitePasses = async () => (await failingFiles()).length === 0;
+
+const FULL = process.argv.includes('--full') || process.env.MUTATION_FULL === '1';
+const CACHE = join(root, '.mutation-cache.json');
+const cached = FULL ? {} : await readFile(CACHE, 'utf8').then(JSON.parse, () => ({}));
+const nextCache = {};
+const sha = (...parts) => {
+  const hash = createHash('sha256');
+  for (const part of parts) hash.update(String(part)).update('\0');
+  return hash.digest('hex');
+};
+const read = (name) => readFile(join(work, name), 'utf8').catch(() => '(missing)');
+// Test files that are not tests themselves (fake-dom.js, studio-blobs.js) can change what any test sees.
+const helpers = (await readdir(join(work, 'test'))).filter((name) => !name.endsWith('.test.js')).sort();
+const helperHash = sha(...(await Promise.all(helpers.map((name) => read(join('test', name))))));
+async function cacheKey(id, originals, by) {
+  return sha(id, helperHash, ...originals, ...by, ...(await Promise.all(by.map(read))));
 }
 
 if (!(await suitePasses())) {
@@ -191,8 +223,10 @@ if (!(await suitePasses())) {
 }
 
 let survivors = 0;
+let skipped = 0;
 // A mutant is [file, from, to, meaning]; several replacements are [file, [[from, to], ...], null, meaning].
-for (const [file, from, to, meaning] of MUTANTS) {
+for (const mutant of MUTANTS) {
+  const [file, from, to, meaning] = mutant;
   const pairs = Array.isArray(from) ? from : [[from, to]];
   const files = [file, ...(BROWSER_COPY[file] ? [BROWSER_COPY[file]] : [])];
   const originals = await Promise.all(files.map((name) => readFile(join(work, name), 'utf8')));
@@ -202,18 +236,36 @@ for (const [file, from, to, meaning] of MUTANTS) {
     survivors += 1;
     continue;
   }
+  const id = sha(JSON.stringify(mutant));
+  const before = cached[id];
+  if (before && before.key === (await cacheKey(id, originals, before.by))) {
+    nextCache[id] = before;
+    skipped += 1;
+    console.log(`cached   ${file}: ${meaning}`);
+    continue;
+  }
   for (const [index, name] of files.entries()) {
     await writeFile(join(work, name), pairs.reduce((text, [from, to]) => text.replace(from, to), originals[index]));
   }
-  const passed = await suitePasses();
+  // The tests that caught it last time first; the whole suite only if they no longer do.
+  const earlier = (before?.by ?? []).filter((name) => name.endsWith('.test.js'));
+  let by = earlier.length ? await failingFiles(earlier) : [];
+  if (!by.length) by = await failingFiles();
   for (const [index, name] of files.entries()) await writeFile(join(work, name), originals[index]);
+  const passed = by.length === 0;
   console.log(`${passed ? 'SURVIVED' : 'caught  '} ${file}: ${meaning}`);
   if (passed) survivors += 1;
+  else if (by.every((name) => name.endsWith('.test.js'))) {
+    nextCache[id] = { key: await cacheKey(id, originals, by), by, meaning };
+  }
 }
 
 await rm(folder, { recursive: true, force: true });
+// Only the current mutants are kept, so a removed or edited mutant leaves nothing behind.
+await writeFile(CACHE, `${JSON.stringify(nextCache, null, 2)}\n`);
+const ran = MUTANTS.length - skipped;
 if (survivors) {
-  console.log(`FAIL ${survivors} of ${MUTANTS.length} mutants survived or no longer match`);
+  console.log(`FAIL ${survivors} of ${MUTANTS.length} mutants survived or no longer match (${ran} run, ${skipped} cached)`);
   process.exit(1);
 }
-console.log(`PASS all ${MUTANTS.length} mutants were caught`);
+console.log(`PASS all ${MUTANTS.length} mutants were caught (${ran} run, ${skipped} cached unchanged)`);

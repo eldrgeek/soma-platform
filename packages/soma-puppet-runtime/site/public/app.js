@@ -3,7 +3,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { parse } from '/vendor/puppet/parser.js';
 import { render } from '/vendor/puppet/render.js';
 import { createSomaAuthConfig } from '/vendor/soma-signin/somaAuthConfig.js';
-import { loadComponents } from '/components.js';
+import { loadComponents, withPin } from '/components.js';
 
 const appId = new URLSearchParams(location.search).get('app') || 'sunday-supper';
 const appRoot = document.querySelector('#app');
@@ -355,6 +355,7 @@ async function loadVersions() {
     list.append(item);
   }
   hostRoot.append(list);
+  await showPins();
 
   const source = document.createElement('textarea');
   source.setAttribute('aria-label', 'New Puppet description');
@@ -392,6 +393,65 @@ async function loadVersions() {
     }
   });
   hostRoot.append(undo);
+}
+
+// Component pins: which published build of each shared component this app loads. Choosing one
+// proposes the description with its `uses` line changed; it is live only once approved.
+const PINNABLE = ['soma-play', 'soma-video'];
+
+async function showPins() {
+  manifest ??= await fetch('/vendor/manifest.json').then((response) => (response.ok ? response.json() : {}), () => ({}));
+  const uses = sketch.uses ?? {};
+  const box = document.createElement('div');
+  box.className = 'host-pins';
+  const heading = document.createElement('h3');
+  heading.textContent = 'Components';
+  box.append(heading);
+  for (const pkg of PINNABLE) {
+    const builds = Object.entries(manifest[pkg]?.versions ?? {}).sort(([, a], [, b]) => b.localeCompare(a));
+    if (!builds.length) continue;
+    const row = document.createElement('label');
+    row.append(`${pkg} `);
+    const choice = document.createElement('select');
+    choice.dataset.pin = pkg;
+    const latest = document.createElement('option');
+    latest.value = '';
+    latest.textContent = 'latest (follows every update)';
+    choice.append(latest);
+    for (const [hash, date] of builds) {
+      const option = document.createElement('option');
+      option.value = hash;
+      option.textContent = `${hash} · ${date}${hash === manifest[pkg].latest ? ' · newest' : ''}`;
+      choice.append(option);
+    }
+    choice.value = uses[pkg] ?? '';
+    const propose = document.createElement('button');
+    propose.type = 'button';
+    propose.textContent = 'Propose';
+    propose.addEventListener('click', async () => {
+      const hash = choice.value || null;
+      if (hash === (uses[pkg] ?? null)) {
+        setStatus(`${pkg} is already ${hash ? `pinned to ${hash}` : 'following the latest'}.`);
+        return;
+      }
+      try {
+        await api('propose', {
+          method: 'POST',
+          body: {
+            source: withPin(current.source, pkg, hash),
+            reason: hash ? `Pin ${pkg} to ${hash}` : `Let ${pkg} follow the latest`,
+          },
+        });
+        await loadVersions();
+        setStatus(`Proposed ${hash ? `${pkg}@${hash}` : `the latest ${pkg}`}. Approve it to make it live; Undo puts the old one back.`);
+      } catch (error) {
+        setStatus(error.message);
+      }
+    });
+    row.append(choice, propose);
+    box.append(row);
+  }
+  hostRoot.append(box);
 }
 
 async function loadCurrent(force = false) {

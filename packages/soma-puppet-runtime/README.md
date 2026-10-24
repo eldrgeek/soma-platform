@@ -228,6 +228,15 @@ v0.3) and requires a failing test for every one. CI runs it too:
 timeout 1500 npm run mutation
 ```
 
+The check is incremental. A caught mutant is remembered in
+`.mutation-cache.json` (not committed) under a hash of the mutant, the file it
+changes, the test files that caught it and the shared test helpers, and is not
+run again while none of those change. When one does, the tests that caught it
+last time run first, and the whole suite only if they no longer catch it. A
+survivor is never remembered. `npm run mutation -- --full` ignores the cache.
+CI runs it in full on master, which seeds the cache that pull requests start
+from, and incrementally on pull requests.
+
 ## SOMA Studio on this site
 
 Since 2026-10-21 this site also serves SOMA Studio v1 (`packages/soma-studio`) at `/studio/`, so the
@@ -255,7 +264,10 @@ uses soma-video@4fc900785602
 The page then loads that app's `soma-video` from the pinned folder; an app with
 no pin loads the latest, exactly as before pins existed. Pins move with the
 description, so changing one goes through Propose and Approve, and Undo puts the
-old pin back. The page loads the components again only when the pins change, so
+old pin back. The host panel's Components section lists each published build
+by hash and date; choosing one and pressing Propose proposes the description
+with that `uses` line changed (or removed, for "latest"), and Approve makes it
+live for that one app. The page loads the components again only when the pins change, so
 an approved pin takes effect at the next check without a reload. A pin the
 store does not have falls back to the latest and says so in the status line.
 
