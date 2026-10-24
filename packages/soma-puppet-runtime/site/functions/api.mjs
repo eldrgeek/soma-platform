@@ -7,7 +7,7 @@ import { createStageReader, DEFAULT_LIMITS } from '../../../soma-play/server/sta
 import { createVideoReader, VIDEO_LIMITS } from '../../../soma-video/server/video-read.js';
 import { createVideoStudio } from '../../../soma-video/server/studio.js';
 import { BoardError, createBoardStore } from '../../../soma-video/server/boards.js';
-import { BOARD_STEP_NAMES, jobBrief, LIMITS as BOARD_LIMITS, roleOf } from '../../../soma-video/src/storyboard.js';
+import { ASPECTS, BOARD_STEP_NAMES, jobBrief, LIMITS as BOARD_LIMITS, OWN_PICTURE_TYPES, roleOf } from '../../../soma-video/src/storyboard.js';
 import { notesOps, notesToRedo, parseNotes } from '../../../soma-video/src/notes.js';
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { PuppetParseError, STATUSES, stricter } from '../../src/store.js';
@@ -276,7 +276,7 @@ export function createApiHandler({
             if (job.board) {
               if (!withBoards || !videoBoards) continue;
               const board = await videoBoards.get(appId, job.board);
-              out.push({ ...job, title: board?.title ?? '', board: board ?? null, brief: board ? jobBrief(board, job) : '' });
+              out.push({ ...job, title: board?.title ?? '', board: board ?? null, brief: board ? jobBrief(board, job, { site: url.origin, app: appId }) : '' });
               continue;
             }
             const rows = await store.list(appId, job.data, {});
@@ -320,6 +320,12 @@ export function createApiHandler({
               if (error instanceof BoardError) throw new HttpError(400, error.message);
               throw error;
             }
+          }
+          // A picture someone uploaded (v0.7 editor) has no path on the Mac; the team fetches it from here.
+          if (file && request.method === 'GET') {
+            const found = await videoBoards.getFile(appId, boardId, file);
+            if (!found) throw new HttpError(404, `Unknown file: ${file}`);
+            return new Response(found.bytes, { status: 200, headers: { 'content-type': found.metadata?.type ?? 'application/octet-stream' } });
           }
           if (file && request.method === 'PUT') {
             const bytes = new Uint8Array(await request.arrayBuffer());
@@ -555,7 +561,7 @@ export function createApiHandler({
       // anything, its artists (by the email they sign in with) may view and change it, and anyone else is
       // answered as if it did not exist. Only the host starts a board. A job asked by anyone but the host
       // waits (held) until the host lets it run, because it runs with Claude Code on the host's Mac.
-      const boardMatch = route.match(/^video-boards(?:\/([^/]+)(?:\/(files|jobs|notes)(?:\/([^/]+))?)?)?$/);
+      const boardMatch = route.match(/^video-boards(?:\/([^/]+)(?:\/(files|jobs|notes|pictures)(?:\/([^/]+))?)?)?$/);
       if (boardMatch) {
         if (!videoBoards || !videoStudio) throw new HttpError(503, 'Storyboards are not configured');
         const [, boardId, kind, item] = boardMatch.map((part) => (part === undefined ? part : decodeURIComponent(part)));
@@ -607,6 +613,22 @@ export function createApiHandler({
               status: 200,
               headers: { 'content-type': found.metadata?.type ?? 'application/octet-stream', 'cache-control': 'private, max-age=3600' },
             });
+          }
+          // A picture of your own for a scene: anyone who may change the board uploads it, the server names the
+          // file (up-…, so no one can point a scene at a file the team made for another), and it goes on the
+          // scene as an own-picture change, so the same rules decide it as every other change.
+          if (kind === 'pictures' && item && request.method === 'POST') {
+            const aspect = url.searchParams.get('aspect');
+            if (!ASPECTS.includes(aspect)) throw new HttpError(400, 'Say ?aspect=9x16 or ?aspect=16x9');
+            if (!board.scenes.some((s) => s.id === item)) throw new HttpError(400, 'Name a scene on this board');
+            const type = (request.headers.get('content-type') ?? '').split(';')[0].trim();
+            const ext = OWN_PICTURE_TYPES[type];
+            if (!ext) throw new HttpError(400, 'A picture is a JPEG, PNG or WebP');
+            const bytes = new Uint8Array(await request.arrayBuffer());
+            const name = `up-${item}-${aspect}-${Date.now().toString(36)}${createHash('sha256').update(bytes).digest('hex').slice(0, 6)}.${ext}`.slice(0, 99);
+            await videoBoards.putFile(appId, boardId, name, bytes, { type });
+            const { board: next } = await videoBoards.change(appId, boardId, [{ op: 'own-picture', scene: item, aspect, file: name }], { by, role });
+            return json({ ...next, role, file: name }, 201);
           }
           if (kind === 'jobs' && !item && request.method === 'GET') {
             return json(await videoStudio.listJobs(appId, { board: boardId }));

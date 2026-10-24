@@ -377,3 +377,33 @@ test('the storyboard component: reroll in one click, redo the marked scenes in o
   assert.match(root.textContent, /Notes put on e01; the batch is queued for the Mac/);
   view.destroy();
 });
+
+test('a picture of your own: owner or artist uploads it, the server names it, the team fetches it for a render', async () => {
+  const api = makeApi();
+  await seeded(api);
+  const png = new Uint8Array([137, 80, 78, 71, 1, 2, 3]);
+  const up = await api.call('video-boards/witness/pictures/e02?aspect=16x9', { method: 'POST', user: 'eric', raw: png, headers: { 'content-type': 'image/png' } });
+  assert.equal(up.status, 201, JSON.stringify(up.body));
+  const name = up.body.file;
+  assert.match(name, /^up-e02-16x9-[a-z0-9]+\.png$/);
+  assert.equal(up.body.scenes[1].pictures['16x9'], name);
+  assert.equal(up.body.updatedBy, 'Eric');
+  // Readers of the board and the team fetch it; the team's brief for a render says how.
+  assert.deepEqual([...(await api.call(`video-boards/witness/files/${name}`, { user: 'mike' })).body], [...png]);
+  const team = await api.call(`video-team/boards/witness/files/${name}`, { key: KEY });
+  assert.equal(team.status, 200);
+  assert.deepEqual([...team.body], [...png]);
+  assert.equal((await api.call(`video-team/boards/witness/files/${name}`)).status, 401);
+  assert.equal((await api.call('video-team/boards/witness/files/nope.png', { key: KEY })).status, 404);
+  await api.call('video-boards/witness/jobs', { method: 'POST', user: 'mike', body: { step: 'render', cut: 'full' } });
+  const jobs = await api.call('video-team/jobs?boards=1', { key: KEY });
+  assert.match(jobs.body.find((j) => j.board).brief, new RegExp(`http://localhost/api/app/videomaker/video-team/boards/witness/files/${name.replace('.', '\\.')}`));
+  // Refused: someone not on the board, a type that is not a picture, a scene or aspect that is not there.
+  assert.equal((await api.call('video-boards/witness/pictures/e02?aspect=16x9', { method: 'POST', user: 'theo', raw: png, headers: { 'content-type': 'image/png' } })).status, 404);
+  assert.equal((await api.call('video-boards/witness/pictures/e02?aspect=16x9', { method: 'POST', user: 'eric', raw: png, headers: { 'content-type': 'image/svg+xml' } })).status, 400);
+  assert.equal((await api.call('video-boards/witness/pictures/e09?aspect=16x9', { method: 'POST', user: 'eric', raw: png, headers: { 'content-type': 'image/png' } })).status, 400);
+  assert.equal((await api.call('video-boards/witness/pictures/e02?aspect=4x3', { method: 'POST', user: 'eric', raw: png, headers: { 'content-type': 'image/png' } })).status, 400);
+  // A person cannot point a scene at a file the team made, only at an upload.
+  const point = await api.call('video-boards/witness', { method: 'PATCH', user: 'eric', body: { ops: [{ op: 'own-picture', scene: 'e02', aspect: '9x16', file: 'e01-9x16.jpg' }] } });
+  assert.equal(point.status, 400);
+});
