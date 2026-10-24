@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "test": "node --test",
-    "mutation": "node scripts/mutation-check.mjs"
+    "mutation": "node scripts/mutation-check.mjs",
+    "vendor:publish": "node scripts/vendor-store.mjs"
   },
   "dependencies": {
     "@netlify/blobs": "^11.1.4"

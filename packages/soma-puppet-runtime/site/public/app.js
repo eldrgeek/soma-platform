@@ -2,14 +2,8 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 
 import { parse } from '/vendor/puppet/parser.js';
 import { render } from '/vendor/puppet/render.js';
-import { mountPlayView } from '/vendor/soma-play/play-view.js';
-import { mountStageRead } from '/vendor/soma-play/stage-read.js';
-import { mountVideoView } from '/vendor/soma-video/video-view.js';
-import { mountVideoRead } from '/vendor/soma-video/video-read.js';
-import { mountVideoAssets } from '/vendor/soma-video/video-assets.js';
-import { mountVideoJobs } from '/vendor/soma-video/video-jobs.js';
-import { mountStoryboards } from '/vendor/soma-video/video-storyboard.js';
 import { createSomaAuthConfig } from '/vendor/soma-signin/somaAuthConfig.js';
+import { loadComponents } from '/components.js';
 
 const appId = new URLSearchParams(location.search).get('app') || 'sunday-supper';
 const appRoot = document.querySelector('#app');
@@ -184,16 +178,30 @@ function writeBoard(id) {
   if (next !== `${location.pathname}${location.search}`) history.replaceState(null, '', next);
 }
 
+// The shared components come from the builds the live description pins (`uses soma-video@<hash>`),
+// or the latest. They load again only when the pins change, so an approved pin takes effect at once.
+let lib;
+let manifest;
+
+async function loadLibrary(uses) {
+  if (Object.keys(uses).length && !manifest) {
+    manifest = await fetch('/vendor/manifest.json').then((response) => (response.ok ? response.json() : {}), () => ({}));
+  }
+  const next = await loadComponents(uses, manifest ?? {}, (url) => import(url));
+  if (next.key !== lib?.key) lib = next;
+  return next.notices;
+}
+
 const components = {
   'video-storyboards': (node, { host }) =>
-    mountStoryboards(node, {
+    lib.mountStoryboards(node, {
       api: storyboardApi,
       host,
       initial: new URLSearchParams(location.search).get('board'),
       onOpen: writeBoard,
     }),
   'video-assets': (node, { text, data, rowId }) => {
-    const board = mountVideoAssets(node, {
+    const board = lib.mountVideoAssets(node, {
       text,
       cacheKey: rowId,
       listAssets: () => api(`${videoPath(data, rowId)}/assets`),
@@ -203,17 +211,17 @@ const components = {
     return board;
   },
   'video-jobs': (node, { data, rowId }) =>
-    mountVideoJobs(node, {
+    lib.mountVideoJobs(node, {
       listJobs: () => api(`${videoPath(data, rowId)}/jobs`),
       createJob: (job) => api(`${videoPath(data, rowId)}/jobs`, { method: 'POST', body: job }),
       onDone: () => boards.get(rowId)?.refresh(),
     }),
-  'video-view': (node, text) => mountVideoView(node, text),
+  'video-view': (node, text) => lib.mountVideoView(node, text),
   'video-read': (node, { text, onActive, ...where }) =>
-    mountVideoRead(node, { text, onActive, mountStageRead, speak: reader('video-read')(where) }),
-  'play-view': (node, text) => mountPlayView(node, text),
+    lib.mountVideoRead(node, { text, onActive, mountStageRead: lib.mountStageRead, speak: reader('video-read')(where) }),
+  'play-view': (node, text) => lib.mountPlayView(node, text),
   'stage-read': (node, { text, data, rowId, field, onActive }) =>
-    mountStageRead(node, {
+    lib.mountStageRead(node, {
       text,
       onActive,
       speak: (line) =>
@@ -379,6 +387,7 @@ async function loadCurrent(force = false) {
   if (parsed.errors.length) {
     throw new Error(`Live Puppet description has ${parsed.errors.length} parse error(s)`);
   }
+  const notices = await loadLibrary(parsed.sketch.uses ?? {});
   current = next;
   sketch = parsed.sketch;
   title.textContent = sketch.meta?.title || appId;
@@ -387,7 +396,7 @@ async function loadCurrent(force = false) {
   if (!view) readAddress();
   draw();
   await loadVersions();
-  setStatus(`Live version ${current.versionId}`);
+  setStatus([`Live version ${current.versionId}`, ...notices].join(' · '));
 }
 
 function showIdentity() {

@@ -225,6 +225,45 @@ copies the studio page into `site/public/studio/` (gitignored), and `site/functi
 version, `app.js` tells the studio (`postMessage`), and it redraws when the studio asks. Read
 `packages/soma-studio/README.md`.
 
+## Component pins
+
+The shared components (`soma-play` and `soma-video`) are published like Nix
+store paths: every build lives at `/vendor/<component>@<hash>/`, named by a
+sha256 of its files, and is never changed or removed. `/vendor/manifest.json`
+lists each build with its date and names the latest. `/vendor/<component>/`
+stays the latest build, unhashed.
+
+An app's description may pin a build with a top-level line:
+
+```
+puppet "VideoMaker" version "0.7"
+uses soma-video@4fc900785602
+```
+
+The page then loads that app's `soma-video` from the pinned folder; an app with
+no pin loads the latest, exactly as before pins existed. Pins move with the
+description, so changing one goes through Propose and Approve, and Undo puts the
+old pin back. The page loads the components again only when the pins change, so
+an approved pin takes effect at the next check without a reload. A pin the
+store does not have falls back to the latest and says so in the status line.
+
+Only shared components are pinnable. The runtime itself (`puppet`), sign-in and
+feedback are gate code and always move with the site. The server halves
+(Stage Read, the narration read, storyboard rules) also always run the latest
+code, so a pinned build must still speak the current API.
+
+After changing a component, copy its `src/` into `site/public/vendor/<component>/`
+(the mirror test checks it) and publish the new build:
+
+```sh
+node scripts/vendor-store.mjs           # copies the new build to vendor/<component>@<hash>/
+node scripts/vendor-store.mjs --check   # what test/component-store.test.js checks
+```
+
+Commit the new folder and `manifest.json` with the change. The test fails if the
+latest build is not published, or if a published build was edited, removed or
+added by hand.
+
 ## Out of scope for runtime v1
 
 - Invitations

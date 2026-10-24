@@ -9,5 +9,10 @@
   identities pin this fallback because the central chip does not expose a
   general headers hook.
 
+- `manifest.json` and the `soma-play@<hash>/` and `soma-video@<hash>/` folders
+  are the component store: every published build of a shared component, never
+  changed once written. `scripts/vendor-store.mjs` writes them; see the
+  package README, "Component pins".
+
 The runtime site has no build step, so these files are committed as static
 assets.
