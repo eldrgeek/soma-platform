@@ -89,6 +89,12 @@ storyboard as scene cards that the host and the artists the host names can
 change, with cuts that know when they need rendering again. An artist's request
 to the Mac waits until the host lets it run.
 
+### Puppet v0.8: run lines
+
+[`GRAMMAR-v0.8.md`](./GRAMMAR-v0.8.md) adds `line-run "{row.text}"`: the actor picks a part, Stage Read
+reads the others, and the run stops on each of the actor's lines with the line hidden (or as initials,
+`hint: initials`). It uses Stage Read's route, checks and allowance. `examples/monologues.puppet` has it.
+
 ## Browser renderer
 
 `src/render.js` exports:

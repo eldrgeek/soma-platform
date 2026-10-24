@@ -1,4 +1,4 @@
-puppet "Monologues" version "0.4"
+puppet "Monologues" version "0.8"
 
 app "Monologues" {
   promise: "Keep your audition pieces private, read them as a script page, and hear them aloud."
@@ -24,6 +24,7 @@ screen "My pieces" {
 screen "Piece" from pieces {
   hero { title: "{row.title}", subtitle: "{row.play}" }
   stage-read "{row.text}"
+  line-run "{row.text}" hint: initials
   play-view "{row.text}"
   button "Delete this piece" @danger -> removes from pieces
 }

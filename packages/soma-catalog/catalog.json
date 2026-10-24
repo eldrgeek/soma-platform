@@ -1,7 +1,7 @@
 {
   "catalog": "soma-component/1",
   "about": "Every Puppet Script word: what it does, where it may go, what it reads and writes, its routes and who may call them, and the shared component that draws it. Pins name the latest published build; an app with no pin loads the latest.",
-  "grammarVersion": "0.7",
+  "grammarVersion": "0.8",
   "grammar": {
     "roles": [
       "@primary",
@@ -511,6 +511,82 @@
       "tests": [
         "packages/soma-puppet-runtime/test/parser.test.js",
         "packages/soma-puppet-runtime/test/render.test.js"
+      ]
+    },
+    {
+      "word": "line-run",
+      "summary": "Run lines: the actor picks a part, Stage Read reads every other character, and the run stops on each of the actor's lines with the line hidden until they tap Next.",
+      "since": "0.8",
+      "rendering": "drawn",
+      "component": "soma-play",
+      "export": "mountLineRun",
+      "placement": "row",
+      "label": "row-field",
+      "template": "line-run \"{row.$field}\" hint: initials",
+      "params": [
+        {
+          "name": "text",
+          "in": "label",
+          "required": true,
+          "description": "Exactly one {row.field}"
+        },
+        {
+          "name": "hint",
+          "in": "prop",
+          "required": false,
+          "description": "none (default) hides the actor's line; initials shows the first letter of each word"
+        }
+      ],
+      "data": {
+        "reads": "One field of the screen's row; the page sends only the row id and line numbers of the other parts.",
+        "writes": "Stage Read's spend counters and audio cache."
+      },
+      "routes": [
+        {
+          "method": "POST",
+          "path": "/api/app/:appId/stage-read",
+          "who": "signed in reader of the row",
+          "purpose": "Body { data, rowId, field, line }; answers audio/mpeg",
+          "checks": [
+            "signed in",
+            "a stage-read or line-run of this field on a screen the reader can see",
+            "the reader may read the row",
+            "the line exists",
+            "spend allowance"
+          ]
+        }
+      ],
+      "permissions": "As stage-read: only a reader of the row. A line-run never offers the narration read.",
+      "enforcement": "server",
+      "cost": {
+        "service": "ElevenLabs text to speech",
+        "key": "ELEVENLABS_API_KEY (server only)",
+        "allowance": "Stage Read's allowance, shared with stage-read"
+      },
+      "runsOn": "browser+server",
+      "tags": [
+        "play",
+        "voice",
+        "tts",
+        "theatre",
+        "audio",
+        "rehearsal",
+        "actors"
+      ],
+      "replaces": "A rehearsal partner reading the other parts.",
+      "limits": [
+        "Stage Read's five fixed voices.",
+        "The chosen part is not remembered between visits."
+      ],
+      "docs": "packages/soma-puppet-runtime/GRAMMAR-v0.8.md",
+      "source": [
+        "packages/soma-play/src/line-run.js",
+        "packages/soma-play/src/script.js",
+        "packages/soma-puppet-runtime/site/functions/api.mjs"
+      ],
+      "tests": [
+        "packages/soma-play/test/line-run.test.js",
+        "packages/soma-puppet-runtime/test/v08.test.js"
       ]
     },
     {

@@ -211,6 +211,13 @@ const components = {
   'video-read': (node, { text, onActive, ...where }) =>
     lib.mountVideoRead(node, { text, onActive, mountStageRead: lib.mountStageRead, speak: reader('video-read')(where) }),
   'play-view': (node, text) => lib.mountPlayView(node, text),
+  'line-run': (node, { text, data, rowId, field, hint, onActive }) => {
+    if (!lib.mountLineRun) {
+      node.textContent = 'Run lines needs a newer soma-play than this app is pinned to.';
+      return null;
+    }
+    return lib.mountLineRun(node, { text, hint, onActive, speak: reader('stage-read')({ data, rowId, field }) });
+  },
   'stage-read': (node, { text, data, rowId, field, onActive }) =>
     lib.mountStageRead(node, {
       text,
