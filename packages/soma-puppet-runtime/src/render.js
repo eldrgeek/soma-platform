@@ -417,6 +417,18 @@ export function render(sketch, { root, data = {}, me = {}, host = false, onActio
       return;
     }
 
+    // Puppet v0.9 (packages/soma-video): the evidence ledger, every claim in the script next to its
+    // source. Like the AV view it follows the editor's unsaved text.
+    if (element.kind === 'video-evidence') {
+      const node = append(parent, 'section', { className: 'puppet-runtime-video-evidence' });
+      if (!components['video-evidence']) {
+        append(node, 'p', { className: 'puppet-runtime-empty', text: 'The evidence ledger is not available here.' });
+        return;
+      }
+      mounted.push({ view: components['video-evidence'](node, draftOf(element.label) ?? text(element.label)), label: element.label });
+      return;
+    }
+
     if (element.kind === 'video-read') {
       const node = append(parent, 'section', { className: 'puppet-runtime-stage-read' });
       if (!components['video-read'] || !currentRow?.id) {

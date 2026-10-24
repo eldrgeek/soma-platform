@@ -1,0 +1,25 @@
+{
+  "word": "video-evidence",
+  "summary": "The evidence ledger: every narrator line and card in a video script next to its [[src: ...]] notes, with the claims that have no source marked.",
+  "since": "0.9",
+  "rendering": "drawn",
+  "component": "soma-video",
+  "export": "mountVideoEvidence",
+  "placement": "row",
+  "label": "text",
+  "template": "video-evidence \"{row.$field}\"",
+  "params": [
+    { "name": "text", "in": "label", "required": true, "description": "The script; usually {row.text}. Its label may be any text; with {row.text} it goes on a row screen." }
+  ],
+  "data": { "reads": "The text in its label, live from a script-editor of the same field.", "writes": "nothing" },
+  "routes": [],
+  "permissions": "Anyone who can see the screen; it shows only text the page already has.",
+  "enforcement": "none",
+  "runsOn": "browser",
+  "tags": ["video", "script", "evidence", "review", "documentary", "fountain"],
+  "replaces": "The hand-written EVIDENCE.md beside each making-of draft.",
+  "limits": ["A source note inside a speech is reported, not used, because a reading would speak it.", "It checks that a source is named, not that the source says what the line claims."],
+  "docs": "packages/soma-puppet-runtime/GRAMMAR-v0.9.md",
+  "source": ["packages/soma-video/src/evidence.js", "packages/soma-video/src/film.js"],
+  "tests": ["packages/soma-video/test/evidence.test.js", "packages/soma-puppet-runtime/test/v09.test.js"]
+}
