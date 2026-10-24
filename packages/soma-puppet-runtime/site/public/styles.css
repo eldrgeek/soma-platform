@@ -204,3 +204,12 @@ button { cursor: pointer; }
   .puppet-runtime-script-text { min-height: 40vh; }
   .puppet-runtime-layout-writer .puppet-runtime-region-view { max-height: none; }
 }
+/* Puppet v0.9 evidence ledger: the claims with no source stand out. */
+.soma-video-evidence { margin: 12px 0; }
+.soma-video-evidence-summary { font-weight: 600; }
+.soma-video-evidence-missing { color: #9a3412; }
+.soma-video-evidence-problem { color: #9a3412; font-size: 14px; }
+.soma-video-evidence-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.soma-video-evidence-table th, .soma-video-evidence-table td { text-align: left; vertical-align: top; padding: 6px 8px; border-bottom: 1px solid #e2e8f0; }
+.soma-video-evidence-unsourced td:last-child { color: #9a3412; font-weight: 600; }
+.soma-video-evidence-exempt td:last-child { color: #4a5a6e; font-style: italic; }

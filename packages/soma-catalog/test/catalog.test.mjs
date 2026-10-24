@@ -13,7 +13,7 @@ const byWord = new Map(records.map((r) => [r.word, r]));
 const parserSource = readFileSync(join(REPO, 'packages/soma-puppet-runtime/src/parser.js'), 'utf8');
 const renderSource = readFileSync(join(REPO, 'packages/soma-puppet-runtime/src/render.js'), 'utf8');
 const setFrom = (name) => new Set(parserSource.match(new RegExp(`const ${name}=new Set\\('([^']+)'`))[1].split(' '));
-const versions = ['0.1', '0.2', '0.3', '0.4', '0.5', '0.6', '0.7', '0.8'];
+const versions = ['0.1', '0.2', '0.3', '0.4', '0.5', '0.6', '0.7', '0.8', '0.9'];
 
 test('every record is valid against the schema', () => {
   for (const r of records) assert.deepEqual(validateRecord(r).errors, [], r.word);

@@ -208,6 +208,13 @@ const components = {
       onDone: () => boards.get(rowId)?.refresh(),
     }),
   'video-view': (node, text) => lib.mountVideoView(node, text),
+  'video-evidence': (node, text) => {
+    if (!lib.mountVideoEvidence) {
+      node.textContent = 'The evidence ledger needs a newer soma-video than this app is pinned to.';
+      return null;
+    }
+    return lib.mountVideoEvidence(node, text);
+  },
   'video-read': (node, { text, onActive, ...where }) =>
     lib.mountVideoRead(node, { text, onActive, mountStageRead: lib.mountStageRead, speak: reader('video-read')(where) }),
   'play-view': (node, text) => lib.mountPlayView(node, text),

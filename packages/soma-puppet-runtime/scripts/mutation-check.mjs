@@ -103,6 +103,7 @@ const MUTANTS = [
   [API, "const speaks = (element, kind) => element.kind === kind || (kind === 'stage-read' && element.kind === 'line-run');", "const speaks = (element, kind) => element.kind === kind;", 'a line-run cannot be heard'],
   ['src/parser.js', "if(!m||!o.from)errors.push({line:el.line,message:'line-run runs one field", "if(false)errors.push({line:el.line,message:'line-run runs one field", 'line-run takes any text'],
   ['src/parser.js', "if(!(version>=0.8))errors.push({line:el.line,message:'line-run", "if(false)errors.push({line:el.line,message:'line-run", 'a v0.7 description uses line-run'],
+  ['src/parser.js', "if(!(version>=0.9))errors.push({line:el.line,message:'video-evidence", "if(false)errors.push({line:el.line,message:'video-evidence", 'a v0.8 description uses video-evidence'],
   ['src/parser.js', "if(!(version>=0.5))errors.push(", 'if(false)errors.push(', 'a v0.4 description uses v0.5 elements'],
   ['src/parser.js', "if(el.kind==='script-editor'&&m[1]==='status')errors.push(", 'if(false)errors.push(', 'a script-editor changes status'],
   ['src/render.js', '        drafts.set(key, area.value);\n', '', 'unsaved text is lost on a redraw'],
