@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://soma-forge.netlify.app/schema/soma-component-v1.schema.json",
+  "title": "SOMA component record v1",
+  "description": "One Puppet word: what it does, where it may go, what it reads and writes, its routes and who may call them, and the shared component (pinnable by hash) that draws it.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["word", "summary", "since", "rendering", "component", "placement", "label", "template", "params", "data", "routes", "permissions", "enforcement", "runsOn", "tags", "docs", "source", "tests"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "word": { "type": "string", "pattern": "^[a-z][a-z-]*$", "description": "The element kind as written in Puppet Script." },
+    "summary": { "type": "string", "minLength": 10, "maxLength": 300 },
+    "since": { "type": "string", "pattern": "^0\\.[0-9]+$", "description": "First Puppet grammar version that has the word." },
+    "rendering": { "enum": ["drawn", "placeholder"], "description": "placeholder: the renderer draws a plain labelled box; the look is not built." },
+    "component": { "type": ["string", "null"], "description": "Shared component package that draws it (pinnable with uses <component>@<hash>), or null when it moves with the runtime." },
+    "export": { "type": "string", "description": "The mount function the component exports." },
+    "placement": { "enum": ["any", "row", "screen"], "description": "row: on a screen from data (its template uses {row.field}). screen: only on a screen that is not from data. any: anywhere." },
+    "label": { "enum": ["text", "row-field", "none", "optional"], "description": "row-field: the label must be exactly one {row.field}." },
+    "template": { "type": "string", "description": "A Puppet snippet that parses inside the catalog's example app. $data, $field and $rowScreen are filled in." },
+    "params": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "in", "required", "description"],
+        "properties": {
+          "name": { "type": "string" },
+          "in": { "enum": ["label", "prop", "role", "hook"] },
+          "required": { "type": "boolean" },
+          "description": { "type": "string" }
+        }
+      }
+    },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reads", "writes"],
+      "properties": { "reads": { "type": "string" }, "writes": { "type": "string" } }
+    },
+    "routes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["method", "path", "who", "purpose"],
+        "properties": {
+          "method": { "enum": ["GET", "POST", "PUT", "PATCH", "DELETE"] },
+          "path": { "type": "string", "pattern": "^/api/" },
+          "who": { "type": "string" },
+          "purpose": { "type": "string" },
+          "checks": { "type": "array", "items": { "type": "string" }, "description": "The server's checks, in order." }
+        }
+      }
+    },
+    "permissions": { "type": "string" },
+    "enforcement": { "enum": ["server", "display", "none"], "description": "display: hiding only, not a permission. server: the API refuses." },
+    "cost": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["service", "key", "allowance"],
+      "properties": { "service": { "type": "string" }, "key": { "type": "string" }, "allowance": { "type": "string" } }
+    },
+    "runsOn": { "enum": ["browser", "browser+server", "browser+server+mac"] },
+    "tags": { "type": "array", "minItems": 1, "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" } },
+    "replaces": { "type": "string", "description": "The hand-written code this word saves an app." },
+    "limits": { "type": "array", "items": { "type": "string" } },
+    "docs": { "type": "string" },
+    "source": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+    "tests": { "type": "array", "minItems": 1, "items": { "type": "string" } }
+  }
+}

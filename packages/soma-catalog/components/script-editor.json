@@ -1,0 +1,54 @@
+{
+  "word": "script-editor",
+  "summary": "Edits one text field of the row in a box with Save; typing redraws video-views of the same field.",
+  "since": "0.5",
+  "rendering": "drawn",
+  "component": null,
+  "placement": "row",
+  "label": "row-field",
+  "template": "script-editor \"{row.$field}\"",
+  "params": [
+    {
+      "name": "text",
+      "in": "label",
+      "required": true,
+      "description": "Exactly one {row.field}, not status"
+    }
+  ],
+  "data": {
+    "reads": "The row field.",
+    "writes": "The row field (at most 40,000 characters)."
+  },
+  "routes": [
+    {
+      "method": "PUT",
+      "path": "/api/app/:appId/data/:name/:rowId",
+      "who": "the row's author",
+      "purpose": "Body { field, value }",
+      "checks": [
+        "signed in",
+        "body is one text field and a text value",
+        "at most 40,000 characters",
+        "a script-editor of this field on a screen the reader can see",
+        "the reader is the author"
+      ]
+    }
+  ],
+  "permissions": "Only the row's author edits it; the host does not edit other people's rows.",
+  "enforcement": "server",
+  "runsOn": "browser+server",
+  "tags": [
+    "editing",
+    "write",
+    "script"
+  ],
+  "replaces": "Hand-written edit endpoints with author checks.",
+  "docs": "packages/soma-puppet-runtime/GRAMMAR-v0.5.md#3-script-editor-change-a-rows-text",
+  "source": [
+    "packages/soma-puppet-runtime/src/render.js",
+    "packages/soma-puppet-runtime/site/functions/api.mjs"
+  ],
+  "tests": [
+    "packages/soma-puppet-runtime/test/v05.test.js"
+  ]
+}

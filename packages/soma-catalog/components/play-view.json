@@ -1,0 +1,42 @@
+{
+  "word": "play-view",
+  "summary": "A scene drawn read-only as script pages in Diana's house format (PlayMaker). Its label may be any text; with {row.text} it goes on a row screen, which is how apps use it.",
+  "since": "0.4",
+  "rendering": "drawn",
+  "component": "soma-play",
+  "export": "mountPlayView",
+  "placement": "row",
+  "label": "text",
+  "template": "play-view \"{row.$field}\"",
+  "params": [
+    {
+      "name": "text",
+      "in": "label",
+      "required": true,
+      "description": "The scene; usually {row.text} on a row screen"
+    }
+  ],
+  "data": {
+    "reads": "The text in its label.",
+    "writes": "nothing"
+  },
+  "routes": [],
+  "permissions": "Anyone who can see the screen.",
+  "enforcement": "none",
+  "runsOn": "browser",
+  "tags": [
+    "play",
+    "script",
+    "theatre",
+    "writing"
+  ],
+  "docs": "packages/soma-puppet-runtime/GRAMMAR-v0.4.md#play-view-a-scene-in-dianas-script-format",
+  "source": [
+    "packages/soma-play/src/play-view.js",
+    "packages/soma-play/src/script.js"
+  ],
+  "tests": [
+    "packages/soma-play/test/script.test.js",
+    "packages/soma-puppet-runtime/test/render-v04.test.js"
+  ]
+}

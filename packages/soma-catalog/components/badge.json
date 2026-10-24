@@ -1,0 +1,39 @@
+{
+  "word": "badge",
+  "summary": "A small count or status chip.",
+  "since": "0.1",
+  "rendering": "drawn",
+  "component": null,
+  "placement": "any",
+  "label": "text",
+  "template": "badge \"{$data.count}\"",
+  "params": [
+    {
+      "name": "text",
+      "in": "label",
+      "required": true,
+      "description": "Usually a count token"
+    }
+  ],
+  "data": {
+    "reads": "Tokens only.",
+    "writes": "nothing"
+  },
+  "routes": [],
+  "permissions": "Anyone who can see the screen.",
+  "enforcement": "none",
+  "runsOn": "browser",
+  "tags": [
+    "text",
+    "status"
+  ],
+  "docs": "packages/soma-puppet-runtime/GRAMMAR-v0.1.md",
+  "source": [
+    "packages/soma-puppet-runtime/src/parser.js",
+    "packages/soma-puppet-runtime/src/render.js"
+  ],
+  "tests": [
+    "packages/soma-puppet-runtime/test/parser.test.js",
+    "packages/soma-puppet-runtime/test/render.test.js"
+  ]
+}

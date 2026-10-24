@@ -1,0 +1,53 @@
+{
+  "word": "video-read",
+  "summary": "Reads a video script's narration aloud, each narrator in their CAST voice.",
+  "since": "0.5",
+  "rendering": "drawn",
+  "component": "soma-video",
+  "export": "mountVideoRead",
+  "placement": "row",
+  "label": "row-field",
+  "template": "video-read \"{row.$field}\"",
+  "params": [
+    {
+      "name": "text",
+      "in": "label",
+      "required": true,
+      "description": "Exactly one {row.field}"
+    }
+  ],
+  "data": {
+    "reads": "The saved field of the row.",
+    "writes": "Spend counters and an audio cache."
+  },
+  "routes": [
+    {
+      "method": "POST",
+      "path": "/api/app/:appId/video-read",
+      "who": "signed in reader of the row",
+      "purpose": "Body { data, rowId, field, line }; Stage Read's checks"
+    }
+  ],
+  "permissions": "As stage-read.",
+  "enforcement": "server",
+  "cost": {
+    "service": "ElevenLabs text to speech",
+    "key": "ELEVENLABS_API_KEY (server only)",
+    "allowance": "600 characters per line, 6,000 per person per day, 16,000 per app per day, 400 lines per person per day"
+  },
+  "runsOn": "browser+server",
+  "tags": [
+    "video",
+    "voice",
+    "tts",
+    "audio"
+  ],
+  "docs": "packages/soma-puppet-runtime/GRAMMAR-v0.5.md#2-video-read-the-narration-read-aloud",
+  "source": [
+    "packages/soma-video/src/video-read.js",
+    "packages/soma-video/server/video-read.js"
+  ],
+  "tests": [
+    "packages/soma-puppet-runtime/test/v05.test.js"
+  ]
+}

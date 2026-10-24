@@ -13,6 +13,11 @@ on:
       - 'packages/soma-actions/**'
       - 'packages/soma-discovery/**'
       - 'packages/soma-meter/**'
+      - 'packages/soma-catalog/**'
+      - 'packages/soma-puppet-runtime/src/parser.js'
+      - 'packages/soma-puppet-runtime/src/render.js'
+      - 'packages/soma-puppet-runtime/scripts/vendor-store.mjs'
+      - 'packages/soma-puppet-runtime/site/public/vendor/manifest.json'
       - '.github/workflows/kit.yml'
   push:
     branches:
@@ -24,6 +29,11 @@ on:
       - 'packages/soma-actions/**'
       - 'packages/soma-discovery/**'
       - 'packages/soma-meter/**'
+      - 'packages/soma-catalog/**'
+      - 'packages/soma-puppet-runtime/src/parser.js'
+      - 'packages/soma-puppet-runtime/src/render.js'
+      - 'packages/soma-puppet-runtime/scripts/vendor-store.mjs'
+      - 'packages/soma-puppet-runtime/site/public/vendor/manifest.json'
       - '.github/workflows/kit.yml'
   workflow_dispatch:
 
@@ -121,3 +131,12 @@ jobs:
         run: timeout 10m npm run mutation-check
       - name: soma-meter — mutation-check clean tree
         run: test -z "$(git status --porcelain)"
+
+      # The component catalog: one record per Puppet word. Its tests fail when the parser gains a word
+      # with no record, or a record's placement, version, rendering or pin stops being true.
+      - name: soma-catalog — install
+        working-directory: packages/soma-catalog
+        run: timeout 15m npm ci
+      - name: soma-catalog — test
+        working-directory: packages/soma-catalog
+        run: timeout 10m npm test
