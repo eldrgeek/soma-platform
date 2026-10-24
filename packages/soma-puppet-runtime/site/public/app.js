@@ -154,6 +154,15 @@ const storyboardApi = {
   createJob: (id, job) => api(boardsPath(id, '/jobs'), { method: 'POST', body: job }),
   decideJob: (id, jobId, release) => api(boardsPath(id, `/jobs/${encodeURIComponent(jobId)}`), { method: 'POST', body: { release } }),
   sendNotes: (id, notes) => api(boardsPath(id, '/notes'), { method: 'POST', body: notes }),
+  // A picture of your own for a scene (a Blob of JPEG, PNG or WebP); answers the board after it.
+  async uploadPicture(id, scene, aspect, blob) {
+    const response = await fetch(`/api/app/${encodeURIComponent(appId)}/${boardsPath(id, `/pictures/${encodeURIComponent(scene)}?aspect=${encodeURIComponent(aspect)}`)}`, {
+      method: 'POST', headers: authHeaders({ 'content-type': blob.type }), body: blob,
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error || `Upload failed (${response.status})`);
+    return payload;
+  },
   async fetchFile(id, name) {
     const response = await fetch(`/api/app/${encodeURIComponent(appId)}/${boardsPath(id, `/files/${encodeURIComponent(name)}`)}`, { headers: authHeaders() });
     if (!response.ok) throw new Error(`Could not load ${name} (${response.status})`);
