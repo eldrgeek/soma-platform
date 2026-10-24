@@ -159,6 +159,19 @@ the "Let it run" gate changed, and there is no new Puppet word: it is a second v
   motion to change it, drag a seam to retime two scenes, drag the ruler or the waveform to scrub. Space plays.
 - The timeline is the board in song order. The cut chosen at the top sets the picture's shape, what Render
   renders and which scenes are lit; a short's own shot order and lengths are still set on the cards.
+- **Undo and Redo** (2026-10-24; ⌘Z and ⇧⌘Z anywhere in the editor, the script included, or the buttons at the
+  top): every saved change, typed or clicked. Each one is kept as the board before and after it, and
+  `changeOps(after, before, now)` (`src/storyboard.js`) sends only what that change touched, so what someone else
+  changed meanwhile stays. Typing not yet saved is saved first. A removed scene is kept on the board
+  (`board.removed`, the last 30, with its pictures and its places in the cuts), so undoing a delete puts it back
+  whole (`restore`), and new scenes never reuse a removed scene's id. The undo history lives in the open editor.
+- **Split here** (S): cuts the scene under the playhead in two (`split`). The second half is a new scene with the
+  same picture, prompt and motion, coming in by a cut, and follows the first in every cut that has it.
+- **Use my picture**: upload a JPEG, PNG or WebP for the scene, in the shape of the chosen cut (a big photo is
+  made smaller in the browser first). Owner or artist, by `POST video-boards/<id>/pictures/<scene>?aspect=`:
+  the server names the file `up-…` and puts it on the scene as `own-picture`, a change only an `up-` file may
+  make. The picture before goes to Earlier pictures. It has no path on the Mac, so a job brief tells the team to
+  fetch it from `video-team/boards/<id>/files/<name>` with the team key.
 
 #### The editor's script
 

@@ -28,7 +28,7 @@
  * Written 2026-10-23 by Claude Opus 5.5 (CCc) for Mike Wolf.
  */
 import { boardToScript, opBatches, readScript, scriptToOps, timeText } from './board-script.js';
-import { ASPECT_LABEL, clockOf, cutScenes, cutState, MOTIONS, TRANSITIONS } from './storyboard.js';
+import { ASPECT_LABEL, changeOps, clockOf, cutScenes, cutState, MOTIONS, TRANSITIONS } from './storyboard.js';
 
 /** What a click on a transition chip or a motion clip moves through; '' is the renderer's own choice. */
 export const TRANSITION_CYCLE = ['', ...TRANSITIONS];
@@ -274,6 +274,9 @@ export function mountVideoEditor(container, { board: initial, api, host = false,
   let typing = null;
   let saving = false;
   let again = false;
+  // Undo and redo: each saved change as the board before and after it (changeOps replays the difference).
+  const undos = [];
+  const redos = [];
   const images = new Map();
   const role = board.role === 'owner' ? 'owner' : 'artist';
 
@@ -284,6 +287,8 @@ export function mountVideoEditor(container, { board: initial, api, host = false,
     <header class="sve-top">
       <button type="button" class="sve-btn" data-r="close">← Cards</button>
       <span class="sve-title" data-r="title"></span>
+      <button type="button" class="sve-btn" data-r="undo" title="Undo (⌘Z)" aria-label="Undo" disabled>↶ Undo</button>
+      <button type="button" class="sve-btn" data-r="redo" title="Redo (⇧⌘Z)" aria-label="Redo" disabled>↷ Redo</button>
       <span class="sve-msg" data-r="msg" role="status"></span>
       <span class="sve-grow"></span>
       <label class="sve-msg">Cut <select data-r="cut" aria-label="Cut"></select></label>
@@ -303,7 +308,8 @@ export function mountVideoEditor(container, { board: initial, api, host = false,
       <div class="sve-transport">
         <button type="button" class="sve-play" data-r="play" aria-label="Play">▶</button>
         <span class="sve-tc" data-r="tc"></span>
-        <span class="sve-msg">Space plays · ← → one second · Esc back to the cards</span>
+        <button type="button" class="sve-btn" data-r="split" title="Split the scene under the playhead (S)">Split here</button>
+        <span class="sve-msg">Space plays · ← → one second · S splits · ⌘Z undoes · Esc back to the cards</span>
       </div>
     </section>
     <aside class="sve-inspect" aria-label="Scene"><div class="sve-pane-h"><span>Scene</span><span data-r="sid"></span></div><div class="sve-insp" data-r="insp"></div></aside>
@@ -386,15 +392,95 @@ export function mountVideoEditor(container, { board: initial, api, host = false,
   }
 
   // ---------- saving ----------
-  async function send(ops, done) {
+  async function send(ops, done, { record = true } = {}) {
     if (!ops.length) return board;
     say('Saving…');
+    const before = board;
     let next = board;
     for (const batch of opBatches(ops)) next = await api.changeBoard(board.id, batch);
+    if (record) remember(before, next);
     setBoard(next);
     onBoard(next);
     say(done ?? 'Saved.');
     return next;
+  }
+  function remember(before, after) {
+    undos.push({ before, after });
+    if (undos.length > 100) undos.shift();
+    redos.length = 0;
+    drawUndo();
+  }
+  function drawUndo() {
+    $('undo').disabled = !undos.length;
+    $('redo').disabled = !redos.length;
+  }
+  // Typing not yet saved is saved first, so an undo takes back the last thing typed, as a person expects.
+  async function flush() {
+    window.clearTimeout(typing);
+    if (ta.value !== boardToScript(board)) await saveScript();
+    while (saving) await new Promise((r) => window.setTimeout(r, 50));
+  }
+  async function step(from, to, done) {
+    await flush();
+    const entry = from.pop();
+    if (!entry) return say(from === undos ? 'Nothing to undo.' : 'Nothing to redo.');
+    const back = from === undos;
+    try {
+      const ops = back ? changeOps(entry.after, entry.before, board) : changeOps(entry.before, entry.after, board);
+      if (ops.length) await send(ops, done, { record: false });
+      else say(done);
+      to.push(entry);
+      writeScript({ keepCaret: true });
+    } catch (error) {
+      from.push(entry);
+      fail(error);
+    }
+    drawUndo();
+  }
+  const undo = () => step(undos, redos, 'Undone.');
+  const redo = () => step(redos, undos, 'Redone.');
+
+  async function split() {
+    const p = placed.find((x) => x.timed && time > x.start + 0.05 && time < x.end - 0.05);
+    if (!p) return say('Put the playhead inside a timed scene to split it.');
+    try {
+      const next = await send([{ op: 'split', scene: p.scene.id, at: Math.round(time * 100) / 100 }]);
+      writeScript();
+      const added = next.added?.[0];
+      const index = next.scenes.findIndex((s) => s.id === added);
+      if (index >= 0) select(index);
+      say(`Split ${p.scene.id} at ${timeText(time)}; the second half is ${added}.`);
+    } catch (error) {
+      fail(error);
+    }
+  }
+
+  // A picture of your own: made smaller in the browser (an upload is at most 4.5 MB), then put on the scene.
+  async function ownPicture(scene, fileIn) {
+    if (!api.uploadPicture) return say('This site cannot take uploads yet.');
+    if (!/^image\/(jpeg|png|webp)$/.test(fileIn.type)) return say('Choose a JPEG, PNG or WebP picture.');
+    say('Uploading…');
+    try {
+      const blob = await shrink(fileIn);
+      const before = board;
+      const next = await api.uploadPicture(board.id, scene.id, aspect(), blob);
+      remember(before, next);
+      setBoard(next);
+      onBoard(next);
+      say(`Your picture is on ${scene.id} (${ASPECT_LABEL[aspect()]}). The one before is under Earlier pictures.`);
+    } catch (error) {
+      fail(error);
+    }
+  }
+  async function shrink(fileIn, max = 2400) {
+    if (fileIn.size < 3_000_000 || !window.createImageBitmap) return fileIn;
+    const bitmap = await window.createImageBitmap(fileIn);
+    const k = Math.min(1, max / Math.max(bitmap.width, bitmap.height));
+    const c = document.createElement('canvas');
+    c.width = Math.round(bitmap.width * k);
+    c.height = Math.round(bitmap.height * k);
+    c.getContext('2d').drawImage(bitmap, 0, 0, c.width, c.height);
+    return new Promise((resolve) => c.toBlob((b) => resolve(b ?? fileIn), 'image/jpeg', 0.88));
   }
   async function change(ops, done) {
     try {
@@ -903,6 +989,7 @@ export function mountVideoEditor(container, { board: initial, api, host = false,
         ${has ? '<button type="button" class="sve-btn" data-r="ireroll" title="Another take of the same prompt, in one click">Reroll</button>' : ''}
         <button type="button" class="sve-btn" data-r="ikeep">Keep</button>
         <button type="button" class="sve-btn" data-r="iadd">Add scene after</button>
+        <label class="sve-btn" title="Use a picture of your own for this scene (${ASPECT_LABEL[aspect()]})">Use my picture<input type="file" accept="image/jpeg,image/png,image/webp" data-r="iown" hidden></label>
       </div>
       ${scene.history?.length ? `<div class="sve-field"><span>Earlier pictures (${scene.history.length})</span><div class="sve-hist" data-r="ihist"></div></div>` : ''}`;
     const thumb = $('ithumb');
@@ -921,6 +1008,7 @@ export function mountVideoEditor(container, { board: initial, api, host = false,
       b.addEventListener('click', () => change([{ op: 'use-picture', scene: scene.id, history: at }], `Put back an earlier picture for ${scene.id}.`));
       hist.append(b);
     });
+    $('iown').addEventListener('change', (e) => { const f = e.target.files?.[0]; if (f) ownPicture(scene, f); });
     $('imotion').addEventListener('change', (e) => change([{ op: 'set', scene: scene.id, field: 'motion', value: e.target.value }]));
     $('itrans').addEventListener('change', (e) => change([{ op: 'set', scene: scene.id, field: 'transition', value: e.target.value }]));
     $('iprompt').addEventListener('change', (e) => change([{ op: 'set', scene: scene.id, field: 'prompt', value: e.target.value }]));
@@ -986,6 +1074,9 @@ export function mountVideoEditor(container, { board: initial, api, host = false,
 
   // ---------- wiring ----------
   $('close').addEventListener('click', () => onClose());
+  $('undo').addEventListener('click', undo);
+  $('redo').addEventListener('click', redo);
+  $('split').addEventListener('click', split);
   $('play').addEventListener('click', () => setPlaying(!playing));
   $('anim').addEventListener('click', () => showSource('anim'));
   $('last').addEventListener('click', () => showSource('last'));
@@ -1035,7 +1126,18 @@ export function mountVideoEditor(container, { board: initial, api, host = false,
   });
   $('tscroll').addEventListener('scroll', drawOverview);
   const keys = (e) => {
-    if (gone || !root.isConnected || /^(INPUT|TEXTAREA|SELECT|BUTTON)$/.test(e.target?.tagName ?? '')) return;
+    if (gone || !root.isConnected) return;
+    // ⌘Z / Ctrl+Z everywhere in the editor, the script too: the board's undo, since a save rewrites the box.
+    const mod = e.metaKey || e.ctrlKey;
+    if (mod && !e.altKey && (e.key === 'z' || e.key === 'Z' || e.key === 'y')) {
+      if (/^(INPUT|SELECT)$/.test(e.target?.tagName ?? '') || (e.target?.tagName === 'TEXTAREA' && e.target !== ta)) return;
+      e.preventDefault();
+      if (e.key === 'y' || e.shiftKey) redo();
+      else undo();
+      return;
+    }
+    if (/^(INPUT|TEXTAREA|SELECT|BUTTON)$/.test(e.target?.tagName ?? '')) return;
+    if ((e.key === 's' || e.key === 'S') && !mod) { e.preventDefault(); split(); }
     if (e.code === 'Space') { e.preventDefault(); setPlaying(!playing); }
     if (e.key === 'ArrowRight') seek(time + 1);
     if (e.key === 'ArrowLeft') seek(time - 1);

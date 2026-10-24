@@ -34,11 +34,14 @@ export const BOARD_STEPS = [
 ];
 export const BOARD_STEP_NAMES = BOARD_STEPS.map((s) => s.step);
 
-export const LIMITS = { scenes: 200, cuts: 40, history: 30, artists: 20, text: 4000, short: 300, refs: 12, shots: 200, audio: 20, spec: 20000, batch: 24 };
+export const LIMITS = { scenes: 200, cuts: 40, history: 30, removed: 30, artists: 20, text: 4000, short: 300, refs: 12, shots: 200, audio: 20, spec: 20000, batch: 24 };
 const ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$/;
 /** A board file is one path segment, as an asset name is. */
 export const FILE_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/;
 const EMAIL = /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,}$/;
+/** A picture a person uploaded (server: the board's /pictures route names it); only such a file may be an own picture. */
+export const OWN_PICTURE = /^up-[A-Za-z0-9._-]{1,96}$/;
+export const OWN_PICTURE_TYPES = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
 /** Fields a person may set on a scene, and how each is checked. */
 const SCENE_FIELDS = {
   status: (v) => (SCENE_STATUSES.includes(v) ? v : bad('A status is keep, redo or new')),
@@ -204,12 +207,27 @@ export function cleanBoard(raw, { at = new Date().toISOString() } = {}) {
     song: raw.song ? { file: file(raw.song.file ?? null), duration: seconds(raw.song.duration ?? null) } : { file: null, duration: null },
     scenes,
     cuts,
+    removed: cleanRemoved(raw.removed ?? [], ids, at),
     orderChangedAt: raw.orderChangedAt ?? at,
     version: Number.isInteger(raw.version) ? raw.version : 1,
     createdAt: raw.createdAt ?? at,
     updatedAt: at,
     updatedBy: String(raw.updatedBy ?? ''),
   };
+}
+
+/** Removed scenes, kept so an undo can put one back with its pictures and its places in the cuts. */
+function cleanRemoved(list, live, at) {
+  if (!Array.isArray(list)) bad('A board\'s removed scenes are a list');
+  return list.slice(-LIMITS.removed).map((r) => {
+    const scene = cleanScene(r?.scene ?? {}, at);
+    const shots = (Array.isArray(r.shots) ? r.shots : []).slice(0, LIMITS.cuts).map((s) => ({
+      cut: id(s?.cut, 'A cut id'),
+      index: Number.isInteger(s?.index) && s.index >= 0 ? s.index : bad('A removed shot keeps its place in the cut'),
+      ...(typeof s.seconds === 'number' && s.seconds > 0 && s.seconds <= 600 ? { seconds: s.seconds } : {}),
+    }));
+    return { scene, at: String(r.at ?? at), by: text(String(r.by ?? ''), LIMITS.short), shots };
+  }).filter((r) => !live.has(r.scene.id));
 }
 
 function cleanArtists(list) {
@@ -229,7 +247,8 @@ export function roleOf(board, who, { hostId } = {}) {
 
 /** A new scene id after `after`: e05 → e05a, e05a → e05b; a board with no scenes starts s01. */
 export function nextSceneId(board, after) {
-  const taken = new Set(board.scenes.map((s) => s.id));
+  // Removed scenes keep their ids, so an undo can put one back without it meaning another scene.
+  const taken = new Set([...board.scenes, ...(board.removed ?? []).map((r) => r.scene)].map((s) => s.id));
   const base = after ?? 's';
   for (const letter of 'abcdefghijklmnopqrstuvwxyz') {
     const candidate = `${base}${letter}`.slice(0, 40);
@@ -249,7 +268,12 @@ const cutOf = (board, cutId) => board.cuts.find((c) => c.id === cutId) ?? bad(`N
  *   { op: 'set', scene, field, value }        field: status, note, prompt, lyric, section, shot, start, end, refs, motion, transition, extra
  *   { op: 'move', scene, to }                 to: the scene's new index on the board
  *   { op: 'add-after', after, scene: {...} }  after: a scene id, or null for the start; returns the new id in board.added
- *   { op: 'remove', scene }                   a scene, and its shots in every cut
+ *   { op: 'remove', scene }                   a scene, and its shots in every cut (kept in board.removed for restore)
+ *   { op: 'split', scene, at }                cut a timed scene in two at `at` seconds: the second half is a new scene
+ *                                             with the same picture, prompt and motion (its id in board.added)
+ *   { op: 'restore', scene, after }           put a removed scene back after `after` (null: at the start), with its
+ *                                             pictures and its shots in the cuts that are still there
+ *   { op: 'own-picture', scene, aspect, file }  a picture someone uploaded (OWN_PICTURE); the current one goes to history
  *   { op: 'use-picture', scene, history }     put back earlier pictures (the history index); the current ones go to history
  *   { op: 'cut', cut: {...} }                 add or replace a cut (keeps its last render)
  *   { op: 'remove-cut', cut }
@@ -297,15 +321,65 @@ export function applyOps(board, ops, { by = {}, role, at = new Date().toISOStrin
       next.orderChangedAt = at;
       next.added.push(scene.id);
     } else if (op === 'remove') {
-      sceneOf(next, change.scene);
+      const scene = sceneOf(next, change.scene);
       next.scenes = next.scenes.filter((s) => s.id !== change.scene);
+      const shots = [];
       for (const cut of next.cuts) {
+        cut.shots.forEach((s, index) => { if (s.scene === change.scene) shots.push({ cut: cut.id, index, ...(s.seconds ? { seconds: s.seconds } : {}) }); });
         if (cut.shots.some((s) => s.scene === change.scene)) {
           cut.shots = cut.shots.filter((s) => s.scene !== change.scene);
           cut.changedAt = at;
         }
       }
+      next.removed = [...(next.removed ?? []).filter((r) => r.scene.id !== scene.id), { scene, at, by: who, shots }].slice(-LIMITS.removed);
       next.orderChangedAt = at;
+    } else if (op === 'split') {
+      const scene = sceneOf(next, change.scene);
+      const t = seconds(change.at);
+      if (scene.start == null || scene.end == null || t === null || t <= scene.start || t >= scene.end) bad(`Split ${scene.id} at a time inside it (${clockOf(scene.start) || '?'} to ${clockOf(scene.end) || '?'})`);
+      if (next.scenes.length >= LIMITS.scenes) bad(`A board has at most ${LIMITS.scenes} scenes`);
+      const half = cleanScene({
+        ...structuredClone(scene), id: nextSceneId(next, scene.id), start: t, lyric: '', transition: 'cut', note: '', noteBy: '', history: [], extra: '',
+      }, at);
+      half.status = scene.status === 'redo' ? 'keep' : scene.status;
+      scene.end = t;
+      scene.changedAt = at;
+      scene.updatedAt = at;
+      next.scenes.splice(next.scenes.indexOf(scene) + 1, 0, half);
+      for (const cut of next.cuts) {
+        const i = cut.shots.findIndex((x) => x.scene === scene.id);
+        if (i < 0 || cut.shots.length >= LIMITS.shots) continue;
+        cut.shots.splice(i + 1, 0, { scene: half.id });
+        cut.changedAt = at;
+      }
+      next.orderChangedAt = at;
+      next.added.push(half.id);
+    } else if (op === 'restore') {
+      const kept = (next.removed ?? []).find((r) => r.scene.id === change.scene) ?? bad(`${change.scene} is not a removed scene this board still keeps`);
+      if (next.scenes.some((s) => s.id === change.scene)) bad(`${change.scene} is already on the board`);
+      if (next.scenes.length >= LIMITS.scenes) bad(`A board has at most ${LIMITS.scenes} scenes`);
+      const index = change.after == null ? 0 : next.scenes.findIndex((s) => s.id === change.after) + 1;
+      if (index === 0 && change.after != null) bad(`No scene ${change.after} on this board`);
+      next.scenes.splice(index, 0, { ...kept.scene, changedAt: at, updatedAt: at });
+      for (const shot of kept.shots) {
+        const cut = next.cuts.find((c) => c.id === shot.cut);
+        if (!cut || cut.all || cut.shots.length >= LIMITS.shots) continue;
+        cut.shots.splice(Math.min(shot.index, cut.shots.length), 0, { scene: kept.scene.id, ...(shot.seconds ? { seconds: shot.seconds } : {}) });
+        cut.changedAt = at;
+      }
+      next.removed = next.removed.filter((r) => r !== kept);
+      next.orderChangedAt = at;
+    } else if (op === 'own-picture') {
+      if (role === 'team') bad('The team sends pictures with the pictures change');
+      const scene = sceneOf(next, change.scene);
+      if (!ASPECTS.includes(change.aspect)) bad('A picture is 9x16 or 16x9');
+      if (typeof change.file !== 'string' || !OWN_PICTURE.test(change.file)) bad('Upload the picture first; its file name starts with up-');
+      if (Object.keys(scene.pictures).length) scene.history.push({ at, by: who, prompt: scene.prompt, pictures: scene.pictures, source: scene.source });
+      scene.history = scene.history.slice(-LIMITS.history);
+      scene.pictures = { ...scene.pictures, [change.aspect]: change.file };
+      // No path on the Mac: the render brief tells the team to fetch an uploaded picture from the board.
+      scene.source = Object.fromEntries(Object.entries(scene.source).filter(([a]) => a !== change.aspect));
+      Object.assign(scene, { status: 'keep', note: '', noteBy: '', changedAt: at, updatedAt: at });
     } else if (op === 'use-picture') {
       const scene = sceneOf(next, change.scene);
       const old = scene.history[change.history] ?? bad('No such earlier picture');
@@ -357,6 +431,66 @@ export function applyOps(board, ops, { by = {}, role, at = new Date().toISOStrin
   return next;
 }
 
+/** Scene fields an undo puts back (the ones a person sets). */
+const UNDOABLE = Object.keys(SCENE_FIELDS);
+const same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+
+/**
+ * The ops that make the change from board `from` to board `to` again, on board `current` (the editor's undo:
+ * changeOps(after, before, now); redo: changeOps(before, after, now)). Only what differs between `from` and
+ * `to` is touched, so what someone else changed meanwhile stays. A scene the change removed is removed; one it
+ * added comes back with restore (so an undone delete keeps its pictures); fields, the picture in use, the
+ * title and the order follow `to`. Something that can no longer be put back (a picture gone from the history,
+ * a removed scene the board no longer keeps) is left as it is.
+ */
+export function changeOps(from, to, current) {
+  const ops = [];
+  const map = (b) => new Map(b.scenes.map((s) => [s.id, s]));
+  const [A, B, C] = [map(from), map(to), map(current)];
+  if (from.title !== to.title && current.title !== to.title) ops.push({ op: 'title', value: to.title });
+  const ids = current.scenes.map((s) => s.id);
+  for (const id of A.keys()) {
+    if (B.has(id) || !C.has(id)) continue;
+    ops.push({ op: 'remove', scene: id });
+    ids.splice(ids.indexOf(id), 1);
+  }
+  const kept = new Set((current.removed ?? []).map((r) => r.scene.id));
+  to.scenes.forEach((scene, i) => {
+    if (A.has(scene.id) || C.has(scene.id) || !kept.has(scene.id)) return;
+    const after = to.scenes.slice(0, i).reverse().find((s) => ids.includes(s.id))?.id ?? null;
+    ops.push({ op: 'restore', scene: scene.id, after });
+    ids.splice(after ? ids.indexOf(after) + 1 : 0, 0, scene.id);
+  });
+  for (const [id, b] of B) {
+    const a = A.get(id);
+    const c = C.get(id);
+    if (!a || !c) continue;
+    for (const field of UNDOABLE) if (!same(a[field], b[field]) && !same(c[field], b[field])) ops.push({ op: 'set', scene: id, field, value: b[field] });
+    if (!same(a.pictures, b.pictures) && !same(c.pictures, b.pictures)) {
+      const at = (c.history ?? []).findLastIndex((h) => same(h.pictures, b.pictures));
+      if (at >= 0) ops.push({ op: 'use-picture', scene: id, history: at });
+    }
+  }
+  // The order: the scenes `to` has go back into its order; any other scene follows the one it follows now.
+  const inBoth = (b) => b.scenes.map((s) => s.id).filter((id) => A.has(id) && B.has(id));
+  if (!same(inBoth(from), inBoth(to))) {
+    const target = to.scenes.map((s) => s.id).filter((id) => ids.includes(id));
+    const set = new Set(target);
+    ids.forEach((id, i) => {
+      if (set.has(id)) return;
+      const prev = ids.slice(0, i).reverse().find((x) => target.includes(x));
+      target.splice(prev ? target.indexOf(prev) + 1 : 0, 0, id);
+    });
+    for (let i = 0; i < target.length; i += 1) {
+      if (ids[i] === target[i]) continue;
+      ops.push({ op: 'move', scene: target[i], to: i });
+      ids.splice(ids.indexOf(target[i]), 1);
+      ids.splice(i, 0, target[i]);
+    }
+  }
+  return ops;
+}
+
 /** The scene ids a cut shows, in its order. */
 export function cutScenes(board, cut) {
   return cut.all ? board.scenes.map((s) => s.id) : cut.shots.map((s) => s.scene);
@@ -389,6 +523,18 @@ function onScreen(board, shots) {
   ];
 }
 
+/** How the team gets the pictures people uploaded (they are on the board, not on the Mac), for these scenes. */
+function ownPictures(board, scenes, aspects, { site, app } = {}) {
+  const own = scenes.flatMap((s) => aspects.filter((a) => OWN_PICTURE.test(s.pictures?.[a] ?? '')).map((a) => ({ scene: s.id, aspect: a, file: s.pictures[a] })));
+  if (!own.length) return [];
+  const base = `${site || 'https://soma-forge.netlify.app'}/api/app/${app || 'videomaker'}/video-team/boards/${board.id}/files`;
+  return [
+    'Pictures a person uploaded to the board (they have no "source" path on this Mac). Fetch each one into',
+    'storyboard-files/ before you use it, with the team key the worker uses:',
+    ...own.map((o) => `  ${o.scene} ${ASPECT_LABEL[o.aspect]}: curl -sf -H "x-studio-team-key: $(cat ~/.config/soma-studio/team.key)" ${base}/${o.file} -o storyboard-files/${o.file}`),
+  ];
+}
+
 /** What the team needs to know about one scene, headed by what to make of it. */
 function sceneLines(scene, what = 'Scene') {
   const out = [
@@ -408,7 +554,7 @@ function sceneLines(scene, what = 'Scene') {
  * the board's project folder, where it has also written the board as storyboard.json. Kept here so the
  * page can show what will be asked and the tests can read it.
  */
-export function jobBrief(board, job) {
+export function jobBrief(board, job, where = {}) {
   const lines = [
     `Storyboard: "${board.title}" (board ${board.id}). The board, as it is now, is storyboard.json in this folder.`,
     'Picture paths in a scene\'s "source" are relative to this folder. Reference photo ids (o47, opa) name the',
@@ -421,6 +567,8 @@ export function jobBrief(board, job) {
     lines.push('', `Job: make new pictures for ${scenes.length} scene${scenes.length === 1 ? '' : 's'} in this one run: ${scenes.map((s) => s.id).join(', ')}.`);
     if (gone.length) lines.push(`(No longer on the board, so skip them: ${gone.join(', ')}.)`);
     for (const scene of scenes) lines.push('', ...sceneLines(scene, Object.keys(scene.pictures).length ? 'New pictures' : 'Pictures for the new scene'));
+    const own = ownPictures(board, scenes, ASPECTS, where);
+    if (own.length) lines.push('', 'The current pictures below were uploaded; use them as a reference for the new take.', ...own);
     if (job.note) lines.push('', `Also asked, for every scene: ${job.note}`);
     lines.push(
       '',
@@ -442,6 +590,8 @@ export function jobBrief(board, job) {
       job.step === 'redo' ? `Job: make new pictures for scene ${scene.id}.` : `Job: make the pictures for the new scene ${scene.id}.`,
       ...sceneLines(scene).slice(1),
     );
+    const own = ownPictures(board, [scene], ASPECTS, where);
+    if (own.length) lines.push('The current pictures were uploaded; use them as a reference for the new take.', ...own);
     if (job.note) lines.push(`Also asked: ${job.note}`);
     lines.push(
       '',
@@ -462,8 +612,10 @@ export function jobBrief(board, job) {
       `Song: ${rangesText(cut.audio) || 'the whole song'}.`,
       ...(cut.spec ? [`The cut's spec (the renderer's own settings, kept from before): ${JSON.stringify(cut.spec)}`] : []),
       ...onScreen(board, shots),
+      ...ownPictures(board, shots.map((s) => board.scenes.find((x) => x.id === s.scene)).filter(Boolean), [cut.aspect], where),
       '',
-      'Use the picture each scene has now on the board (its "source" for this aspect) and the renderer this project',
+      'Use the picture each scene has now on the board (its "source" for this aspect, or the uploaded file fetched',
+      'as above) and the renderer this project',
       'already uses for a cut of this kind; update that renderer\'s input from the board, never by hand.',
       `When it is built, write storyboard-out/${job.id}.json: {"cut": "${cut.id}", "video": "<path to the mp4>"}.`,
       'Do not upload the video anywhere.',
