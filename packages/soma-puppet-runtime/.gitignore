@@ -5,3 +5,6 @@ node_modules/
 
 # Copied in by the build command from packages/soma-studio
 site/public/studio/
+
+# Incremental mutation results (scripts/mutation-check.mjs); CI keeps its own in the Actions cache
+.mutation-cache.json

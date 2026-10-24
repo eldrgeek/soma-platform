@@ -216,6 +216,15 @@ v0.3) and requires a failing test for every one. CI runs it too:
 timeout 1500 npm run mutation
 ```
 
+The check is incremental. A caught mutant is remembered in
+`.mutation-cache.json` (not committed) under a hash of the mutant, the file it
+changes, the test files that caught it and the shared test helpers, and is not
+run again while none of those change. When one does, the tests that caught it
+last time run first, and the whole suite only if they no longer catch it. A
+survivor is never remembered. `npm run mutation -- --full` ignores the cache.
+CI runs it in full on master, which seeds the cache that pull requests start
+from, and incrementally on pull requests.
+
 ## SOMA Studio on this site
 
 Since 2026-10-21 this site also serves SOMA Studio v1 (`packages/soma-studio`) at `/studio/`, so the

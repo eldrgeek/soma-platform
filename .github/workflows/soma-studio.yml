@@ -13,6 +13,17 @@ on:
       - 'packages/soma-play/**'
       - 'packages/soma-video/**'
       - '.github/workflows/soma-studio.yml'
+  # On master the runtime's mutation check runs in full and seeds the cache
+  # that pull requests start from (pull request caches are not shared).
+  push:
+    branches:
+      - master
+    paths:
+      - 'packages/soma-studio/**'
+      - 'packages/soma-puppet-runtime/**'
+      - 'packages/soma-play/**'
+      - 'packages/soma-video/**'
+      - '.github/workflows/soma-studio.yml'
 
 jobs:
   studio:
@@ -43,8 +54,22 @@ jobs:
       - run: npm ci
       - name: Node tests
         run: npm test
+      # Incremental mutation check: a mutant caught before is skipped while the
+      # file it changes and the tests that caught it are unchanged.
+      - name: Restore mutation results
+        uses: actions/cache/restore@v4
+        with:
+          path: packages/soma-puppet-runtime/.mutation-cache.json
+          key: mutation-runtime-${{ github.sha }}
+          restore-keys: mutation-runtime-
       - name: Mutation check (loosens each server rule on purpose; every break must be caught)
-        run: npm run mutation
+        run: npm run mutation -- ${{ github.event_name == 'push' && '--full' || '' }}
+      - name: Save mutation results
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: packages/soma-puppet-runtime/.mutation-cache.json
+          key: mutation-runtime-${{ github.sha }}
 
   play:
     runs-on: ubuntu-latest
