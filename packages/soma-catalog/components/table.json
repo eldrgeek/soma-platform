@@ -1,0 +1,53 @@
+{
+  "word": "table",
+  "summary": "Rows of a declared collection drawn as a table; same rules as list.",
+  "since": "0.1",
+  "rendering": "drawn",
+  "component": null,
+  "placement": "any",
+  "label": "optional",
+  "template": "table \"All items\" from $data",
+  "params": [
+    {
+      "name": "title",
+      "in": "label",
+      "required": false,
+      "description": "Heading"
+    },
+    {
+      "name": "from",
+      "in": "label",
+      "required": true,
+      "description": "from <data or stub>"
+    }
+  ],
+  "data": {
+    "reads": "The rows this reader may read.",
+    "writes": "nothing"
+  },
+  "routes": [
+    {
+      "method": "GET",
+      "path": "/api/app/:appId/data/:name",
+      "who": "signed in (or anyone with publicRead)",
+      "purpose": "rows under the read rule"
+    }
+  ],
+  "permissions": "Same as list.",
+  "enforcement": "server",
+  "runsOn": "browser",
+  "tags": [
+    "data",
+    "collection",
+    "read"
+  ],
+  "docs": "packages/soma-puppet-runtime/GRAMMAR-v0.3.md",
+  "source": [
+    "packages/soma-puppet-runtime/src/parser.js",
+    "packages/soma-puppet-runtime/src/render.js"
+  ],
+  "tests": [
+    "packages/soma-puppet-runtime/test/parser.test.js",
+    "packages/soma-puppet-runtime/test/render.test.js"
+  ]
+}

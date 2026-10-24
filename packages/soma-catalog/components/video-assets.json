@@ -1,0 +1,54 @@
+{
+  "word": "video-assets",
+  "summary": "A script's assets by scene: song times with play buttons, cards as 16:9 frames, pictures and their cut pieces.",
+  "since": "0.6",
+  "rendering": "drawn",
+  "component": "soma-video",
+  "export": "mountVideoAssets",
+  "placement": "row",
+  "label": "row-field",
+  "template": "video-assets \"{row.$field}\"",
+  "params": [
+    {
+      "name": "text",
+      "in": "label",
+      "required": true,
+      "description": "Exactly one {row.field}"
+    }
+  ],
+  "data": {
+    "reads": "The row and its asset files.",
+    "writes": "nothing (the team writes assets)"
+  },
+  "routes": [
+    {
+      "method": "GET",
+      "path": "/api/app/:appId/video/:data/:rowId/assets",
+      "who": "reader of the row",
+      "purpose": "list assets; .../assets/:name returns one file"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/app/:appId/video-team/assets/:data/:rowId/:name",
+      "who": "team key",
+      "purpose": "the Mac sends a file (at most 4,500,000 bytes)"
+    }
+  ],
+  "permissions": "Readers of the row read; only the team writes.",
+  "enforcement": "server",
+  "runsOn": "browser+server",
+  "tags": [
+    "video",
+    "media",
+    "assets",
+    "audio"
+  ],
+  "docs": "packages/soma-puppet-runtime/GRAMMAR-v0.6.md#2-video-assets-the-scripts-assets",
+  "source": [
+    "packages/soma-video/src/video-assets.js",
+    "packages/soma-video/server/studio.js"
+  ],
+  "tests": [
+    "packages/soma-puppet-runtime/test/v06.test.js"
+  ]
+}

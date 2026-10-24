@@ -1,0 +1,38 @@
+{
+  "word": "card",
+  "summary": "A titled group of other elements; its hook makes the whole card pressable.",
+  "since": "0.1",
+  "rendering": "drawn",
+  "component": null,
+  "placement": "any",
+  "label": "optional",
+  "template": "card \"Tonight\" {\n  text \"Doors at seven\"\n}",
+  "params": [
+    {
+      "name": "title",
+      "in": "label",
+      "required": false,
+      "description": "Card heading"
+    }
+  ],
+  "data": {
+    "reads": "nothing",
+    "writes": "nothing"
+  },
+  "routes": [],
+  "permissions": "Anyone who can see the screen.",
+  "enforcement": "none",
+  "runsOn": "browser",
+  "tags": [
+    "layout"
+  ],
+  "docs": "packages/soma-puppet-runtime/GRAMMAR-v0.1.md",
+  "source": [
+    "packages/soma-puppet-runtime/src/parser.js",
+    "packages/soma-puppet-runtime/src/render.js"
+  ],
+  "tests": [
+    "packages/soma-puppet-runtime/test/parser.test.js",
+    "packages/soma-puppet-runtime/test/render.test.js"
+  ]
+}

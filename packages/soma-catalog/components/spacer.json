@@ -1,0 +1,34 @@
+{
+  "word": "spacer",
+  "summary": "Flexible empty space.",
+  "since": "0.1",
+  "rendering": "placeholder",
+  "component": null,
+  "placement": "any",
+  "label": "optional",
+  "template": "spacer",
+  "params": [],
+  "data": {
+    "reads": "nothing",
+    "writes": "nothing"
+  },
+  "routes": [],
+  "permissions": "Anyone who can see the screen.",
+  "enforcement": "none",
+  "runsOn": "browser",
+  "tags": [
+    "layout"
+  ],
+  "limits": [
+    "The renderer draws this as a plain labelled box; its look is not built yet."
+  ],
+  "docs": "packages/soma-puppet-runtime/GRAMMAR-v0.1.md#33-element-kinds-inside-screendialog",
+  "source": [
+    "packages/soma-puppet-runtime/src/parser.js",
+    "packages/soma-puppet-runtime/src/render.js"
+  ],
+  "tests": [
+    "packages/soma-puppet-runtime/test/parser.test.js",
+    "packages/soma-puppet-runtime/test/render.test.js"
+  ]
+}

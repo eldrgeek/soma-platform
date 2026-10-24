@@ -1,0 +1,45 @@
+{
+  "word": "hero",
+  "summary": "Page intro band with a title and a subtitle.",
+  "since": "0.1",
+  "rendering": "drawn",
+  "component": null,
+  "placement": "any",
+  "label": "none",
+  "template": "hero { title: \"Welcome\", subtitle: \"Hello, {me.name}.\" }",
+  "params": [
+    {
+      "name": "title",
+      "in": "prop",
+      "required": true,
+      "description": "Heading text; tokens allowed"
+    },
+    {
+      "name": "subtitle",
+      "in": "prop",
+      "required": false,
+      "description": "Line under the heading; tokens allowed"
+    }
+  ],
+  "data": {
+    "reads": "Tokens only ({me.name}, {Name.count}, {row.field} on a row screen).",
+    "writes": "nothing"
+  },
+  "routes": [],
+  "permissions": "Anyone who can see the screen.",
+  "enforcement": "none",
+  "runsOn": "browser",
+  "tags": [
+    "text",
+    "layout"
+  ],
+  "docs": "packages/soma-puppet-runtime/GRAMMAR-v0.1.md",
+  "source": [
+    "packages/soma-puppet-runtime/src/parser.js",
+    "packages/soma-puppet-runtime/src/render.js"
+  ],
+  "tests": [
+    "packages/soma-puppet-runtime/test/parser.test.js",
+    "packages/soma-puppet-runtime/test/render.test.js"
+  ]
+}

@@ -1,0 +1,63 @@
+{
+  "word": "video-jobs",
+  "summary": "\"Make it\" panel: buttons that ask the team on Mike's Mac to time the song, make pictures, render, or anything in words.",
+  "since": "0.6",
+  "rendering": "drawn",
+  "component": "soma-video",
+  "export": "mountVideoJobs",
+  "placement": "row",
+  "label": "row-field",
+  "template": "video-jobs \"{row.$field}\"",
+  "params": [
+    {
+      "name": "text",
+      "in": "label",
+      "required": true,
+      "description": "Exactly one {row.field}"
+    }
+  ],
+  "data": {
+    "reads": "The row; job states, logs and reports.",
+    "writes": "Jobs in Blobs."
+  },
+  "routes": [
+    {
+      "method": "POST",
+      "path": "/api/app/:appId/video/:data/:rowId/jobs",
+      "who": "host",
+      "purpose": "Body { step, note }; a job runs with Claude Code on the host's Mac"
+    },
+    {
+      "method": "GET",
+      "path": "/api/app/:appId/video-team/jobs",
+      "who": "team key",
+      "purpose": "The Mac worker reads open jobs"
+    }
+  ],
+  "permissions": "Host only, because a job runs on the host's Mac.",
+  "enforcement": "server",
+  "cost": {
+    "service": "Claude Code on Mike's Mac",
+    "key": "STUDIO_TEAM_KEY (server only)",
+    "allowance": "none"
+  },
+  "runsOn": "browser+server+mac",
+  "tags": [
+    "video",
+    "jobs",
+    "mac",
+    "render"
+  ],
+  "limits": [
+    "Nothing runs unless the Mac worker (launchd com.soma.videomaker-worker) is up."
+  ],
+  "docs": "packages/soma-puppet-runtime/GRAMMAR-v0.6.md#1-video-jobs-ask-the-team",
+  "source": [
+    "packages/soma-video/src/video-jobs.js",
+    "packages/soma-video/src/jobs.js",
+    "packages/soma-video/server/studio.js"
+  ],
+  "tests": [
+    "packages/soma-puppet-runtime/test/v06.test.js"
+  ]
+}
