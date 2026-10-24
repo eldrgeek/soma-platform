@@ -39,6 +39,10 @@ export function keyMatches(given, expected) {
   return timingSafeEqual(digest(given), digest(expected));
 }
 
+
+// The elements that let a reader ask the route `kind` to speak a line: its own element, and for Stage Read
+// also line-run (v0.8), which reads every part but the reader's own.
+const speaks = (element, kind) => element.kind === kind || (kind === 'stage-read' && element.kind === 'line-run');
 function requireHost(config, identity) {
   if (identity?.id !== config.hostId) {
     throw new HttpError(403, 'Only the app host may perform this action');
@@ -477,7 +481,8 @@ export function createApiHandler({
         // Checks in order: signed in; a stage-read (or, v0.5, a video-read)
         // of this field on a screen from this data that the reader can see;
         // the row is one the reader may read (otherwise the same answer as a
-        // missing row); then the spend allowance, inside the reader.
+        // missing row); then the spend allowance, inside the reader. A line-run (v0.8) offers Stage Read
+        // too, with the same allowance; it never offers the narration read.
         const kind = route;
         const speaker = kind === 'stage-read' ? stageReader : videoReader;
         const reader = await signedIn();
@@ -491,7 +496,7 @@ export function createApiHandler({
           (owner) =>
             owner.from === name &&
             (!owner.hostOnly || reader.id === config.hostId) &&
-            walk(owner.children).some((element) => element.kind === kind && element.field === field),
+            walk(owner.children).some((element) => speaks(element, kind) && element.field === field),
         );
         if (!offered) throw new HttpError(404, `No ${kind} of ${name}.${field} here`);
         const { rows } = await readable(sketch, name);

@@ -80,7 +80,7 @@ async function seeded(api) {
 
 test('grammar: video-storyboards is a v0.7 word, on a screen not from data', () => {
   assert.deepEqual(parse(SOURCE).errors, []);
-  const old = parse(SOURCE.replace('version "0.7"', 'version "0.6"'));
+  const old = parse(SOURCE.replace(/version "[0-9.]+"/, 'version "0.6"'));
   assert.ok(old.errors.some((e) => /v0\.7 element/.test(e.message)));
   const onRow = parse(SOURCE.replace('  video-assets "{row.text}"', '  video-assets "{row.text}"\n  video-storyboards'));
   assert.ok(onRow.errors.some((e) => /not from data/.test(e.message)));

@@ -228,3 +228,13 @@ checks.
 ```sh
 node --test
 ```
+
+## The evidence ledger (`video-evidence`, Puppet v0.9)
+
+`src/evidence.js` reads every narrator line and `CARD` in a script as a claim and pairs it with the
+`[[src: ...]]` notes in their own paragraphs after it; `[[not a claim]]` exempts one. `evidence(text)` returns
+`{ claims, problems, counts }`, `toMarkdown(text, title)` writes the EVIDENCE.md table the nightly drafts
+carry, and `mountVideoEvidence(container, text)` draws the ledger, with `update(text)` to follow the editor.
+Source notes are not spoken, so adding them leaves a reading unchanged (a test checks this). Not checked:
+whether soma-cut shows Fountain notes in a render; Fountain treats them as notes to the reader.
+

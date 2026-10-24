@@ -13,7 +13,7 @@ const byWord = new Map(records.map((r) => [r.word, r]));
 const parserSource = readFileSync(join(REPO, 'packages/soma-puppet-runtime/src/parser.js'), 'utf8');
 const renderSource = readFileSync(join(REPO, 'packages/soma-puppet-runtime/src/render.js'), 'utf8');
 const setFrom = (name) => new Set(parserSource.match(new RegExp(`const ${name}=new Set\\('([^']+)'`))[1].split(' '));
-const versions = ['0.1', '0.2', '0.3', '0.4', '0.5', '0.6', '0.7'];
+const versions = ['0.1', '0.2', '0.3', '0.4', '0.5', '0.6', '0.7', '0.8', '0.9'];
 
 test('every record is valid against the schema', () => {
   for (const r of records) assert.deepEqual(validateRecord(r).errors, [], r.word);
@@ -114,7 +114,7 @@ test('catalog.json is up to date and carries no pins (pins are read live)', () =
 });
 
 test('find matches word, tag and summary, every term', () => {
-  assert.deepEqual(find(records, 'voice tts').map((r) => r.word).sort(), ['stage-read', 'video-read']);
+  assert.deepEqual(find(records, 'voice tts').map((r) => r.word).sort(), ['line-run', 'stage-read', 'video-read']);
   assert.ok(find(records, 'storyboard').some((r) => r.word === 'video-storyboards'));
   assert.equal(find(records, 'nothing-matches-this').length, 0);
 });

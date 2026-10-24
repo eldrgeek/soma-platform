@@ -381,6 +381,28 @@ export function render(sketch, { root, data = {}, me = {}, host = false, onActio
       return;
     }
 
+    // Puppet v0.8 (packages/soma-play): run lines. Stage Read reads the other parts and stops on the
+    // reader's own; the line being run is highlighted in a play-view of the same field.
+    if (element.kind === 'line-run') {
+      const node = append(parent, 'section', { className: 'puppet-runtime-line-run' });
+      if (!components['line-run'] || !currentRow?.id) {
+        append(node, 'p', { className: 'puppet-runtime-empty', text: 'Run lines is not available here.' });
+        return;
+      }
+      const player = components['line-run'](node, {
+        text: text(element.label),
+        data: current.from,
+        rowId: currentRow.id,
+        field: element.field,
+        hint: element.props?.hint ?? 'none',
+        onActive: (blockIndex) => {
+          for (const entry of mounted) if (entry.label === element.label) entry.view?.highlight?.(blockIndex);
+        },
+      });
+      mounted.push({ view: player, label: null });
+      return;
+    }
+
     // Puppet v0.5 (VideoMaker, packages/soma-video): a video script drawn as an AV script, its
     // narration read aloud, and the editor that changes the row's text. Typing in the editor redraws
     // every view of the same field at once, and its unsaved text survives a redraw of the page.
@@ -392,6 +414,18 @@ export function render(sketch, { root, data = {}, me = {}, host = false, onActio
       } else {
         append(node, 'pre', { className: 'puppet-runtime-script', text: source });
       }
+      return;
+    }
+
+    // Puppet v0.9 (packages/soma-video): the evidence ledger, every claim in the script next to its
+    // source. Like the AV view it follows the editor's unsaved text.
+    if (element.kind === 'video-evidence') {
+      const node = append(parent, 'section', { className: 'puppet-runtime-video-evidence' });
+      if (!components['video-evidence']) {
+        append(node, 'p', { className: 'puppet-runtime-empty', text: 'The evidence ledger is not available here.' });
+        return;
+      }
+      mounted.push({ view: components['video-evidence'](node, draftOf(element.label) ?? text(element.label)), label: element.label });
       return;
     }
 
