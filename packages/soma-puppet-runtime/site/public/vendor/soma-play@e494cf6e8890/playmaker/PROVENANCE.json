@@ -1,0 +1,19 @@
+{
+  "playmaker": "eldrgeek/playmaker",
+  "commit": "84f7888c02af306f30297f682f2036c033a549b3",
+  "builtWith": "esbuild",
+  "bundles": [
+    {
+      "entry": "playmaker/entry-print.ts",
+      "file": "src/playmaker/print.js",
+      "bytes": 472246,
+      "sha256": "ade684bee9e98b7a5ad924e8a62bc874a93fb8a9edcf0223f738bc6f686dd29d"
+    },
+    {
+      "entry": "playmaker/entry-doc.ts",
+      "file": "src/playmaker/doc.js",
+      "bytes": 272050,
+      "sha256": "97c4bc9a1b636ac530a4bf486104988ab571d5f4c789934d6f22ba4e1e7ed9cc"
+    }
+  ]
+}

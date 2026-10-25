@@ -127,6 +127,7 @@ test('the page imports every component from the folders the pins choose', async 
       'play-view.js': 'mountPlayView', 'stage-read.js': 'mountStageRead', 'video-view.js': 'mountVideoView',
       'video-read.js': 'mountVideoRead', 'video-assets.js': 'mountVideoAssets', 'video-jobs.js': 'mountVideoJobs',
       'video-storyboard.js': 'mountStoryboards', 'line-run.js': 'mountLineRun', 'evidence.js': 'mountVideoEvidence',
+      'doc-import.js': 'mountDocImport', 'play-print.js': 'mountPlayPrint',
     }[name];
     return { [exported]: url };
   });
@@ -135,7 +136,9 @@ test('the page imports every component from the folders the pins choose', async 
   assert.equal(lib.mountStoryboards, '/vendor/soma-video/video-storyboard.js');
   assert.equal(lib.mountLineRun, '/vendor/soma-play@ba9876543210/line-run.js');
   assert.equal(lib.mountVideoEvidence, '/vendor/soma-video/evidence.js');
-  assert.equal(asked.length, 9);
+  assert.equal(lib.mountDocImport, '/vendor/soma-play@ba9876543210/doc-import.js');
+  assert.equal(lib.mountPlayPrint, '/vendor/soma-play@ba9876543210/play-print.js');
+  assert.equal(asked.length, 11);
   assert.deepEqual(lib.notices, []);
 });
 

@@ -292,6 +292,38 @@ await step('v0.4: the Theo piece is removed by Theo through the visible Delete b
   assert.equal(removed.response.status, 200, removed.payload.error);
 });
 
+// ---------- Puppet v0.10 on the demo app (seeded from examples/table-read.puppet) ----------
+const v10call = (path, options = {}) => call(path, { ...options, base: `${baseUrl}/api/app/table-read` });
+const theoDoc = { id: `docTheo${runId}x`, name: `Witness Projection ${runId}` };
+const scene = (title, who) => ({ act: 'ACT ONE', title, text: `${title}\n\n${who}\nA line ${runId}.` });
+
+await step('v0.10: a pull stores the scenes as the writer\'s own rows, in the Doc\'s order', async () => {
+  assert.equal((await v10call('current', { user: guest })).response.status, 200);
+  const pulled = await v10call('doc-import', { method: 'POST', user: guest, body: { data: 'scenes', doc: theoDoc, scenes: [scene('SCENE ONE', 'SAM'), scene('SCENE TWO', 'ANA')] } });
+  assert.equal(pulled.response.status, 200, pulled.payload.error);
+  assert.equal(pulled.payload.scenes, 2);
+  const theo = (await v10call('data/scenes', { user: guest })).payload;
+  assert.deepEqual(theo.map((row) => row.title), ['SCENE ONE', 'SCENE TWO']);
+  assert.deepEqual((await v10call('data/scenes', { user: host })).payload, [], 'the host reads none of them');
+  assert.equal((await v10call('data/scenes')).response.status, 401);
+});
+
+await step('v0.10: Pull again replaces the writer\'s rows; the record is the writer\'s own', async () => {
+  const again = await v10call('doc-import', { method: 'POST', user: guest, body: { data: 'scenes', doc: theoDoc, scenes: [scene('SCENE ONE', 'SAM')] } });
+  assert.equal(again.response.status, 200, again.payload.error);
+  assert.deepEqual((await v10call('data/scenes', { user: guest })).payload.map((row) => row.title), ['SCENE ONE']);
+  assert.equal((await v10call('doc-import/scenes', { user: guest })).payload.name, theoDoc.name);
+  assert.equal((await v10call('doc-import/scenes', { user: 'ana:Ana' })).payload, null);
+});
+
+await step('v0.10: a pull with a bad body or a forged Doc id is refused', async () => {
+  const bad = (body) => v10call('doc-import', { method: 'POST', user: guest, body });
+  assert.equal((await bad({ data: 'scenes', doc: theoDoc, scenes: [] })).response.status, 400);
+  assert.equal((await bad({ data: 'scenes', doc: { ...theoDoc, id: '../x' }, scenes: [scene('S', 'SAM')] })).response.status, 400);
+  assert.equal((await bad({ data: 'scenes', doc: theoDoc, scenes: [scene('S', 'SAM')], author: 'rosa' })).response.status, 400);
+  assert.equal((await bad({ data: 'plays', doc: theoDoc, scenes: [scene('S', 'SAM')] })).response.status, 404);
+});
+
 if (failures) {
   console.log(`FAIL ${failures} end-to-end step(s) failed`);
   process.exitCode = 1;

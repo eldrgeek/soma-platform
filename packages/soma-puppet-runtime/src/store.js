@@ -48,6 +48,14 @@ export class StoreAdapter {
   privacyLevels(_appId) {
     throw new Error('privacyLevels is not implemented');
   }
+
+  pullDoc(_appId, _data, _author, _pull) {
+    throw new Error('pullDoc is not implemented');
+  }
+
+  docPull(_appId, _data, _author) {
+    throw new Error('docPull is not implemented');
+  }
 }
 
 export class PuppetParseError extends Error {
@@ -98,9 +106,31 @@ export function checkRemove(entry, actor, hostId, privateRow) {
     if (privateRow) throw new Error(`Unknown row: ${entry.id}`);
     throw new Error('Only the row author or app host may remove this row');
   }
+  if (entry.doc) throw new Error(PEN);
   if (actor !== hostId && entry.row.status !== undefined && entry.row.status !== 'pending') {
     throw new Error('Only the host may remove a row that is already confirmed or declined');
   }
+}
+
+// v0.10: a row brought in from a Google Doc changes only by its writer's next pull.
+export const PEN = 'This scene comes from your Google Doc. Change it in the Doc, then pull again.';
+
+// One pull, in one write: every row this writer brought in from a Doc into this data is replaced by
+// the new scenes, in the Doc's order, after the rows they added in the app. The server marks them
+// (entry.doc); a client never sets that. Returns the writer's pull record.
+export function applyPull(app, rows, sketch, data, author, { doc, scenes }, now = new Date()) {
+  const declaration = sketch?.data[data];
+  if (!declaration) throw new Error(`Unknown data: ${data}`);
+  for (const scene of scenes) {
+    const undeclared = Object.keys(scene).filter((field) => !declaration.fields.includes(field));
+    if (undeclared.length) throw new Error(`Undeclared field(s) for ${data}: ${undeclared.join(', ')}`);
+  }
+  const kept = rows.filter((entry) => !(entry.doc && entry.author === author));
+  const fresh = scenes.map((scene) => ({ ...newRow(app, scene, author, { privateRow: true, approval: false }), doc: true }));
+  rows.splice(0, rows.length, ...kept, ...fresh);
+  const record = { id: doc.id, name: doc.name, pulledAt: now.toISOString(), scenes: scenes.length };
+  ((app.pulls ??= {})[data] ??= {})[author] = record;
+  return structuredClone(record);
 }
 
 export function applyStatus(entry, sketch, data, status, level, actor) {
@@ -123,6 +153,7 @@ export function applyEdit(entry, sketch, data, field, value, level, actor) {
     if (level) throw new Error(`Unknown row: ${entry.id}`);
     throw new Error('Only the row author may edit this row');
   }
+  if (entry.doc) throw new Error(PEN);
   if (field === 'status') throw new Error('Only the host sets status');
   if (!sketch?.data[data]?.fields?.includes(field)) throw new Error(`Undeclared field for ${data}: ${field}`);
   if (typeof value !== 'string') throw new Error('The value must be text');
@@ -271,6 +302,17 @@ export class MemoryStore extends StoreAdapter {
 
   async privacyLevels(appId) {
     return structuredClone(this.#app(appId).private ?? {});
+  }
+
+  async pullDoc(appId, data, author, pull) {
+    const app = this.#app(appId);
+    const current = app.versions.find(({ id }) => id === app.currentVersionId);
+    if (!current) throw new Error(`App ${appId} has no current version`);
+    return applyPull(app, this.#rows(app, data), current.sketch, data, author, pull);
+  }
+
+  async docPull(appId, data, author) {
+    return structuredClone(this.#app(appId).pulls?.[data]?.[author] ?? null);
   }
 
   #app(appId) {

@@ -1,4 +1,4 @@
-/* soma-play play-view.js: one scene drawn read-only in Diana's script format.
+/* soma-play play-view.js: one scene drawn read-only in Diana's script format: PlayMaker's script editor in its read-only profile.
  *
  *   import { mountPlayView } from './play-view.js';
  *   const view = mountPlayView(container, sceneText);
@@ -30,6 +30,7 @@ const CSS = `
 .soma-play-direction.soma-play-technical { margin-left: 0; font-style: normal; }
 .soma-play-spotlight { background: rgb(245 158 11 / 0.12); box-shadow: inset 3px 0 0 rgb(245 158 11 / 0.85); border-radius: 2px; }
 .soma-play-empty { font-family: var(--soma-play-font); color: #66768a; }
+.soma-play-profile { margin: 0 0 6px; font: 12px/1.3 system-ui, -apple-system, sans-serif; color: #66768a; letter-spacing: 0.02em; }
 `;
 
 function installStyle(document) {
@@ -82,11 +83,14 @@ function paginate(document, pages, nodes) {
 export function mountPlayView(container, text, { document = container.ownerDocument } = {}) {
   installStyle(document);
   const blocks = parseScript(text);
+  // play-view is PlayMaker's script editor in its read-only profile (GRAMMAR-v0.10 section 3),
+  // and the page says so.
+  const profile = element(document, 'p', 'soma-play-profile', 'PlayMaker editor · read-only');
   const root = element(document, 'div', 'soma-play');
-  container.append(root);
+  container.append(profile, root);
   if (!blocks.length) {
     root.append(element(document, 'p', 'soma-play-empty', 'No script yet.'));
-    return { blocks, highlight() {}, destroy: () => root.remove() };
+    return { blocks, highlight() {}, destroy: () => { profile.remove(); root.remove(); } };
   }
   const pages = element(document, 'div', 'soma-play-pages');
   root.append(pages);
@@ -115,6 +119,7 @@ export function mountPlayView(container, text, { document = container.ownerDocum
     },
     destroy() {
       view?.removeEventListener?.('resize', fit);
+      profile.remove();
       root.remove();
     },
   };

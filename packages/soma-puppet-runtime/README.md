@@ -1,7 +1,7 @@
 # `@soma/puppet-runtime`
 
 The runtime for applications described in Puppet Script. It parses and
-validates Puppet Script v0.1 to v0.5, renders it directly in the browser, and
+validates Puppet Script v0.1 to v0.10, renders it directly in the browser, and
 provides memory and Netlify Blobs stores for versioned descriptions and
 declared application data.
 
@@ -245,6 +245,22 @@ copies the studio page into `site/public/studio/` (gitignored), and `site/functi
 `/api/studio/*`. Inside the studio this runtime is the live app pane: after a host approves or undoes a
 version, `app.js` tells the studio (`postMessage`), and it redraws when the studio asks. Read
 `packages/soma-studio/README.md`.
+
+### Puppet v0.10: a play from a Google Doc, and the play as a PDF
+
+[`GRAMMAR-v0.10.md`](./GRAMMAR-v0.10.md) adds `doc-import into scenes` (the
+writer's Google Doc, read in the page with PlayMaker's own code, becomes one
+private row per scene; the Doc holds the pen, so nobody edits or removes
+those rows in the app) and `play-print` (PlayMaker's own PDF writer, Diana's
+format, one scene or `from` the whole play), and presents `play-view` as
+PlayMaker's editor in its read-only profile. Versions now compare by their
+parts, so `"0.10"` comes after `"0.9"`. The review is
+[`docs/grammar-v0.10-review.md`](./docs/grammar-v0.10-review.md), and
+`examples/table-read.puppet` (live as `?app=table-read`, `publicRead`) uses
+every v0.10 word. Routes: `POST /api/app/:appId/doc-import` and
+`GET /api/app/:appId/doc-import/:data`; `/api/config` also gives
+`googleClientId` and `googleApiKey` (site env `GOOGLE_DRIVE_CLIENT_ID`,
+`GOOGLE_API_KEY`, PlayMaker's public values).
 
 ## Component pins
 

@@ -34,12 +34,17 @@ export async function loadComponents(uses, manifest, importer) {
   const lineRun = await at(play, 'line-run.js').catch(() => ({}));
   // The evidence ledger (v0.9) is likewise newer than the first published soma-video build.
   const evidence = await at(video, 'evidence.js').catch(() => ({}));
+  // The Google Doc import and the PDF print (v0.10) are newer than every earlier soma-play build.
+  const docImport = await at(play, 'doc-import.js').catch(() => ({}));
+  const playPrint = await at(play, 'play-print.js').catch(() => ({}));
   return {
     key: `${play.base} ${video.base}`,
     notices: [play.notice, video.notice].filter(Boolean),
     mountPlayView: playView.mountPlayView,
     mountStageRead: stageRead.mountStageRead,
     mountLineRun: lineRun.mountLineRun,
+    mountDocImport: docImport.mountDocImport,
+    mountPlayPrint: playPrint.mountPlayPrint,
     mountVideoView: videoView.mountVideoView,
     mountVideoEvidence: evidence.mountVideoEvidence,
     mountVideoRead: videoRead.mountVideoRead,

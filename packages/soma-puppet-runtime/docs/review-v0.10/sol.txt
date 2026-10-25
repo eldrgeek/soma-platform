@@ -1,0 +1,53 @@
+1. SMALLEST DESIGN
+
+The smallest design is:
+
+doc-import into Name
+play-print from Name
+
+The quoted play-print form duplicates browser printing of a row screen and does not satisfy the stated whole-play blocker. Drop it unless a rehearsed app needs single-scene PDF export. Drop title: too: use the app title or the Fountain title page already present in the assembled script. play-view adds no grammar and should remain documentation only.
+
+The GET /doc-import/:data route is not necessarily a new grammar capability, but its state model must be specified. It is needed only if “Last updated” survives reloads; otherwise return that information from POST.
+
+2. AMBIGUITIES
+
+“With text in quotes it prints that text” conflicts with “a title page, the cast, then … pages”: a scene fragment may contain neither title-page nor cast data.
+
+“in the order the list shows them” is undefined when there is no list, multiple lists, filtering, pagination, or differently sorted lists. Define one canonical data order.
+
+“Each pull replaces every row this reader brought in from that Doc” must identify the exact replacement key: app/version + data name + authenticated user + canonical Doc ID. It must not mean every imported row in the data collection.
+
+“Rows they typed in the app stay” is unclear because no row-creation form is shown and imported rows could otherwise be forged to look typed or imported.
+
+“Removing it is allowed” does not name the authorized deletion mechanism, nor say whether only the author may remove it.
+
+“a doc-import into this data on a screen the reader can see” confuses visibility with write authorization. A visible control is not authority to mutate storage.
+
+“the Doc’s id is a Google id” has no meaningful security definition. Many attacker-chosen strings look like Drive IDs.
+
+“Versions compare by their parts” must define numeric parsing, component count, leading zeroes, malformed versions, and comparisons such as 0.10 versus 0.10.1.
+
+3. SECURITY AND ABUSE HOLES
+
+The central claim is unenforceable as written: the server receives attacker-supplied scenes and never sees evidence that Google supplied them. An attacker can name any Doc ID and submit arbitrary text. Therefore “The Doc holds the pen” is only a UI convention, not a security property. Either state that honestly, or send a short-lived Google access token to the server so it can verify access/export the Doc. The latter changes the approved browser-only architecture.
+
+Replacement must be an atomic server transaction limited to rows whose server-created provenance matches the authenticated user, data set, and canonical Doc ID. Clients must never set or alter imported provenance. PUT refusal alone is insufficient: every update, bulk operation, and deletion route must preserve the pen rule and author check.
+
+The endpoint also needs the existing authorization for creating rows, not merely a visible screen. Otherwise any signed-in reader can inject up to 300 rows. In publicRead apps this becomes public-content spam and stored-XSS risk unless all rendering is safely escaped.
+
+Validate exact body shape; Doc ID/name, act, aggregate request bytes, aggregate converted characters, and row count. The current maximum permits roughly 12 million characters per pull. Add request/rate/storage quotas and safe transactional failure. Treat Doc names and script text as untrusted.
+
+Imported rows follow the declared read rule, which is coherent but consequential: publicRead publishes imported scripts; private exposes only each author’s rows even to the host. State this prominently.
+
+play-print from publicRead can bulk-export every readable author’s rows into one “play.” It also contradicts “only text the page already has” if it silently fetches unrendered rows. Require the same authenticated read path, canonical ordering, an export size cap, and either reject publicRead or explicitly accept cross-author compilation.
+
+Ranked changes:
+
+1. Admit client-submitted import is unverifiable, or add server-side Google verification.
+2. Make replacement atomic and scoped by server-owned user/data/Doc provenance.
+3. Require real write authorization; screen visibility is insufficient.
+4. Prevent publicRead whole-dataset/cross-author PDF export or explicitly define it.
+5. Add total-size, rate, storage, exact-schema, and untrusted-text protections.
+6. Define canonical ordering, deletion authorization, and all pen-rule mutation paths.
+7. Specify numeric version parsing precisely.
+8. Drop quoted play-print and title: until a real app requires them.

@@ -361,6 +361,36 @@ export function render(sketch, { root, data = {}, me = {}, host = false, onActio
       return;
     }
 
+    // v0.10: a play from a Google Doc (the Doc holds the pen), and a PDF in Diana's format.
+    if (element.kind === 'doc-import') {
+      const node = append(parent, 'section', { className: 'puppet-runtime-doc-import' });
+      if (!components['doc-import']) {
+        append(node, 'p', { className: 'puppet-runtime-empty', text: 'Google Doc import is not available here.' });
+        return;
+      }
+      const view = components['doc-import'](node, {
+        data: element.into,
+        withAct: Boolean(sketch.data?.[element.into]?.fields?.includes('act')),
+      });
+      mounted.push({ view, label: null });
+      return;
+    }
+
+    if (element.kind === 'play-print') {
+      const node = append(parent, 'section', { className: 'puppet-runtime-play-print' });
+      // The whole play is every row of the data this page was given, in stored order.
+      const getText = element.from
+        ? () => collectionRows(sketch, data, element.from).map((row) => String(row.text ?? '')).join('\n\n')
+        : () => text(element.label);
+      if (!components['play-print']) {
+        append(node, 'p', { className: 'puppet-runtime-empty', text: 'Printing is not available here.' });
+        return;
+      }
+      const view = components['play-print'](node, { getText, title: sketch.meta?.title ?? 'Play' });
+      mounted.push({ view, label: null });
+      return;
+    }
+
     if (element.kind === 'stage-read') {
       const node = append(parent, 'section', { className: 'puppet-runtime-stage-read' });
       if (!components['stage-read'] || !currentRow?.id) {

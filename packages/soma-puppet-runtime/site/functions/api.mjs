@@ -184,6 +184,44 @@ async function prepareDataRow(store, appId, name, input, identity, isHost) {
   return input;
 }
 
+// A doc-import pull, checked whole before anything is stored (GRAMMAR-v0.10 routes table). The
+// Doc id is checked for its shape only: the server never calls Google.
+export const PULL_LIMITS = { scenes: 300, title: 300, act: 100, text: 40000, total: 500000, name: 300 };
+export function checkPull(input) {
+  const exact = (value, keys) =>
+    value && typeof value === 'object' && !Array.isArray(value) &&
+    Object.keys(value).sort().join(',') === [...keys].sort().join(',');
+  if (!exact(input, ['data', 'doc', 'scenes']) || typeof input.data !== 'string') {
+    throw new HttpError(400, 'Body must be exactly { data, doc: { id, name }, scenes }');
+  }
+  const { doc, scenes } = input;
+  if (!exact(doc, ['id', 'name']) || typeof doc.id !== 'string' || typeof doc.name !== 'string') {
+    throw new HttpError(400, 'doc must be exactly { id, name }');
+  }
+  if (!/^[A-Za-z0-9_-]{10,128}$/.test(doc.id)) throw new HttpError(400, 'That is not a Google Doc id');
+  if (doc.name.length > PULL_LIMITS.name) throw new HttpError(400, `A Doc name may be at most ${PULL_LIMITS.name} characters`);
+  if (!Array.isArray(scenes) || scenes.length < 1 || scenes.length > PULL_LIMITS.scenes) {
+    throw new HttpError(400, `A pull has 1 to ${PULL_LIMITS.scenes} scenes`);
+  }
+  let total = 0;
+  const clean = scenes.map((scene) => {
+    if (!scene || typeof scene !== 'object' || Array.isArray(scene)) throw new HttpError(400, 'Each scene is { title, text, act? }');
+    const keys = Object.keys(scene);
+    if (keys.some((key) => !['title', 'text', 'act'].includes(key)) || typeof scene.title !== 'string' || typeof scene.text !== 'string') {
+      throw new HttpError(400, 'Each scene is { title, text, act? }');
+    }
+    if (scene.act !== undefined && (typeof scene.act !== 'string' || scene.act.length > PULL_LIMITS.act)) {
+      throw new HttpError(400, `An act is text of at most ${PULL_LIMITS.act} characters`);
+    }
+    if (scene.title.length > PULL_LIMITS.title) throw new HttpError(400, `A scene title may be at most ${PULL_LIMITS.title} characters`);
+    if (scene.text.length > PULL_LIMITS.text) throw new HttpError(400, `A scene may be at most ${PULL_LIMITS.text} characters`);
+    total += scene.text.length;
+    return scene.act === undefined ? { title: scene.title, text: scene.text } : { title: scene.title, text: scene.text, act: scene.act };
+  });
+  if (total > PULL_LIMITS.total) throw new HttpError(400, `A pull may be at most ${PULL_LIMITS.total} characters in all`);
+  return { data: input.data, doc: { id: doc.id, name: doc.name }, scenes: clean };
+}
+
 export function createApiHandler({
   apps,
   store,
@@ -248,6 +286,9 @@ export function createApiHandler({
           supabaseUrl: process.env.SUPABASE_URL ?? '',
           supabaseAnonKey: process.env.SUPABASE_ANON_KEY ?? '',
           devIdentity: process.env.NETLIFY_DEV === 'true',
+          // PlayMaker's public Google settings, for doc-import's Google sign-in and Picker (v0.10).
+          googleClientId: process.env.GOOGLE_DRIVE_CLIENT_ID ?? '',
+          googleApiKey: process.env.GOOGLE_API_KEY ?? '',
         });
       }
 
@@ -672,6 +713,40 @@ export function createApiHandler({
         throw new HttpError(404, 'Unknown API route');
       }
 
+      // v0.10 doc-import. The page reads the writer's Google Doc with PlayMaker's code and sends
+      // the scenes; the server keeps them as this writer's rows and never calls Google. Checks in
+      // order: signed in; a doc-import into this data on a screen the reader can see; the body's
+      // shape and sizes; then, in one write, the writer's earlier Doc rows in this data are replaced.
+      const docMatch = route.match(/^doc-import(?:\/([^/]+))?$/);
+      if (docMatch) {
+        const reader = await signedIn();
+        const sketch = await liveSketch(store, appId);
+        const offered = (name) =>
+          [...sketch.screens, ...sketch.dialogs].some(
+            (owner) =>
+              (reader.id === config.hostId || !owner.hostOnly) &&
+              walk(owner.children).some((element) => element.kind === 'doc-import' && element.into === name),
+          );
+        if (request.method === 'GET' && docMatch[1]) {
+          const name = decodeURIComponent(docMatch[1]);
+          if (!offered(name)) throw new HttpError(404, `No doc-import into ${name} here`);
+          return json(await store.docPull(appId, name, reader.id));
+        }
+        if (request.method === 'POST' && !docMatch[1]) {
+          const input = await body(request);
+          const pull = checkPull(input);
+          if (!offered(pull.data)) throw new HttpError(404, `No doc-import into ${pull.data} here`);
+          const fields = sketch.data[pull.data]?.fields ?? [];
+          for (const scene of pull.scenes) {
+            for (const key of Object.keys(scene)) {
+              if (!fields.includes(key)) throw new HttpError(400, `${pull.data} has no field ${key}`);
+            }
+          }
+          return json(await store.pullDoc(appId, pull.data, reader.id, { doc: pull.doc, scenes: pull.scenes }));
+        }
+        throw new HttpError(404, 'Unknown API route');
+      }
+
       const dataMatch = route.match(/^data\/([^/]+)(?:\/([^/]+))?$/);
       if (dataMatch) {
         const name = decodeURIComponent(dataMatch[1]);
@@ -755,7 +830,7 @@ export function createApiHandler({
         return json({ error: error.message, details: error.errors }, 400);
       }
       const message = error instanceof Error ? error.message : 'Request failed';
-      const status = /Only the /.test(message) ? 403 : /^Unknown row/.test(message) ? 404 : 400;
+      const status = /Only the /.test(message) ? 403 : /^Unknown row/.test(message) ? 404 : /comes from your Google Doc/.test(message) ? 409 : 400;
       return json({ error: message }, status);
     }
   };

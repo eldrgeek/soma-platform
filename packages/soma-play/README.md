@@ -60,6 +60,40 @@ starts from the voice its name hashes to; a scene never doubles a voice
 unless it has more than five characters. Choosing voices is the later
 voice-picker component.
 
+## v0.10: the Google Doc import and the PDF print, as PlayMaker's own code
+
+Two more parts of PlayMaker, **bundled unchanged from PlayMaker's source**, not
+rewritten (GRAMMAR-v0.10 in the Puppet runtime):
+
+| File | What it is |
+|---|---|
+| `src/doc-import.js` | `mountDocImport(container, { google, send, last, withAct, onPulled })`: "Bring in from Google Doc", "Pull again", "Last updated". It uses PlayMaker's Google sign-in, Picker and Drive export, then PlayMaker's converter, and sends one scene per row. The app never writes to the Doc. |
+| `src/play-print.js` | `mountPlayPrint(container, { getText, title })`: "Print (PDF)". PlayMaker's PDF writer makes the scene or the play in Diana's format and the PDF opens in a new tab (or downloads). |
+| `src/script.js` | adds `splitScenes(converted, { withAct, fallbackTitle })` (the converted script into scenes) and `toFountain(text)` (the Fountain PlayMaker's PDF writer reads). |
+| `src/playmaker/doc.js` | PlayMaker's `getDriveToken`, `pickGoogleDoc`, `exportDocAsHtml`, `importGoogleDocHtml`, `translateGoogleFailure` (`src/lib/googleDocs.ts`, `src/lib/driveImport.ts`). |
+| `src/playmaker/print.js` | PlayMaker's `fountainToStagePlay` and `stagePlayDocumentToPdf` (pdf-lib), with `scriptToPdf(fountain, { title })`. |
+| `src/playmaker/PROVENANCE.json` | The PlayMaker commit both were built from, and each file's sha256. |
+
+Rebuild them from PlayMaker (it reads `git archive` of the commit and uses
+PlayMaker's own esbuild and node_modules; PlayMaker's working tree is not
+touched):
+
+```sh
+node scripts/bundle-playmaker.mjs                 # from ~/Projects/playmaker origin/master
+node scripts/bundle-playmaker.mjs --ref <commit>  # from a given commit
+```
+
+Then copy `src/` into the runtime's `site/public/vendor/soma-play/` and publish
+a build (`node scripts/vendor-store.mjs` in the runtime).
+
+The Google client id and API key are PlayMaker's public settings; the page
+gets them from the site's `/api/config` (`GOOGLE_DRIVE_CLIENT_ID`,
+`GOOGLE_API_KEY`). Google must list the site's address on that client.
+
+`play-view` is presented as PlayMaker's script editor in its read-only
+profile: a quiet line above the pages says "PlayMaker editor · read-only".
+The editing profile is not wrapped yet.
+
 ## Where it came from
 
 Ported on 2026-10-22 from PlayMaker (eldrgeek/playmaker master):

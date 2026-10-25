@@ -6,6 +6,7 @@ import { execFileSync } from 'node:child_process';
 import { parse } from '../../soma-puppet-runtime/src/parser.js';
 import {
   GRAMMAR, PINNABLE, REPO, ROOT, buildCatalog, catalog, exampleApp, find, loadRecords, pinsFromManifest, skeleton, validateRecord,
+  versionNumber,
 } from '../src/index.mjs';
 
 const records = loadRecords();
@@ -13,7 +14,7 @@ const byWord = new Map(records.map((r) => [r.word, r]));
 const parserSource = readFileSync(join(REPO, 'packages/soma-puppet-runtime/src/parser.js'), 'utf8');
 const renderSource = readFileSync(join(REPO, 'packages/soma-puppet-runtime/src/render.js'), 'utf8');
 const setFrom = (name) => new Set(parserSource.match(new RegExp(`const ${name}=new Set\\('([^']+)'`))[1].split(' '));
-const versions = ['0.1', '0.2', '0.3', '0.4', '0.5', '0.6', '0.7', '0.8', '0.9'];
+const versions = ['0.1', '0.2', '0.3', '0.4', '0.5', '0.6', '0.7', '0.8', '0.9', '0.10'];
 
 test('every record is valid against the schema', () => {
   for (const r of records) assert.deepEqual(validateRecord(r).errors, [], r.word);
@@ -63,7 +64,7 @@ test('a row-field label is enforced: anything but one {row.field} is refused', (
 });
 
 test('since is true for words the parser gates by version', () => {
-  for (const r of records.filter((x) => Number(x.since) >= 0.5)) {
+  for (const r of records.filter((x) => versionNumber(x.since) >= versionNumber('0.5'))) {
     const before = versions[versions.indexOf(r.since) - 1];
     assert.deepEqual(parse(exampleApp(r, { version: r.since })).errors, [], `${r.word} at ${r.since}`);
     assert.ok(parse(exampleApp(r, { version: before })).errors.some((e) => e.message.includes(r.word)), `${r.word} at ${before}`);

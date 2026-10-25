@@ -1,0 +1,26 @@
+puppet "Table Read" version "0.10"
+
+app "Table Read" {
+  promise: "Bring your play in from your Google Doc, read it as a script, hear it, and print it."
+  requires: signin
+}
+
+data scenes {
+  fields: [act, title, text]
+  read: private
+}
+
+screen "My play" {
+  hero { title: "My play", subtitle: "You write in your Google Doc. Only you can read what is here, {me.name}." }
+  doc-import into scenes
+  text "{scenes.count} scenes"
+  list "Scenes" from scenes empty: "Nothing here yet. Bring your play in from your Google Doc." -> opens screen "Scene"
+  play-print from scenes
+}
+
+screen "Scene" from scenes {
+  hero { title: "{row.title}", subtitle: "{row.act}" }
+  stage-read "{row.text}"
+  play-view "{row.text}"
+  play-print "{row.text}"
+}

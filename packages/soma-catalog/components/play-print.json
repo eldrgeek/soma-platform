@@ -1,0 +1,56 @@
+{
+  "word": "play-print",
+  "summary": "A Print (PDF) button: PlayMaker's own PDF writer makes the scene or the whole play in Diana's format (title page, cast, numbered US Letter pages) and opens it in a new tab to print or save.",
+  "since": "0.10",
+  "rendering": "drawn",
+  "component": "soma-play",
+  "export": "mountPlayPrint",
+  "placement": "any",
+  "label": "optional",
+  "template": "play-print from $data",
+  "params": [
+    {
+      "name": "text",
+      "in": "label",
+      "required": false,
+      "description": "One scene: exactly one {row.field} on a row screen, such as play-print \"{row.text}\""
+    },
+    {
+      "name": "from",
+      "in": "prop",
+      "required": false,
+      "description": "The whole play: every row of this data the reader can read, in stored order; the data needs a text field"
+    }
+  ],
+  "data": {
+    "reads": "Rows the page was already given under the data's read rule (or one row's field).",
+    "writes": "nothing"
+  },
+  "routes": [],
+  "permissions": "Anyone who can see the screen; it prints only what that reader may read.",
+  "enforcement": "none",
+  "runsOn": "browser",
+  "tags": [
+    "play",
+    "script",
+    "theatre",
+    "print",
+    "pdf",
+    "export"
+  ],
+  "replaces": "Copying the play into a word processor to format and print it.",
+  "limits": [
+    "No email or locked PDF yet (PlayMaker's email-print-pdf is not wrapped)."
+  ],
+  "docs": "packages/soma-puppet-runtime/GRAMMAR-v0.10.md#2-play-print-a-pdf-in-dianas-format",
+  "source": [
+    "packages/soma-play/src/play-print.js",
+    "packages/soma-play/src/script.js",
+    "packages/soma-play/src/playmaker/print.js",
+    "packages/soma-play/scripts/bundle-playmaker.mjs"
+  ],
+  "tests": [
+    "packages/soma-play/test/doc-print.test.js",
+    "packages/soma-puppet-runtime/test/render-v010.test.js"
+  ]
+}

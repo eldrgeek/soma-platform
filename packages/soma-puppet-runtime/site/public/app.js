@@ -227,6 +227,38 @@ const components = {
   'video-read': (node, { text, onActive, ...where }) =>
     lib.mountVideoRead(node, { text, onActive, mountStageRead: lib.mountStageRead, speak: reader('video-read')(where) }),
   'play-view': (node, text) => lib.mountPlayView(node, text),
+  // v0.10. The page reads the Google Doc with PlayMaker's own code and sends the scenes; the
+  // server keeps them as this writer's rows. The app never writes to the Doc.
+  'doc-import': (node, { data, withAct }) => {
+    if (!lib.mountDocImport) {
+      node.textContent = 'Google Doc import needs a newer soma-play than this app is pinned to.';
+      return null;
+    }
+    return lib.mountDocImport(node, {
+      google: { clientId: lastConfig.googleClientId, apiKey: lastConfig.googleApiKey },
+      withAct,
+      send: (pull) =>
+        fetch(`/api/app/${encodeURIComponent(appId)}/doc-import`, {
+          method: 'POST',
+          headers: authHeaders({ 'content-type': 'application/json' }),
+          body: JSON.stringify({ data, ...pull }),
+        }),
+      last: () =>
+        fetch(`/api/app/${encodeURIComponent(appId)}/doc-import/${encodeURIComponent(data)}`, {
+          headers: authHeaders(),
+        }),
+      onPulled: () => {
+        loadData().then(draw).catch((error) => setStatus(error.message));
+      },
+    });
+  },
+  'play-print': (node, { getText, title }) => {
+    if (!lib.mountPlayPrint) {
+      node.textContent = 'Printing needs a newer soma-play than this app is pinned to.';
+      return null;
+    }
+    return lib.mountPlayPrint(node, { getText, title });
+  },
   'line-run': (node, { text, data, rowId, field, hint, onActive }) => {
     if (!lib.mountLineRun) {
       node.textContent = 'Run lines needs a newer soma-play than this app is pinned to.';

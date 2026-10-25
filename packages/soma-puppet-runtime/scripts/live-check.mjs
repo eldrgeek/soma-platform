@@ -166,6 +166,37 @@ await step('v0.4: the soma-play components are served', async () => {
   }
 });
 
+// Puppet v0.10. The demo app table-read is publicRead too, so these refusals are
+// the v0.10 rules: a writer's Doc scenes and pulls need that writer signed in.
+const v10 = `${baseUrl}/api/app/table-read`;
+
+await step('v0.10: a reader without a token gets the description, with doc-import and play-print', async () => {
+  const response = await fetch(`${v10}/current`);
+  assert.equal(response.status, 200);
+  const { source } = await response.json();
+  assert.match(source, /version "0\.10"/);
+  assert.match(source, /doc-import into scenes/);
+  assert.match(source, /play-print from scenes/);
+});
+
+await step('v0.10: Doc scenes, the pull record and a pull are refused without a token', async () => {
+  assert.equal(await status(`${v10}/data/scenes`), 401);
+  assert.equal(await status(`${v10}/doc-import/scenes`), 401);
+  assert.equal(await status(`${v10}/doc-import`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ data: 'scenes', doc: { id: 'docForged1234567890', name: 'x' }, scenes: [{ title: 'x', text: 'SAM\nhi' }] }),
+  }), 401);
+});
+
+await step('v0.10: PlayMaker\'s Doc reader and PDF writer are served with soma-play', async () => {
+  for (const file of ['doc-import.js', 'play-print.js', 'playmaker/doc.js', 'playmaker/print.js', 'playmaker/PROVENANCE.json']) {
+    assert.equal(await status(`${baseUrl}/vendor/soma-play/${file}`), 200, file);
+  }
+  const config = await (await fetch(`${baseUrl}/api/config`)).json();
+  assert.ok('googleClientId' in config && 'googleApiKey' in config, 'config names the Google settings');
+});
+
 await step('the feedback chip loader and its central channel are served', async () => {
   assert.equal(await status(`${baseUrl}/vendor/soma-feedback/soma-chip-loader.js`), 200);
   assert.equal(await status(`${baseUrl}/soma-chip/channels/stable.json`), 200);
