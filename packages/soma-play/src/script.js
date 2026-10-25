@@ -151,3 +151,64 @@ export function castVoices(blocks) {
   }
   return cast;
 }
+
+// ---------- v0.10: from a Google Doc, and to PlayMaker's PDF writer ----------
+
+const HASH_HEADING = /^#{1,3}\s+/;
+const isActLine = (line) =>
+  HEADING.test(line) && !/\bscene\b/i.test(line) &&
+  (HASH_HEADING.test(line) ? /^#{1,3}\s+act\b/i.test(line) : /^ACT\b/.test(line));
+const headingWords = (line) => line.replace(HASH_HEADING, '').trim();
+
+/**
+ * PlayMaker's converted script (importGoogleDocHtml's Fountain) cut into scenes, in order.
+ * A scene starts at each heading line that is not an act heading; an act heading sets the act
+ * and opens the next scene's text. Lines before the first heading (a title page, a cast list)
+ * are dropped. A script with no heading at all is one scene called `fallbackTitle`.
+ * Without `withAct`, an act's words go in front of the scene's title ("ACT ONE, SCENE TWO").
+ */
+export function splitScenes(source, { withAct = false, fallbackTitle = 'Scene' } = {}) {
+  const lines = String(source ?? '').replace(/\r/g, '').split('\n');
+  const scenes = [];
+  let act = null;
+  let pending = null;
+  let current = null;
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (line && isActLine(line)) {
+      act = headingWords(line);
+      pending = [raw];
+      current = null;
+      continue;
+    }
+    if (line && HEADING.test(line)) {
+      const words = headingWords(line);
+      const title = !withAct && act && !/\bact\b/i.test(words) ? `${act}, ${words}` : words;
+      current = { title, ...(withAct && act ? { act } : {}), lines: [...(pending ?? []), raw] };
+      pending = null;
+      scenes.push(current);
+      continue;
+    }
+    if (current) current.lines.push(raw);
+    else if (pending) pending.push(raw);
+  }
+  if (pending?.some((line) => line.trim())) {
+    scenes.push({ title: act, ...(withAct ? { act } : {}), lines: pending });
+  }
+  const text = (lines) => lines.join('\n').replace(/^\s*\n/, '').trim();
+  if (!scenes.length) {
+    const whole = text(lines);
+    return whole ? [{ title: fallbackTitle, text: whole }] : [];
+  }
+  return scenes.map(({ lines, ...scene }) => ({ ...scene, text: text(lines) }));
+}
+
+/** soma-play's script text as the Fountain PlayMaker's PDF writer reads: headings as `## ...`. */
+export function toFountain(source) {
+  return parseScript(source).map((block) => {
+    if (block.type === 'heading') return `## ${block.text}`;
+    if (block.type === 'direction') return block.text;
+    const cue = block.role ? `${block.character} ${block.role}` : block.character;
+    return [cue, ...block.lines.map((line) => line.text)].join('\n');
+  }).join('\n\n');
+}

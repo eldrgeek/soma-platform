@@ -1,6 +1,6 @@
 {
   "word": "play-view",
-  "summary": "A scene drawn read-only as script pages in Diana's house format (PlayMaker). Its label may be any text; with {row.text} it goes on a row screen, which is how apps use it.",
+  "summary": "PlayMaker's script editor in its read-only profile: a scene as Diana-format script pages under a quiet \"PlayMaker editor · read-only\" line. Offer it as the editor, read-only, not a replacement. Usually {row.text} on a row screen.",
   "since": "0.4",
   "rendering": "drawn",
   "component": "soma-play",
@@ -28,9 +28,11 @@
     "play",
     "script",
     "theatre",
-    "writing"
+    "writing",
+    "editor",
+    "read-only"
   ],
-  "docs": "packages/soma-puppet-runtime/GRAMMAR-v0.4.md#play-view-a-scene-in-dianas-script-format",
+  "docs": "packages/soma-puppet-runtime/GRAMMAR-v0.10.md#3-play-view-is-the-editors-read-only-profile",
   "source": [
     "packages/soma-play/src/play-view.js",
     "packages/soma-play/src/script.js"
@@ -38,5 +40,8 @@
   "tests": [
     "packages/soma-play/test/script.test.js",
     "packages/soma-puppet-runtime/test/render-v04.test.js"
+  ],
+  "limits": [
+    "The editing profile (PlayMaker's mark-layer editor) is not wrapped yet; with doc-import the writer edits in their Google Doc."
   ]
 }

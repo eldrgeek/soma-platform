@@ -1,0 +1,54 @@
+### 1. SMALLEST DESIGN
+
+The two new elements (`doc-import` and `play-print`) and the read-only framing of `play-view` match GCT's blockers without adding roles, sharing, or two-way sync. Three trims make it smaller and tighter:
+
+1. **Drop `title:` on `play-print`.** For `play-print from Name`, the app title is already the default. For `play-print "{row.text}"`, `doc-import` already keeps the scene heading inside `text` (and the row has `title`). One less keyword to parse and teach.
+2. **One active Doc per reader per `data` table.** Instead of tracking rows per `(reader, doc.id)`—which leaves orphaned scenes if a reader picks a new Doc while the UI only shows the *last* Doc—replace *all* Doc-imported rows of that reader in that `data` on each pull.
+3. **Drop `GET /doc-import/:data` if initial state already loads with the screen's data payload,** or fold `lastPull` metadata into the existing data fetch so the client does not need an extra round-trip on load.
+
+---
+
+### 2. AMBIGUITIES
+
+- **Quote:** `"That data must have the fields title and text, may have act, and may not have status. Anything else is a parse error."`
+  Does "Anything else" forbid any fourth field (e.g., `notes`), or only mean violating those three rules is a parse error? State explicitly: `fields` must be `[title, text]` or `[title, text, act]`.
+
+- **Quote:** `"Each pull replaces every row this reader brought in from that Doc; rows they typed in the app stay."` + `"The reader's last pull of this data: the Doc's id and name, when, and how many scenes"`
+  If a reader imports Doc A and later picks Doc B, Doc A's scenes are never replaced, yet the UI only remembers Doc B.
+
+- **Quote:** `"Lines before the first heading (a title page, a cast list) are not brought in."` vs. `"makes a PDF ... in Diana's format: a title page, the cast, then US Letter script pages"`
+  If `doc-import` drops the title page and cast list before the first scene heading, where does `play-print from scenes` get the cast list? Clarify that PlayMaker's PDF writer derives the cast from speaking characters in the scenes (or keep pre-heading frontmatter).
+
+- **Quote:** `"With from Name it prints every row of Name the reader can read, in the order the list shows them, one after another: the whole play."`
+  In Section 2's example (`screen "My play" { play-print from scenes }`), there is no `list` on the screen. Also, if normal lists sort newest-first or timestamps collide during batch import, scenes will print out of order. Specify that imported scenes preserve Doc scene order and `play-print from Name` joins them with `\n\n` in that order even without a `list`.
+
+- **Quote:** `"Removing it is allowed, and the next pull brings it back."`
+  Puppet Script v0.9 has no row-delete element; clarify whether a delete action exists or remove this sentence.
+
+- **Quote:** `"While Google access is still held, it pulls again when the reader comes back to the page, as PlayMaker does."`
+  Does "comes back to the page" mean browser tab focus (`visibilitychange`), navigating back to the screen, or page reload (which loses the in-memory token)? And when the token has expired, does pressing `"Pull again"` re-request access to the saved `doc.id` or reopen the Picker?
+
+---
+
+### 3. SECURITY AND ABUSE HOLES
+
+- **Replacing other people's rows & writing into someone else's data:** `POST /doc-import` takes `doc.id` from an untrusted client. If the server deletes rows matching `doc.id` without scoping to `row.author === currentUser.id`, an attacker sending another user's `doc.id` overwrites their play. Row `author` must come strictly from the verified Supabase token, never the request body.
+- **Fake `doc.id` rotation (storage stuffing):** Because the server has no Google token and only syntax-checks `doc.id`, an attacker can call `POST /doc-import` repeatedly with random `doc.id` strings. If replacement is scoped to `"from that Doc"`, old pulls stay and an attacker bypasses the 300-scene cap to dump gigabytes into Netlify Blobs. Replacing *all* imported rows for `(reader, data)` closes this.
+- **Unbounded sizes & payload amplification:** 300 scenes × 40,000 chars = 12 MB per `POST`, exceeding Netlify's 6 MB function limit and blowing up blob storage. Also, `doc.id`, `doc.name`, and `act` have no length caps at all. Cap `doc.id` (≤128 chars), `doc.name` (≤300 chars), `act` (≤100 chars), per-scene `text` (≤40,000 chars), and **total request text** (e.g., ≤500,000 chars across all scenes).
+- **Read rules, `publicRead` apps, and whole-play print:** `"A writers' app uses read: private"` is only advice. If a Builder omits `read: private` (leaving `publicRead` or `read: own`), importing a private Google Doc silently publishes it to all visitors or the host, and `play-print from scenes` concatenates *every readable user's scenes* into one PDF. Require `read: private` (or at least forbid public read) on `data` used by `doc-import`.
+- **Missing auth check on `GET /doc-import/:data`:** The route table specifies no checks. It must verify the user is signed in, can see a screen with `doc-import into :data` (enforcing host-only screen rules), and only return that user's own metadata.
+- **The pen rule & metadata spoofing:** Normal row creation (`POST /data/:name`) must strip or reject any client-sent `docId`/`fromDoc` flag so a client cannot lock manual rows or spoof provenance. Note that because the client sends converted text, a user can still forge `POST /doc-import` for their *own* rows; the pen rule is a UI guardrail, not server verification of Google Drive contents.
+- **Version comparison (`"0.10"` vs `"0.9"`):** In JS, both `"0.10" < "0.9"` and `parseFloat("0.10") < 0.9` are `true`. Every version check across parser, client, and server must split on `.` and compare strict non-negative integers so `"0.10"` never downgrades to `"0.1"`.
+
+---
+
+### Ranked List of Changes (Most Important First)
+
+1. Scope `POST /doc-import` deletion and insertion strictly to `row.author === signedInUser` and replace *all* Doc-imported rows of that reader in `data` (not just matching `doc.id`) to prevent cross-user wipes and `doc.id`-rotation storage stuffing.
+2. Cap total imported text per pull (e.g., ≤500,000 chars across all scenes) and add max lengths for `doc.id` (≤128), `doc.name` (≤300), and `act` (≤100).
+3. Make `doc-import into Name` a parse error unless `Name` declares `read: private` (preventing accidental publication of private Google Docs in `publicRead` apps and multi-user collisions in `play-print from Name`).
+4. Add explicit server checks to `GET /doc-import/:data` (signed in, `doc-import into :data` on a screen the reader can see, returns only the caller's record).
+5. Enforce integer-tuple version parsing (`[major, minor]`) everywhere so `"0.10"` is never compared with string `<` or `parseFloat`.
+6. Define deterministic scene ordering (0..N-1 index on import, joined by `\n\n` in `play-print from Name` regardless of whether a `list` is on the screen).
+7. Clarify that `fields` on `doc-import` data must be `[title, text]` or `[title, text, act]`, how `play-print` gets the cast list when pre-heading lines are dropped, and that there is no row-delete unless specified.
+8. Drop `title:` from `play-print` to keep the grammar minimal.

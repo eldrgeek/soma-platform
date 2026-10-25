@@ -1,7 +1,7 @@
 {
   "catalog": "soma-component/1",
   "about": "Every Puppet Script word: what it does, where it may go, what it reads and writes, its routes and who may call them, and the shared component that draws it. Pins name the latest published build; an app with no pin loads the latest.",
-  "grammarVersion": "0.9",
+  "grammarVersion": "0.10",
   "grammar": {
     "roles": [
       "@primary",
@@ -298,6 +298,86 @@
       "tests": [
         "packages/soma-puppet-runtime/test/parser.test.js",
         "packages/soma-puppet-runtime/test/render.test.js"
+      ]
+    },
+    {
+      "word": "doc-import",
+      "summary": "Brings a play in from the writer's Google Doc, with the Doc holding the pen: PlayMaker's own Google sign-in, Picker and Doc converter, then one private row per scene. Each pull replaces the writer's earlier Doc rows; nobody edits or removes them in the app.",
+      "since": "0.10",
+      "rendering": "drawn",
+      "component": "soma-play",
+      "export": "mountDocImport",
+      "placement": "screen",
+      "label": "none",
+      "template": "doc-import into $data",
+      "params": [
+        {
+          "name": "into",
+          "in": "prop",
+          "required": true,
+          "description": "The data the scenes go into: read: private, fields exactly [title, text] or [title, text, act]"
+        }
+      ],
+      "data": {
+        "reads": "The writer's Google Doc, in the page only (drive.file access to the one Doc they choose, held in memory for an hour).",
+        "writes": "One row per scene in the named data, authored by the writer and marked as from a Doc; the writer's last pull (Doc id and name, time, scene count)."
+      },
+      "routes": [
+        {
+          "method": "POST",
+          "path": "/api/app/:appId/doc-import",
+          "who": "signed-in writer",
+          "purpose": "Body exactly { data, doc: { id, name }, scenes: [{ title, text, act? }] }; replaces the writer's Doc rows in one write",
+          "checks": [
+            "signed in",
+            "a doc-import into this data on a screen the reader can see",
+            "the body's exact shape",
+            "the Doc id's shape (10 to 128 letters, digits, - or _)",
+            "1 to 300 scenes; title 300, act 100, text 40,000 characters; 500,000 in all",
+            "each scene names only declared fields"
+          ]
+        },
+        {
+          "method": "GET",
+          "path": "/api/app/:appId/doc-import/:data",
+          "who": "signed-in writer",
+          "purpose": "The writer's own last pull, or null",
+          "checks": [
+            "signed in",
+            "a doc-import into this data on a screen the reader can see"
+          ]
+        }
+      ],
+      "permissions": "Each writer pulls into, and reads, only their own rows (the data must be read: private, so not even the host reads them). A row from a Doc is never edited or removed in the app, by anyone.",
+      "enforcement": "server",
+      "runsOn": "browser+server",
+      "tags": [
+        "play",
+        "script",
+        "theatre",
+        "writing",
+        "google",
+        "docs",
+        "import",
+        "sync"
+      ],
+      "replaces": "Copying and pasting a play from a Google Doc into the app.",
+      "limits": [
+        "The server stores the scenes the page converted; it never calls Google, so it cannot confirm the words came from the Doc.",
+        "One Doc per writer per data; the app never writes to the Doc; lines before the first scene heading are not brought in.",
+        "The site's address must be registered on PlayMaker's Google OAuth client, and GOOGLE_DRIVE_CLIENT_ID and GOOGLE_API_KEY set on the site."
+      ],
+      "docs": "packages/soma-puppet-runtime/GRAMMAR-v0.10.md#1-doc-import-bring-a-play-in-from-a-google-doc",
+      "source": [
+        "packages/soma-play/src/doc-import.js",
+        "packages/soma-play/src/script.js",
+        "packages/soma-play/src/playmaker/doc.js",
+        "packages/soma-play/scripts/bundle-playmaker.mjs"
+      ],
+      "tests": [
+        "packages/soma-play/test/doc-print.test.js",
+        "packages/soma-puppet-runtime/test/v010.test.js",
+        "packages/soma-puppet-runtime/test/render-v010.test.js"
       ]
     },
     {
@@ -748,8 +828,64 @@
       ]
     },
     {
+      "word": "play-print",
+      "summary": "A Print (PDF) button: PlayMaker's own PDF writer makes the scene or the whole play in Diana's format (title page, cast, numbered US Letter pages) and opens it in a new tab to print or save.",
+      "since": "0.10",
+      "rendering": "drawn",
+      "component": "soma-play",
+      "export": "mountPlayPrint",
+      "placement": "any",
+      "label": "optional",
+      "template": "play-print from $data",
+      "params": [
+        {
+          "name": "text",
+          "in": "label",
+          "required": false,
+          "description": "One scene: exactly one {row.field} on a row screen, such as play-print \"{row.text}\""
+        },
+        {
+          "name": "from",
+          "in": "prop",
+          "required": false,
+          "description": "The whole play: every row of this data the reader can read, in stored order; the data needs a text field"
+        }
+      ],
+      "data": {
+        "reads": "Rows the page was already given under the data's read rule (or one row's field).",
+        "writes": "nothing"
+      },
+      "routes": [],
+      "permissions": "Anyone who can see the screen; it prints only what that reader may read.",
+      "enforcement": "none",
+      "runsOn": "browser",
+      "tags": [
+        "play",
+        "script",
+        "theatre",
+        "print",
+        "pdf",
+        "export"
+      ],
+      "replaces": "Copying the play into a word processor to format and print it.",
+      "limits": [
+        "No email or locked PDF yet (PlayMaker's email-print-pdf is not wrapped)."
+      ],
+      "docs": "packages/soma-puppet-runtime/GRAMMAR-v0.10.md#2-play-print-a-pdf-in-dianas-format",
+      "source": [
+        "packages/soma-play/src/play-print.js",
+        "packages/soma-play/src/script.js",
+        "packages/soma-play/src/playmaker/print.js",
+        "packages/soma-play/scripts/bundle-playmaker.mjs"
+      ],
+      "tests": [
+        "packages/soma-play/test/doc-print.test.js",
+        "packages/soma-puppet-runtime/test/render-v010.test.js"
+      ]
+    },
+    {
       "word": "play-view",
-      "summary": "A scene drawn read-only as script pages in Diana's house format (PlayMaker). Its label may be any text; with {row.text} it goes on a row screen, which is how apps use it.",
+      "summary": "PlayMaker's script editor in its read-only profile: a scene as Diana-format script pages under a quiet \"PlayMaker editor · read-only\" line. Offer it as the editor, read-only, not a replacement. Usually {row.text} on a row screen.",
       "since": "0.4",
       "rendering": "drawn",
       "component": "soma-play",
@@ -777,9 +913,11 @@
         "play",
         "script",
         "theatre",
-        "writing"
+        "writing",
+        "editor",
+        "read-only"
       ],
-      "docs": "packages/soma-puppet-runtime/GRAMMAR-v0.4.md#play-view-a-scene-in-dianas-script-format",
+      "docs": "packages/soma-puppet-runtime/GRAMMAR-v0.10.md#3-play-view-is-the-editors-read-only-profile",
       "source": [
         "packages/soma-play/src/play-view.js",
         "packages/soma-play/src/script.js"
@@ -787,6 +925,9 @@
       "tests": [
         "packages/soma-play/test/script.test.js",
         "packages/soma-puppet-runtime/test/render-v04.test.js"
+      ],
+      "limits": [
+        "The editing profile (PlayMaker's mark-layer editor) is not wrapped yet; with doc-import the writer edits in their Google Doc."
       ]
     },
     {

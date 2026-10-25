@@ -1,0 +1,61 @@
+SMALLEST DESIGN
+
+Two words are enough. `doc-import into Name` copies one Google Doc into one `read: private` data set. `play-print` prints one `{row.field}`, or that reader's own rows of one data set. `play-view` stays as it is. The read-only line is how the page is drawn, not a new word.
+
+Drop auto-pull on return. Keep the "Pull again" button. Drop more than one Doc at a time. One pull replaces that reader's whole imported set. Keep the lines before the first scene heading on the pull record, not as rows and not as a new element, so the PDF can still have a title page and a cast. Do not add sharing, roles, write-back to the Doc, or the editor's editing profile.
+
+The server stores scenes the browser already converted. It never sees the Doc.
+
+AMBIGUITIES
+
+"Versions compare by their parts: `"0.10"` comes after `"0.9"`." Parts can be read as float, string, or integer. `Number("0.10")` is 0.1. As text, `"0.9"` sorts after `"0.10"`.
+
+"the Doc's id is a Google id" can mean a shape check, or a check that Google confirmed the file.
+
+"The Doc holds the pen." can be read as the app writing back to the Doc.
+
+"Each pull replaces every row this reader brought in from that Doc" allows many Docs per reader. It does not say what happens when two readers pull the same file id.
+
+"Lines before the first heading (a title page, a cast list) are not brought in." conflicts with "a title page, the cast, then US Letter script pages". The PDF names a cast the import dropped.
+
+"While Google access is still held, it pulls again when the reader comes back to the page" conflicts with "Removing it is allowed, and the next pull brings it back." A delete dies on the next visit.
+
+"A writers' app uses `read: private`." is advice. "the data's read rule applies as to any row." lets a builder point the import at public data.
+
+"With text in quotes it prints that text, usually one scene's `{row.text}`." The word "usually" is not a rule.
+
+"in the order the list shows them" refers to a list the whole-play screen in the example does not have.
+
+"prints only text the page already has" is false for `from Name` unless the page first loads every readable row.
+
+The GET row in the route table names no signed-in check. The POST row does.
+
+"may have `act`, and may not have `status`. Anything else is a parse error." It is unclear whether the only legal fields are `title`, `text`, and optional `act`.
+
+SECURITY AND ABUSE
+
+The client chooses the scenes, the doc id, and the doc name. The server must set the author from the session. The body must not carry an author, a row id, or any extra key. Replacement must cover only that user's imported rows in that app and that data. The same Google file id for two users must not collide. A pull must not delete or freeze rows the user typed. Match a server-side flag, not the title.
+
+If replacement is keyed by doc id alone, one writer wipes the other. If each new id adds a set and old ids remain, a caller mints ids and stores 300 scenes per call with no bound.
+
+`read: private` must be a parse rule, not a suggestion. On a publicRead app, any looser rule publishes attacker-written scenes under a forged Doc name. GET must be signed in and must return only the caller's last pull. publicRead must not leak another person's doc name or rows. `play-print from` must use the same read path as the list. It is not a bulk export, and it adds no server route.
+
+300 scenes times 40,000 characters is about 12 million characters. That is past a normal function body limit. It is also four times the v0.5 cap for a new row's field. Cap the doc id, the doc name, and the total size. Reject a pull that would replace the play with an empty set. Do the replace in one write.
+
+The pen check must refuse PUT of any field on a doc row, including by the author. The flag must not be a field the client can clear. If delete exists, it is author-only, and anyone else gets the same answer as a missing row.
+
+A wrong version compare is a security bug. If `"0.10"` is treated as 0.1, checks added in v0.4 and v0.5 can drop off. Compare dot-separated base-10 integers. An older runtime must reject a 0.10 script. Ship the PUT refusal in the same release as the import route.
+
+The page imported HTML, and the attacker can skip the converter. Store and draw scene text as plain text. Do not send the Google token to the server. Do not add a server-side Google call, or a shared Google credential, to verify the id.
+
+CHANGES
+
+1. Replace only the signed-in user's imported rows in this app and data, with the server setting the author, and never key the replace on doc id alone.
+2. Allow `doc-import` only on `read: private` data, and scope GET to that signed-in user, so publicRead cannot publish or leak a pull.
+3. Keep one Doc per user per data, replace that set in one write, and never touch typed rows.
+4. Compare versions as base-10 integer parts, so 0.9 is before 0.10 and 0.10 is not 0.1, and fail closed on an older runtime.
+5. Cap the doc id, the doc name, and the total scene bytes under the function limit, reject extra keys, and do not replace on an empty pull.
+6. Refuse every PUT on a doc row, author included, make delete author-only, and drop auto-pull on visit.
+7. Tighten `play-print` to one `{row.field}` or `from Name` through the existing read path, and keep the title page and cast on the pull record.
+8. Never send the Google token or call Google from the server, and store scene text as plain text.
+9. Say in the grammar that the app never writes to the Doc.

@@ -3,6 +3,7 @@ import { getStore } from '@netlify/blobs';
 import { parse } from './parser.js';
 import {
   applyEdit,
+  applyPull,
   applyStatus,
   checkRemove,
   isPrivate,
@@ -178,6 +179,18 @@ export class BlobsStore extends StoreAdapter {
 
   async privacyLevels(appId) {
     return structuredClone((await this.#load(appId)).private ?? {});
+  }
+
+  async pullDoc(appId, data, author, pull) {
+    return this.#update(appId, (app) => {
+      const sketch = this.#sketch(app);
+      if (!sketch) throw new Error(`App ${appId} has no current version`);
+      return applyPull(app, this.#rows(app, data), sketch, data, author, pull);
+    });
+  }
+
+  async docPull(appId, data, author) {
+    return structuredClone((await this.#load(appId)).pulls?.[data]?.[author] ?? null);
   }
 
   #sketch(app) {

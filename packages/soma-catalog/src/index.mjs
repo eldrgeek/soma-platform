@@ -31,7 +31,12 @@ export function loadRecords(dir = COMPONENTS) {
     .map((f) => JSON.parse(readFileSync(join(dir, f), 'utf8')));
 }
 
-const num = (v) => Number.parseFloat(v);
+// By parts, as the parser compares them: "0.10" comes after "0.9".
+const num = (v) => {
+  const [major, minor] = String(v).split('.').map(Number);
+  return major * 1000 + minor;
+};
+export const versionNumber = num;
 export const latestVersion = (records) => records.map((r) => r.since).sort((a, b) => num(a) - num(b)).at(-1);
 
 // The parts of the grammar a Designer needs besides the words. Roles are checked against the parser by test.
@@ -107,6 +112,7 @@ export function exampleApp(record, { version = latestVersion(loadRecords()), pla
 
 data items {
   fields: [title, text]
+  read: private
 }
 
 screen "Home" {
