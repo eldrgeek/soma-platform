@@ -446,7 +446,11 @@
       addMessage: addMessage,
       setStatus: setStatus,
       destroy: destroy,
-      openFeedback: function () { open(); setFeedbackOpen(true); },
+      openFeedback: function () {
+        if (typeof options.onFeedbackSubmit !== 'function') return;
+        open();
+        setFeedbackOpen(true);
+      },
       submitFeedback: submitFeedback
     };
     Object.defineProperty(api, 'element', { value: host });

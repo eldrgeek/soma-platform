@@ -30,6 +30,18 @@ describe('feedback affordance UI', () => {
     assert.doesNotMatch(api.shadowRoot.textContent, /Thanks — feedback filed/);
   });
 
+  test('openFeedback does nothing without onFeedbackSubmit', () => {
+    const win = setup();
+    const api = win.SomaAssistCore.createAssistChip({ appId: 'no-feedback-api' });
+    const feedbackForm = api.shadowRoot.querySelector('[data-assist-feedback-form]');
+    const composer = api.shadowRoot.querySelector('[data-assist-composer]');
+
+    api.openFeedback();
+
+    assert.equal(feedbackForm.hidden, true);
+    assert.equal(composer.hidden, false);
+  });
+
   test('header exposes feedback control and submits via onFeedbackSubmit', async () => {
     const win = setup();
     let received = null;
