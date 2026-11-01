@@ -159,7 +159,7 @@
             "rooms": {
               "type": "object",
               "required": ["enabled"],
-              "description": "community tier: Atlas place-graph + Room (see AFFORDANCES.md); concrete shape firms up with the shared room-state service",
+              "description": "community tier: Atlas place-graph + Room (see AFFORDANCES.md); concrete shape firms up with the shared room-state service. Implementation: eldrgeek/soma-rooms.",
               "properties": {
                 "enabled": { "type": "boolean" },
                 "atlas": {
