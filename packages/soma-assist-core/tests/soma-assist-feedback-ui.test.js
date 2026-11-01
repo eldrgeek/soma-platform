@@ -21,6 +21,15 @@ function setup() {
 }
 
 describe('feedback affordance UI', () => {
+  test('does not expose feedback or report success without onFeedbackSubmit', async () => {
+    const win = setup();
+    const api = win.SomaAssistCore.createAssistChip({ appId: 'no-feedback' });
+
+    assert.equal(api.shadowRoot.querySelector('[data-assist-feedback]'), null);
+    await api.submitFeedback('This must not disappear');
+    assert.doesNotMatch(api.shadowRoot.textContent, /Thanks — feedback filed/);
+  });
+
   test('header exposes feedback control and submits via onFeedbackSubmit', async () => {
     const win = setup();
     let received = null;
@@ -43,5 +52,18 @@ describe('feedback affordance UI', () => {
     await new Promise((r) => setTimeout(r, 20));
     assert.equal(received.description, 'Yeshie recipe fails on github.com');
     assert.equal(received.sourceApp, 'yeshie');
+    assert.match(api.shadowRoot.textContent, /Thanks — feedback filed → yeshie\./);
+  });
+
+  test('rejecting onFeedbackSubmit reports failure without thanks text', async () => {
+    const win = setup();
+    const api = win.SomaAssistCore.createAssistChip({
+      appId: 'broken-feedback',
+      onFeedbackSubmit: async () => { throw new Error('queue unavailable'); }
+    });
+
+    await assert.rejects(api.submitFeedback('Please file this'), /queue unavailable/);
+    assert.doesNotMatch(api.shadowRoot.textContent, /Thanks — feedback filed/);
+    assert.match(api.shadowRoot.textContent, /Could not submit feedback: queue unavailable/);
   });
 });

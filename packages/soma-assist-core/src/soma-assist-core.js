@@ -138,6 +138,10 @@
     var feedbackForm = shadow.querySelector('[data-assist-feedback-form]');
     var feedbackInput = shadow.querySelector('[data-assist-feedback-input]');
     var feedbackCancel = shadow.querySelector('[data-assist-feedback-cancel]');
+    if (typeof options.onFeedbackSubmit !== 'function') {
+      feedbackBtn.remove();
+      feedbackBtn = null;
+    }
     shadow.querySelector('.assist-chip-label').textContent = title;
     shadow.querySelector('.assist-title').textContent = title;
     shadow.querySelector('[data-assist-chip-avatar]').appendChild(avatarMarkup(options.avatar));
@@ -211,6 +215,8 @@
     function submitFeedback(text) {
       text = String(text || '').trim();
       if (!text) return Promise.resolve(null);
+      var handler = options.onFeedbackSubmit;
+      if (typeof handler !== 'function') return Promise.resolve(null);
       setStatus('Submitting feedback…');
       var payload = {
         description: text,
@@ -220,10 +226,9 @@
         area: options.feedbackArea || title,
         type: 'feedback'
       };
-      var handler = options.onFeedbackSubmit;
       var result;
       try {
-        result = typeof handler === 'function' ? handler(payload, api) : null;
+        result = handler(payload, api);
       } catch (err) {
         setStatus('Feedback failed');
         addMessage('Could not submit feedback: ' + (err && err.message ? err.message : err), 'system');
@@ -298,10 +303,12 @@
 
     chip.addEventListener('click', open);
     shadow.querySelector('[data-assist-minimize]').addEventListener('click', close);
-    feedbackBtn.addEventListener('click', function (event) {
-      event.stopPropagation();
-      setFeedbackOpen(feedbackForm.hidden);
-    });
+    if (feedbackBtn) {
+      feedbackBtn.addEventListener('click', function (event) {
+        event.stopPropagation();
+        setFeedbackOpen(feedbackForm.hidden);
+      });
+    }
     feedbackCancel.addEventListener('click', function () { setFeedbackOpen(false); });
     feedbackForm.addEventListener('submit', function (event) {
       event.preventDefault();
