@@ -166,6 +166,8 @@ env only. A GET to each function returns 405 (alive); missing key returns 503.
 
 # Tier 2 — Community affordances: Atlas + Room
 
+> **Home repo (2026-10-31):** live video rooms (audio, video, screen share) are built in `eldrgeek/soma-rooms` (`~/Projects/soma-rooms`); this section remains the Room/Atlas design model.
+
 > **Status: the model is locked (SOMA architecture session, 2026-06-18); the
 > renderers are live; the shared room-state service is the key not-yet-built piece.**
 > Two things exist today and converge into one primitive:
