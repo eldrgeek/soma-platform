@@ -6,6 +6,11 @@ import {
   createSomaAuthConfig,
   DEFAULT_SOMA_AUTH_METHODS,
   providerMeta,
+  orderProviders,
+  enabledProviders,
+  fetchAuthSettings,
+  providerOAuthOptions,
+  normalizeProvider,
 } from '../src/somaAuthConfig.js';
 import { createSomaKnownDevice } from '../src/somaKnownDevice.js';
 
@@ -53,7 +58,7 @@ test('createSomaAuthConfig defaults match PlayMaker', () => {
   assert.equal(cfg.methods.emailOtp, false);
   assert.equal(cfg.methods.password, true);
   assert.equal(cfg.methods.phone, false);
-  assert.deepEqual(cfg.methods.oauth, ['google']);
+  assert.deepEqual(cfg.methods.oauth, ['google', 'github', 'azure', 'apple', 'facebook']);
 });
 
 test('createSomaAuthConfig merges overrides', () => {
@@ -104,4 +109,69 @@ test('known-device marker has no PII', () => {
   assert.notEqual(kd.readMarker(), null);
   assert.equal(kd.readMarker(), '1');
   assert.ok(!String(kd.readMarker()).includes('@'));
+});
+
+test('orderProviders puts Google first, normalizes aliases, drops duplicates', () => {
+  assert.deepEqual(orderProviders(['facebook', 'Microsoft', 'google', 'github', 'azure']), [
+    'google',
+    'github',
+    'azure',
+    'facebook',
+  ]);
+  assert.deepEqual(orderProviders(['discord', 'google', 'custom_oidc', 'apple']), [
+    'google',
+    'apple',
+    'discord',
+    'custom_oidc',
+  ]);
+  assert.deepEqual(orderProviders([]), []);
+});
+
+test('createSomaAuthConfig orders a custom provider list', () => {
+  const cfg = createSomaAuthConfig({ methods: { oauth: ['github', 'google'] } });
+  assert.deepEqual(cfg.methods.oauth, ['google', 'github']);
+});
+
+test('enabledProviders keeps only providers Supabase reports on', () => {
+  const settings = { external: { google: true, github: true, azure: false, email: true } };
+  assert.deepEqual(enabledProviders(['facebook', 'github', 'azure', 'google'], settings), [
+    'google',
+    'github',
+  ]);
+});
+
+test('enabledProviders falls back to Google when settings are unavailable', () => {
+  const wanted = ['google', 'github', 'apple'];
+  assert.deepEqual(enabledProviders(wanted, null), ['google']);
+  assert.deepEqual(enabledProviders(wanted, {}), ['google']);
+  assert.deepEqual(enabledProviders(['github'], null), []);
+});
+
+test('fetchAuthSettings reads /auth/v1/settings with the anon key', async () => {
+  let seen;
+  const fetchImpl = async (url, init) => {
+    seen = { url, apikey: init.headers.apikey };
+    return { ok: true, json: async () => ({ external: { google: true } }) };
+  };
+  const out = await fetchAuthSettings({ url: 'https://x.supabase.co/', anonKey: 'anon', fetchImpl });
+  assert.deepEqual(out, { external: { google: true } });
+  assert.deepEqual(seen, { url: 'https://x.supabase.co/auth/v1/settings', apikey: 'anon' });
+});
+
+test('fetchAuthSettings returns null on failure, never throws', async () => {
+  const boom = async () => {
+    throw new Error('offline');
+  };
+  const notOk = async () => ({ ok: false, json: async () => ({}) });
+  assert.equal(await fetchAuthSettings({ url: 'https://x', anonKey: 'a', fetchImpl: boom }), null);
+  assert.equal(await fetchAuthSettings({ url: 'https://x', anonKey: 'a', fetchImpl: notOk }), null);
+  assert.equal(await fetchAuthSettings({ url: '', anonKey: 'a', fetchImpl: boom }), null);
+});
+
+test('Microsoft asks for the email scope so accounts link by email', () => {
+  assert.deepEqual(providerOAuthOptions('azure'), { scopes: 'email' });
+  assert.deepEqual(providerOAuthOptions('microsoft'), { scopes: 'email' });
+  assert.deepEqual(providerOAuthOptions('github'), {});
+  assert.equal(normalizeProvider(' Microsoft '), 'azure');
+  assert.equal(providerMeta('microsoft').label, 'Microsoft');
 });

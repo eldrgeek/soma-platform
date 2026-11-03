@@ -214,3 +214,39 @@
   margin-top: 1rem;
   font-size: 0.75rem;
 }
+
+/* Provider buttons: one per enabled provider, each in its own brand colors
+   (set inline from providerMeta) with its official mark. Google leads. */
+.soma-signin-providers {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.soma-signin-btn--provider {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.625rem;
+  font-family: Roboto, 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
+  font-size: 0.875rem;
+  font-weight: 500;
+  border-width: 1px;
+  border-style: solid;
+  border-radius: 0.25rem;
+  min-height: 2.5rem;
+  padding: 0 0.75rem;
+}
+
+.soma-signin-btn--provider svg {
+  flex: none;
+}
+
+.soma-signin-btn--provider:not(:disabled):hover {
+  filter: brightness(0.96);
+}
+
+.soma-signin-btn--provider:focus-visible {
+  outline: 2px solid #4285f4;
+  outline-offset: 2px;
+}
