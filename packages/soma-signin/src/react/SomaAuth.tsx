@@ -2,7 +2,14 @@ import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 're
 import { useLocation, useNavigate } from 'react-router-dom';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { safeNext } from '../safeNext.js';
-import { providerMeta } from '../somaAuthConfig.js';
+import {
+  enabledProviders,
+  fetchAuthSettings,
+  orderProviders,
+  providerMeta,
+  providerOAuthOptions,
+} from '../somaAuthConfig.js';
+import { ProviderMark } from './ProviderMarks';
 import type { SomaAuthConfig, SomaAuthMethods } from '../somaAuthConfig.js';
 import './soma-signin.css';
 
@@ -30,7 +37,11 @@ export interface SomaAuthCopy {
   whatAlreadyHave: string;
   knownEmail: string;
   knownPhone: string;
+  /** Button label; `{provider}` becomes the provider's name ("Sign in with Google"). */
+  oauthSignIn: string;
+  /** @deprecated No longer shown: every enabled provider gets its own button. */
   oauthContinueOne: string;
+  /** @deprecated No longer shown: every enabled provider gets its own button. */
   oauthContinueMany: string;
   magicLinkCta: string;
   magicSentTitle: string;
@@ -62,6 +73,7 @@ export const DEFAULT_SOMA_AUTH_COPY: SomaAuthCopy = {
   whatAlreadyHave: 'What we already have',
   knownEmail: 'Email',
   knownPhone: 'Phone',
+  oauthSignIn: 'Sign in with {provider}',
   oauthContinueOne: 'Continue with {provider}',
   oauthContinueMany: 'Continue with a provider',
   magicLinkCta: 'Email me a sign-in link',
@@ -99,13 +111,6 @@ function mergeCopy(partial?: Partial<SomaAuthCopy>): SomaAuthCopy {
 
 type Status = { kind: 'idle' | 'error' | 'success'; msg?: string };
 
-function oauthPrimaryLabel(providers: string[], copy: SomaAuthCopy): string {
-  if (providers.length === 1) {
-    return copy.oauthContinueOne.replace('{provider}', providerMeta(providers[0]).label);
-  }
-  return copy.oauthContinueMany;
-}
-
 function CheckIcon({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" strokeWidth="2" aria-hidden="true">
@@ -118,15 +123,6 @@ function XIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" aria-hidden="true">
       <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" />
-    </svg>
-  );
-}
-
-function GlobeIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#5C5445" strokeWidth="1.6" aria-hidden="true">
-      <circle cx="12" cy="12" r="9" />
-      <path d="M12 3v18 M3 12h18" />
     </svg>
   );
 }
@@ -222,7 +218,25 @@ export default function SomaAuth({
   const [phoneOtpSent, setPhoneOtpSent] = useState(false);
   const [signupNeedsConfirm, setSignupNeedsConfirm] = useState(false);
   const [recovery, setRecovery] = useState(false);
-  const [oauthPickerOpen, setOauthPickerOpen] = useState(false);
+  // Show only providers the Supabase project has switched on, so an app can
+  // list every SOMA provider and a button appears the day it is enabled.
+  const wantedProviders = useMemo(() => orderProviders(methods.oauth), [methods.oauth.join(',')]);
+  const [oauthProviders, setOauthProviders] = useState<string[]>(() =>
+    enabledProviders(wantedProviders, null),
+  );
+  useEffect(() => {
+    let live = true;
+    if (wantedProviders.length === 0) {
+      setOauthProviders([]);
+      return;
+    }
+    fetchAuthSettings({ url: config.url, anonKey: config.anonKey }).then((settings) => {
+      if (live) setOauthProviders(enabledProviders(wantedProviders, settings));
+    });
+    return () => {
+      live = false;
+    };
+  }, [wantedProviders, config.url, config.anonKey]);
   const [magicLinkNeedsEmail, setMagicLinkNeedsEmail] = useState(false);
 
   const knownRows = useMemo(() => {
@@ -367,20 +381,12 @@ export default function SomaAuth({
     setBusy(true);
     const { error } = await supabase.auth.signInWithOAuth({
       provider: provider as never,
-      options: { redirectTo: loginRedirectTo(next) },
+      options: { redirectTo: loginRedirectTo(next), ...providerOAuthOptions(provider) },
     });
     if (error) {
       setBusy(false);
       fail(error);
     }
-  }
-
-  function onOauthPrimaryClick() {
-    if (methods.oauth.length === 1) {
-      startOAuth(methods.oauth[0]);
-      return;
-    }
-    setOauthPickerOpen((open) => !open);
   }
 
   if (recovery) {
@@ -453,7 +459,7 @@ export default function SomaAuth({
     methods.emailOtp ||
     methods.password ||
     methods.phone ||
-    methods.oauth.length > 0;
+    oauthProviders.length > 0;
 
   const showMagicEmailField = magicLinkNeedsEmail && !email.trim();
 
@@ -489,37 +495,26 @@ export default function SomaAuth({
         )}
 
         <div className="soma-signin-actions">
-          {methods.oauth.length > 0 && (
-            <>
-              <button
-                type="button"
-                disabled={busy}
-                onClick={onOauthPrimaryClick}
-                className="soma-signin-btn soma-signin-btn--outline"
-              >
-                <GlobeIcon />
-                {oauthPrimaryLabel(methods.oauth, ci)}
-              </button>
-              {oauthPickerOpen && methods.oauth.length > 1 && (
-                <div className="flex flex-col gap-2">
-                  {methods.oauth.map((provider) => {
-                    const meta = providerMeta(provider);
-                    return (
-                      <button
-                        key={provider}
-                        type="button"
-                        disabled={busy}
-                        onClick={() => startOAuth(provider)}
-                        className="soma-signin-btn soma-signin-btn--outline"
-                        style={{ background: meta.color, color: meta.text, borderColor: meta.border }}
-                      >
-                        Continue with {meta.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </>
+          {oauthProviders.length > 0 && (
+            <div className="soma-signin-providers">
+              {oauthProviders.map((provider) => {
+                const meta = providerMeta(provider);
+                return (
+                  <button
+                    key={provider}
+                    type="button"
+                    disabled={busy}
+                    onClick={() => startOAuth(provider)}
+                    className={`soma-signin-btn soma-signin-btn--provider soma-signin-btn--${provider}`}
+                    style={{ background: meta.color, color: meta.text, borderColor: meta.border }}
+                    data-provider={provider}
+                  >
+                    <ProviderMark provider={provider} />
+                    <span>{ci.oauthSignIn.replace('{provider}', meta.label)}</span>
+                  </button>
+                );
+              })}
+            </div>
           )}
 
           {methods.magicLink && (

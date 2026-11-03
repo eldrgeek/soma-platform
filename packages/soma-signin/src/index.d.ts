@@ -12,4 +12,11 @@ export {
   createSomaAuthConfig,
   DEFAULT_SOMA_AUTH_METHODS,
   providerMeta,
+  SOMA_OAUTH_PROVIDERS,
+  FALLBACK_ENABLED_PROVIDERS,
+  normalizeProvider,
+  orderProviders,
+  enabledProviders,
+  fetchAuthSettings,
+  providerOAuthOptions,
 } from './somaAuthConfig.js';

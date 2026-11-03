@@ -12,6 +12,9 @@ PlayMaker will adopt this package in a follow-up bead; this repo ships the kit o
 | `safeNext(search)`, `loginHref(path)` | Safe post-login redirect targets |
 | `createSomaAuthConfig({ url, anonKey, methods })` | Methods map with PlayMaker defaults |
 | `providerMeta(provider)` | OAuth button labels/colors |
+| `SOMA_OAUTH_PROVIDERS`, `orderProviders(list)` | SOMA's providers in display order (Google first, then GitHub, Microsoft, Apple, Facebook) |
+| `fetchAuthSettings({ url, anonKey })`, `enabledProviders(wanted, settings)` | Ask Supabase which providers are switched on; keep only those |
+| `providerOAuthOptions(provider)` | Extra `signInWithOAuth` options (Microsoft needs the `email` scope) |
 | `createSomaKnownDevice({ storageKey, storage })` | First-party “known device” marker (no PII) |
 
 ## React (vendored)
@@ -46,6 +49,14 @@ export function App() {
   );
 }
 ```
+
+## Sign-in providers
+
+`SomaAuth` shows one "Sign in with …" button per provider, each with the provider's official mark and colors (`src/react/ProviderMarks.tsx`), Google first. By default an app asks for every SOMA provider, and the screen keeps only those that the Supabase project's public `/auth/v1/settings` reports enabled. Switching a provider on in Supabase therefore adds its button to every app with no deploy. If the settings check fails, only Google is shown. Pass `methods.oauth` to narrow the list for one app.
+
+Live check of the shared project: `SUPABASE_ANON_KEY=… node scripts/probe-providers.mjs` reports each provider's enabled flag and whether `/auth/v1/authorize?provider=X` returns a 302 to that provider.
+
+The auth relay (`soma-auth-relay`) needs no change for new providers: the provider is picked at Supabase's `/authorize`, and the relay only validates `?to=` and forwards Supabase's `?code=`/`?error=` and the fragment unchanged.
 
 ## Tests
 
