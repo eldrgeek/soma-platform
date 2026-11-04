@@ -12,6 +12,9 @@
  * @property {string} url
  * @property {string} anonKey
  * @property {SomaAuthMethods} methods
+ * @property {string} [googleHub] Base URL of the SOMA sign-in hub
+ *   (soma-auth-relay). When set, the Google button signs in through the hub, so
+ *   Google's picker shows the hub's address instead of the Supabase project.
  */
 
 /**
@@ -19,7 +22,9 @@
  * (Mike, 2026-11-03: "Sign in with Google should have the Google logo and
  * first"). Ids are Supabase's provider ids: Microsoft is `azure`.
  */
-export const SOMA_OAUTH_PROVIDERS = Object.freeze(['google', 'github', 'azure', 'apple', 'facebook']);
+// Order after Google follows what Mike cares about (2026-11-04: "I care about
+// Google and Facebook and LinkedIn. Don't care so much about GitHub").
+export const SOMA_OAUTH_PROVIDERS = Object.freeze(['google', 'facebook', 'linkedin_oidc', 'azure', 'apple', 'github']);
 
 /**
  * Shown when the live provider check cannot run (offline, settings endpoint
@@ -141,6 +146,7 @@ export function providerOAuthOptions(provider) {
  * @param {string} [options.url]
  * @param {string} [options.anonKey]
  * @param {Partial<SomaAuthMethods>} [options.methods]
+ * @param {string} [options.googleHub]
  * @returns {SomaAuthConfig}
  */
 export function createSomaAuthConfig(options = {}) {
@@ -150,6 +156,7 @@ export function createSomaAuthConfig(options = {}) {
     url: options.url ?? '',
     anonKey: options.anonKey ?? '',
     methods,
+    ...(options.googleHub ? { googleHub: String(options.googleHub).trim().replace(/\/+$/, '') } : {}),
   };
 }
 

@@ -20,3 +20,4 @@ export {
   fetchAuthSettings,
   providerOAuthOptions,
 } from './somaAuthConfig.js';
+export { hubGoogleUrl, readHubSession, shouldUseGoogleHub } from './hubSignIn.js';

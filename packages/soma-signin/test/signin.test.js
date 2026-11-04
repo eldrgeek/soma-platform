@@ -58,7 +58,7 @@ test('createSomaAuthConfig defaults match PlayMaker', () => {
   assert.equal(cfg.methods.emailOtp, false);
   assert.equal(cfg.methods.password, true);
   assert.equal(cfg.methods.phone, false);
-  assert.deepEqual(cfg.methods.oauth, ['google', 'github', 'azure', 'apple', 'facebook']);
+  assert.deepEqual(cfg.methods.oauth, ['google', 'facebook', 'linkedin_oidc', 'azure', 'apple', 'github']);
 });
 
 test('createSomaAuthConfig merges overrides', () => {
@@ -112,11 +112,12 @@ test('known-device marker has no PII', () => {
 });
 
 test('orderProviders puts Google first, normalizes aliases, drops duplicates', () => {
-  assert.deepEqual(orderProviders(['facebook', 'Microsoft', 'google', 'github', 'azure']), [
+  assert.deepEqual(orderProviders(['facebook', 'Microsoft', 'google', 'github', 'azure', 'linkedin']), [
     'google',
-    'github',
-    'azure',
     'facebook',
+    'linkedin_oidc',
+    'azure',
+    'github',
   ]);
   assert.deepEqual(orderProviders(['discord', 'google', 'custom_oidc', 'apple']), [
     'google',
@@ -174,4 +175,33 @@ test('Microsoft asks for the email scope so accounts link by email', () => {
   assert.deepEqual(providerOAuthOptions('github'), {});
   assert.equal(normalizeProvider(' Microsoft '), 'azure');
   assert.equal(providerMeta('microsoft').label, 'Microsoft');
+});
+
+import { hubGoogleUrl, readHubSession, shouldUseGoogleHub } from '../src/hubSignIn.js';
+
+test('hubGoogleUrl points at /google with the encoded return URL', () => {
+  assert.equal(
+    hubGoogleUrl('https://hub.example/', 'https://app.example/sign-in?next=%2Fx'),
+    'https://hub.example/google?to=https%3A%2F%2Fapp.example%2Fsign-in%3Fnext%3D%252Fx',
+  );
+});
+
+test('readHubSession takes only a hub-shaped fragment', () => {
+  assert.deepEqual(readHubSession('#access_token=A&refresh_token=R&token_type=bearer&type=signin&provider=google'), {
+    access_token: 'A',
+    refresh_token: 'R',
+  });
+  assert.equal(readHubSession('#access_token=A&refresh_token=R'), null);
+  assert.equal(readHubSession('#access_token=A&provider=google'), null);
+  assert.equal(readHubSession(''), null);
+});
+
+test('shouldUseGoogleHub follows config', () => {
+  assert.equal(shouldUseGoogleHub({ googleHub: 'https://h' }), true);
+  assert.equal(shouldUseGoogleHub({}), false);
+});
+
+test('createSomaAuthConfig carries googleHub only when given, without a trailing slash', () => {
+  assert.equal('googleHub' in createSomaAuthConfig(), false);
+  assert.equal(createSomaAuthConfig({ googleHub: ' https://hub.example/ ' }).googleHub, 'https://hub.example');
 });

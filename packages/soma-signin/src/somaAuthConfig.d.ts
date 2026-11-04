@@ -10,6 +10,8 @@ export interface SomaAuthConfig {
   url: string;
   anonKey: string;
   methods: SomaAuthMethods;
+  /** SOMA sign-in hub base URL; Google signs in through it. */
+  googleHub?: string;
 }
 
 export interface ProviderMeta {
@@ -25,6 +27,7 @@ export function createSomaAuthConfig(options?: {
   url?: string;
   anonKey?: string;
   methods?: Partial<SomaAuthMethods>;
+  googleHub?: string;
 }): SomaAuthConfig;
 
 export function providerMeta(provider: string): ProviderMeta;
