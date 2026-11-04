@@ -175,3 +175,25 @@ test('Microsoft asks for the email scope so accounts link by email', () => {
   assert.equal(normalizeProvider(' Microsoft '), 'azure');
   assert.equal(providerMeta('microsoft').label, 'Microsoft');
 });
+
+import { createNoncePair, shouldUseGoogleIdentity } from '../src/googleIdentity.js';
+import { createHash } from 'node:crypto';
+
+test('createNoncePair: hashed is the SHA-256 of raw, fresh each time', async () => {
+  const a = await createNoncePair();
+  const b = await createNoncePair();
+  assert.match(a.raw, /^[0-9a-f]{64}$/);
+  assert.equal(a.hashed, createHash('sha256').update(a.raw).digest('hex'));
+  assert.notEqual(a.raw, b.raw);
+});
+
+test('shouldUseGoogleIdentity needs a client ID and Google on screen', () => {
+  assert.equal(shouldUseGoogleIdentity({ googleClientId: 'x.apps.googleusercontent.com' }, ['google', 'github']), true);
+  assert.equal(shouldUseGoogleIdentity({}, ['google']), false);
+  assert.equal(shouldUseGoogleIdentity({ googleClientId: 'x' }, ['github']), false);
+});
+
+test('createSomaAuthConfig carries googleClientId only when given', () => {
+  assert.equal('googleClientId' in createSomaAuthConfig(), false);
+  assert.equal(createSomaAuthConfig({ googleClientId: ' id ' }).googleClientId, 'id');
+});

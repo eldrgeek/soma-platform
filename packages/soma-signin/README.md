@@ -54,6 +54,12 @@ export function App() {
 
 `SomaAuth` shows one "Sign in with …" button per provider, each with the provider's official mark and colors (`src/react/ProviderMarks.tsx`), Google first. By default an app asks for every SOMA provider, and the screen keeps only those that the Supabase project's public `/auth/v1/settings` reports enabled. Switching a provider on in Supabase therefore adds its button to every app with no deploy. If the settings check fails, only Google is shown. Pass `methods.oauth` to narrow the list for one app.
 
+### Google without the Supabase address
+
+Pass `googleClientId` (the Google OAuth **Web** client ID used by the Supabase Google provider; it is public, not a secret) to `createSomaAuthConfig`. The Google button then uses Google's own sign-in (Google Identity Services): Google draws its standard button, its account picker shows the app's own site instead of `<project>.supabase.co`, and the ID token goes to Supabase with `signInWithIdToken` (nonce-checked). Same Supabase user, so account linking is unchanged. If Google's script is blocked, the normal redirect button is shown instead.
+
+Each app's origin (e.g. `https://somastudios.ai`) must be listed under **Authorized JavaScript origins** on that Google OAuth client, or Google refuses the button on that site. Set the app name and logo on Google's OAuth consent screen (Branding) so the picker shows them.
+
 Live check of the shared project: `SUPABASE_ANON_KEY=… node scripts/probe-providers.mjs` reports each provider's enabled flag and whether `/auth/v1/authorize?provider=X` returns a 302 to that provider.
 
 The auth relay (`soma-auth-relay`) needs no change for new providers: the provider is picked at Supabase's `/authorize`, and the relay only validates `?to=` and forwards Supabase's `?code=`/`?error=` and the fragment unchanged.

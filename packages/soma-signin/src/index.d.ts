@@ -20,3 +20,7 @@ export {
   fetchAuthSettings,
   providerOAuthOptions,
 } from './somaAuthConfig.js';
+export function createNoncePair(options?: { crypto?: Crypto }): Promise<{ raw: string; hashed: string }>;
+export function loadGoogleIdentity(options?: { document?: Document; timeoutMs?: number }): Promise<any | null>;
+export function shouldUseGoogleIdentity(config: { googleClientId?: string }, shownProviders: string[]): boolean;
+export const GSI_SCRIPT_SRC: string;

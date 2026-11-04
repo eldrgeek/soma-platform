@@ -20,3 +20,4 @@ export {
   fetchAuthSettings,
   providerOAuthOptions,
 } from './somaAuthConfig.js';
+export { createNoncePair, loadGoogleIdentity, shouldUseGoogleIdentity, GSI_SCRIPT_SRC } from './googleIdentity.js';

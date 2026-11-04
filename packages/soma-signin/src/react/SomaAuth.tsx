@@ -10,6 +10,8 @@ import {
   providerOAuthOptions,
 } from '../somaAuthConfig.js';
 import { ProviderMark } from './ProviderMarks';
+import { GoogleSignInButton } from './GoogleSignInButton';
+import { shouldUseGoogleIdentity } from '../googleIdentity.js';
 import type { SomaAuthConfig, SomaAuthMethods } from '../somaAuthConfig.js';
 import './soma-signin.css';
 
@@ -499,7 +501,7 @@ export default function SomaAuth({
             <div className="soma-signin-providers">
               {oauthProviders.map((provider) => {
                 const meta = providerMeta(provider);
-                return (
+                const redirectButton = (
                   <button
                     key={provider}
                     type="button"
@@ -513,6 +515,20 @@ export default function SomaAuth({
                     <span>{ci.oauthSignIn.replace('{provider}', meta.label)}</span>
                   </button>
                 );
+                if (provider === 'google' && shouldUseGoogleIdentity(config, oauthProviders)) {
+                  return (
+                    <GoogleSignInButton
+                      key={provider}
+                      supabase={supabase}
+                      clientId={config.googleClientId as string}
+                      disabled={busy}
+                      fallback={redirectButton}
+                      onSignedIn={() => navigate(landing)}
+                      onError={(error) => fail(error)}
+                    />
+                  );
+                }
+                return redirectButton;
               })}
             </div>
           )}
