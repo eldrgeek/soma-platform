@@ -10,8 +10,8 @@ export interface SomaAuthConfig {
   url: string;
   anonKey: string;
   methods: SomaAuthMethods;
-  /** Google OAuth Web client ID; turns on Google's own sign-in (ID token flow). */
-  googleClientId?: string;
+  /** SOMA sign-in hub base URL; Google signs in through it. */
+  googleHub?: string;
 }
 
 export interface ProviderMeta {
@@ -27,7 +27,7 @@ export function createSomaAuthConfig(options?: {
   url?: string;
   anonKey?: string;
   methods?: Partial<SomaAuthMethods>;
-  googleClientId?: string;
+  googleHub?: string;
 }): SomaAuthConfig;
 
 export function providerMeta(provider: string): ProviderMeta;

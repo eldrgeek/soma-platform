@@ -54,11 +54,9 @@ export function App() {
 
 `SomaAuth` shows one "Sign in with …" button per provider, each with the provider's official mark and colors (`src/react/ProviderMarks.tsx`), Google first. By default an app asks for every SOMA provider, and the screen keeps only those that the Supabase project's public `/auth/v1/settings` reports enabled. Switching a provider on in Supabase therefore adds its button to every app with no deploy. If the settings check fails, only Google is shown. Pass `methods.oauth` to narrow the list for one app.
 
-### Google without the Supabase address
+### Google through the SOMA sign-in hub
 
-Pass `googleClientId` (the Google OAuth **Web** client ID used by the Supabase Google provider; it is public, not a secret) to `createSomaAuthConfig`. The Google button then uses Google's own sign-in (Google Identity Services): Google draws its standard button, its account picker shows the app's own site instead of `<project>.supabase.co`, and the ID token goes to Supabase with `signInWithIdToken` (nonce-checked). Same Supabase user, so account linking is unchanged. If Google's script is blocked, the normal redirect button is shown instead.
-
-Each app's origin (e.g. `https://somastudios.ai`) must be listed under **Authorized JavaScript origins** on that Google OAuth client, or Google refuses the button on that site. Set the app name and logo on Google's OAuth consent screen (Branding) so the picker shows them.
+Pass `googleHub` (the soma-auth-relay base URL) to `createSomaAuthConfig`. The Google button then goes to `<hub>/google?to=<this sign-in page>`. The hub checks the app against the SOMA allow-list, signs in with Google (Google's picker shows the hub's address, not `<project>.supabase.co`), exchanges the ID token with Supabase, and returns here with the session in the URL fragment. `SomaAuth` picks it up with `setSession` and clears the fragment. Errors come back as `?error_description=` and are shown inline. The app's origin must be in `auth_redirect_allow`; nothing is needed on the Google client per app (Google allows only 10 domains on an unverified client). Without `googleHub`, Google uses the normal Supabase redirect.
 
 Live check of the shared project: `SUPABASE_ANON_KEY=… node scripts/probe-providers.mjs` reports each provider's enabled flag and whether `/auth/v1/authorize?provider=X` returns a 302 to that provider.
 

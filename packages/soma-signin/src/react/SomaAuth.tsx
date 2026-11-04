@@ -10,8 +10,7 @@ import {
   providerOAuthOptions,
 } from '../somaAuthConfig.js';
 import { ProviderMark } from './ProviderMarks';
-import { GoogleSignInButton } from './GoogleSignInButton';
-import { shouldUseGoogleIdentity } from '../googleIdentity.js';
+import { hubGoogleUrl, readHubSession, shouldUseGoogleHub } from '../hubSignIn.js';
 import type { SomaAuthConfig, SomaAuthMethods } from '../somaAuthConfig.js';
 import './soma-signin.css';
 
@@ -250,6 +249,24 @@ export default function SomaAuth({
 
   const pageTitle = mode === 'signup' ? ci.signUpTitle : ci.signInTitle;
 
+  // Back from the sign-in hub: the session is in the fragment. supabase-js's
+  // PKCE mode won't read an implicit fragment, so set it here, then wipe the
+  // fragment from the address bar and history before going on.
+  useEffect(() => {
+    const query = new URLSearchParams(window.location.search);
+    const returnedError = query.get('error_description') || query.get('error');
+    if (returnedError) fail({ message: returnedError });
+    const hub = readHubSession(window.location.hash);
+    if (!hub) return;
+    window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    setBusy(true);
+    supabase.auth.setSession(hub).then(({ error }) => {
+      setBusy(false);
+      if (error) fail(error);
+      else navigate(landing);
+    });
+  }, []);
+
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get('recovery') === '1') {
       setRecovery(true);
@@ -380,6 +397,12 @@ export default function SomaAuth({
 
   async function startOAuth(provider: string) {
     reset();
+    if (provider === 'google' && shouldUseGoogleHub(config)) {
+      // Through the SOMA sign-in hub: Google sees one address, not supabase.co.
+      setBusy(true);
+      window.location.assign(hubGoogleUrl(config.googleHub as string, loginRedirectTo(next)));
+      return;
+    }
     setBusy(true);
     const { error } = await supabase.auth.signInWithOAuth({
       provider: provider as never,
@@ -501,7 +524,7 @@ export default function SomaAuth({
             <div className="soma-signin-providers">
               {oauthProviders.map((provider) => {
                 const meta = providerMeta(provider);
-                const redirectButton = (
+                const button = (
                   <button
                     key={provider}
                     type="button"
@@ -515,20 +538,7 @@ export default function SomaAuth({
                     <span>{ci.oauthSignIn.replace('{provider}', meta.label)}</span>
                   </button>
                 );
-                if (provider === 'google' && shouldUseGoogleIdentity(config, oauthProviders)) {
-                  return (
-                    <GoogleSignInButton
-                      key={provider}
-                      supabase={supabase}
-                      clientId={config.googleClientId as string}
-                      disabled={busy}
-                      fallback={redirectButton}
-                      onSignedIn={() => navigate(landing)}
-                      onError={(error) => fail(error)}
-                    />
-                  );
-                }
-                return redirectButton;
+                return button;
               })}
             </div>
           )}

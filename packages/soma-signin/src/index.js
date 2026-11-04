@@ -20,4 +20,4 @@ export {
   fetchAuthSettings,
   providerOAuthOptions,
 } from './somaAuthConfig.js';
-export { createNoncePair, loadGoogleIdentity, shouldUseGoogleIdentity, GSI_SCRIPT_SRC } from './googleIdentity.js';
+export { hubGoogleUrl, readHubSession, shouldUseGoogleHub } from './hubSignIn.js';

@@ -12,11 +12,9 @@
  * @property {string} url
  * @property {string} anonKey
  * @property {SomaAuthMethods} methods
- * @property {string} [googleClientId] Google OAuth Web client ID. When set, the
- *   Google button uses Google's own sign-in (Google Identity Services) and hands
- *   the ID token to Supabase, so Google's screen shows the app's site instead of
- *   the Supabase project address. Must be the same client ID configured on the
- *   Supabase Google provider (or listed in its authorized client IDs).
+ * @property {string} [googleHub] Base URL of the SOMA sign-in hub
+ *   (soma-auth-relay). When set, the Google button signs in through the hub, so
+ *   Google's picker shows the hub's address instead of the Supabase project.
  */
 
 /**
@@ -148,7 +146,7 @@ export function providerOAuthOptions(provider) {
  * @param {string} [options.url]
  * @param {string} [options.anonKey]
  * @param {Partial<SomaAuthMethods>} [options.methods]
- * @param {string} [options.googleClientId]
+ * @param {string} [options.googleHub]
  * @returns {SomaAuthConfig}
  */
 export function createSomaAuthConfig(options = {}) {
@@ -158,7 +156,7 @@ export function createSomaAuthConfig(options = {}) {
     url: options.url ?? '',
     anonKey: options.anonKey ?? '',
     methods,
-    ...(options.googleClientId ? { googleClientId: String(options.googleClientId).trim() } : {}),
+    ...(options.googleHub ? { googleHub: String(options.googleHub).trim().replace(/\/+$/, '') } : {}),
   };
 }
 

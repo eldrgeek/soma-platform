@@ -177,24 +177,31 @@ test('Microsoft asks for the email scope so accounts link by email', () => {
   assert.equal(providerMeta('microsoft').label, 'Microsoft');
 });
 
-import { createNoncePair, shouldUseGoogleIdentity } from '../src/googleIdentity.js';
-import { createHash } from 'node:crypto';
+import { hubGoogleUrl, readHubSession, shouldUseGoogleHub } from '../src/hubSignIn.js';
 
-test('createNoncePair: hashed is the SHA-256 of raw, fresh each time', async () => {
-  const a = await createNoncePair();
-  const b = await createNoncePair();
-  assert.match(a.raw, /^[0-9a-f]{64}$/);
-  assert.equal(a.hashed, createHash('sha256').update(a.raw).digest('hex'));
-  assert.notEqual(a.raw, b.raw);
+test('hubGoogleUrl points at /google with the encoded return URL', () => {
+  assert.equal(
+    hubGoogleUrl('https://hub.example/', 'https://app.example/sign-in?next=%2Fx'),
+    'https://hub.example/google?to=https%3A%2F%2Fapp.example%2Fsign-in%3Fnext%3D%252Fx',
+  );
 });
 
-test('shouldUseGoogleIdentity needs a client ID and Google on screen', () => {
-  assert.equal(shouldUseGoogleIdentity({ googleClientId: 'x.apps.googleusercontent.com' }, ['google', 'github']), true);
-  assert.equal(shouldUseGoogleIdentity({}, ['google']), false);
-  assert.equal(shouldUseGoogleIdentity({ googleClientId: 'x' }, ['github']), false);
+test('readHubSession takes only a hub-shaped fragment', () => {
+  assert.deepEqual(readHubSession('#access_token=A&refresh_token=R&token_type=bearer&type=signin&provider=google'), {
+    access_token: 'A',
+    refresh_token: 'R',
+  });
+  assert.equal(readHubSession('#access_token=A&refresh_token=R'), null);
+  assert.equal(readHubSession('#access_token=A&provider=google'), null);
+  assert.equal(readHubSession(''), null);
 });
 
-test('createSomaAuthConfig carries googleClientId only when given', () => {
-  assert.equal('googleClientId' in createSomaAuthConfig(), false);
-  assert.equal(createSomaAuthConfig({ googleClientId: ' id ' }).googleClientId, 'id');
+test('shouldUseGoogleHub follows config', () => {
+  assert.equal(shouldUseGoogleHub({ googleHub: 'https://h' }), true);
+  assert.equal(shouldUseGoogleHub({}), false);
+});
+
+test('createSomaAuthConfig carries googleHub only when given, without a trailing slash', () => {
+  assert.equal('googleHub' in createSomaAuthConfig(), false);
+  assert.equal(createSomaAuthConfig({ googleHub: ' https://hub.example/ ' }).googleHub, 'https://hub.example');
 });
