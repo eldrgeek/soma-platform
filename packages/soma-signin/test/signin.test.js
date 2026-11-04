@@ -58,7 +58,7 @@ test('createSomaAuthConfig defaults match PlayMaker', () => {
   assert.equal(cfg.methods.emailOtp, false);
   assert.equal(cfg.methods.password, true);
   assert.equal(cfg.methods.phone, false);
-  assert.deepEqual(cfg.methods.oauth, ['google', 'github', 'azure', 'apple', 'facebook']);
+  assert.deepEqual(cfg.methods.oauth, ['google', 'facebook', 'linkedin_oidc', 'azure', 'apple', 'github']);
 });
 
 test('createSomaAuthConfig merges overrides', () => {
@@ -112,11 +112,12 @@ test('known-device marker has no PII', () => {
 });
 
 test('orderProviders puts Google first, normalizes aliases, drops duplicates', () => {
-  assert.deepEqual(orderProviders(['facebook', 'Microsoft', 'google', 'github', 'azure']), [
+  assert.deepEqual(orderProviders(['facebook', 'Microsoft', 'google', 'github', 'azure', 'linkedin']), [
     'google',
-    'github',
-    'azure',
     'facebook',
+    'linkedin_oidc',
+    'azure',
+    'github',
   ]);
   assert.deepEqual(orderProviders(['discord', 'google', 'custom_oidc', 'apple']), [
     'google',

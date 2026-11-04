@@ -12,7 +12,7 @@ PlayMaker will adopt this package in a follow-up bead; this repo ships the kit o
 | `safeNext(search)`, `loginHref(path)` | Safe post-login redirect targets |
 | `createSomaAuthConfig({ url, anonKey, methods })` | Methods map with PlayMaker defaults |
 | `providerMeta(provider)` | OAuth button labels/colors |
-| `SOMA_OAUTH_PROVIDERS`, `orderProviders(list)` | SOMA's providers in display order (Google first, then GitHub, Microsoft, Apple, Facebook) |
+| `SOMA_OAUTH_PROVIDERS`, `orderProviders(list)` | SOMA's providers in display order (Google first, then Facebook, LinkedIn, Microsoft, Apple, GitHub) |
 | `fetchAuthSettings({ url, anonKey })`, `enabledProviders(wanted, settings)` | Ask Supabase which providers are switched on; keep only those |
 | `providerOAuthOptions(provider)` | Extra `signInWithOAuth` options (Microsoft needs the `email` scope) |
 | `createSomaKnownDevice({ storageKey, storage })` | First-party “known device” marker (no PII) |

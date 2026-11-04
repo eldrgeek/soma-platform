@@ -24,7 +24,9 @@
  * (Mike, 2026-11-03: "Sign in with Google should have the Google logo and
  * first"). Ids are Supabase's provider ids: Microsoft is `azure`.
  */
-export const SOMA_OAUTH_PROVIDERS = Object.freeze(['google', 'github', 'azure', 'apple', 'facebook']);
+// Order after Google follows what Mike cares about (2026-11-04: "I care about
+// Google and Facebook and LinkedIn. Don't care so much about GitHub").
+export const SOMA_OAUTH_PROVIDERS = Object.freeze(['google', 'facebook', 'linkedin_oidc', 'azure', 'apple', 'github']);
 
 /**
  * Shown when the live provider check cannot run (offline, settings endpoint
