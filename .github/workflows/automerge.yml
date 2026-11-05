@@ -1,0 +1,27 @@
+# Claude auto-merge for soma-platform: merges Claude's ready claude/ PRs once every check passes.
+# The gate and its rules live in eldrgeek/projects-meta (_estate/ci/README.md there).
+# The test workflows are path-filtered, so a PR outside their paths has no GitHub Actions check
+# and the gate leaves it for Mike. A Netlify deploy preview alone never counts as green.
+name: Claude auto-merge
+on:
+  workflow_run:
+    workflows: [kit, soma-speech, soma-studio]
+    types: [completed]
+  pull_request_target:
+    types: [ready_for_review, reopened, unlabeled]
+  status:
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: PR number to check
+        required: true
+permissions:
+  contents: write
+  pull-requests: write
+  checks: read
+  statuses: read
+jobs:
+  automerge:
+    uses: eldrgeek/projects-meta/.github/workflows/claude-automerge-gate.yml@main
+    with:
+      pr: ${{ inputs.pr || '' }}
