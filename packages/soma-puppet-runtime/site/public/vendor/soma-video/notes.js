@@ -50,14 +50,26 @@ function sceneFor(board, token) {
   return null;
 }
 
-/** The scenes whose lyric a quote is from (at least four words' worth of letters, either way round). */
+/**
+ * The scenes whose lyric a quote is from (at least four words' worth of letters, either way round). When several
+ * lyrics hold the quote, only the closest matches count: a lyric that is the quote, then one that starts with it,
+ * then one that has it anywhere. So "Coffee's cold" lands on "Coffee's cold. The cursor blinks." and not also on a
+ * later line that mentions cold coffee in passing; a chorus sung several times still gets the note on every card.
+ */
 function scenesQuoted(board, quote) {
   const want = words(quote);
   if (want.length < 4) return [];
-  return board.scenes.filter((s) => {
+  const rank = (s) => {
     const lyric = words(s.lyric);
-    return lyric && (lyric.includes(want) || (lyric.length >= 8 && want.includes(lyric)));
-  }).map((s) => s.id);
+    if (!lyric) return 0;
+    if (lyric === want) return 4;
+    if (lyric.startsWith(want)) return 3;
+    if (lyric.includes(want)) return 2;
+    return lyric.length >= 8 && want.includes(lyric) ? 1 : 0;
+  };
+  const ranked = board.scenes.map((s) => ({ id: s.id, r: rank(s) })).filter((x) => x.r);
+  const best = Math.max(0, ...ranked.map((x) => x.r));
+  return ranked.filter((x) => x.r === best).map((x) => x.id);
 }
 
 /** What one line refers to, and the note with its leading reference ("e05:") taken off. */
