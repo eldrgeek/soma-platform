@@ -8,8 +8,11 @@
   # silently dropped studio-only merges (soma-platform #19, 2026-10-21). Build
   # when the studio, the speech component, soma-play (Stage Read's server
   # half) or soma-video (the narration read's server half) changed too.
-  # Exit 0 skips.
-  ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- . ../soma-studio ../soma-speech ../soma-play ../soma-video"
+  # Exit 0 skips. With no build cache Netlify sets CACHED_COMMIT_REF to
+  # COMMIT_REF (or leaves it empty), so the diff compared a commit with itself
+  # and skipped every build: #68 and #69 were cancelled as "no content change"
+  # on 2026-11-17 after 23 days without a real build. Build in that case.
+  ignore = "[ ${CACHED_COMMIT_REF:-$COMMIT_REF} != $COMMIT_REF ] && git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- . ../soma-studio ../soma-speech ../soma-play ../soma-video"
 
 [[redirects]]
   from = "/soma-chip/*"
