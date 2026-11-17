@@ -115,6 +115,8 @@ try {
 test('the soma-forge build runs when the studio or the speech component changes', { skip: !siteConfig }, () => {
   const ignore = siteConfig.match(/^\s*ignore\s*=\s*"([^"]+)"/m)?.[1] ?? '';
   assert.match(ignore, /git diff --quiet \$CACHED_COMMIT_REF \$COMMIT_REF -- /);
+  // With no build cache Netlify gives CACHED_COMMIT_REF the same commit (or none); that must build, not skip.
+  assert.match(ignore, /^\[ \$\{CACHED_COMMIT_REF:-\$COMMIT_REF\} != \$COMMIT_REF \] && git diff/);
   for (const path of [' . ', '../soma-studio', '../soma-speech']) assert.ok(`${ignore} `.includes(path), path);
   assert.match(siteConfig, /command = "node \.\.\/soma-studio\/scripts\/install\.mjs site\/public\/studio"/);
   assert.ok(siteConfig.indexOf('from = "/api/studio/*"') < siteConfig.indexOf('from = "/api/*"'), 'the studio route comes first');
