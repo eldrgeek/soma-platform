@@ -407,3 +407,67 @@ test('a picture of your own: owner or artist uploads it, the server names it, th
   const point = await api.call('video-boards/witness', { method: 'PATCH', user: 'eric', body: { ops: [{ op: 'own-picture', scene: 'e02', aspect: '9x16', file: 'e01-9x16.jpg' }] } });
   assert.equal(point.status, 400);
 });
+
+test('a storyboard address opens the editor directly, and the address follows the reader between cards and editor', async () => {
+  const blobs = studioBlobs();
+  const store = createBoardStore({ blobs });
+  const board = await store.put(APP_ID, { ...BOARD, id: 'witness' }, { owner: 'mike' });
+  const { api } = fakeApi(board);
+  // The real editor draws on a canvas, which the fake DOM has none of; this one records what it was given.
+  const editors = [];
+  const mountEditor = (node, options) => {
+    const editor = { options, board: options.board, updated: [], update(next) { this.updated.push(next); }, destroyed: false, destroy() { this.destroyed = true; } };
+    editors.push(editor);
+    return editor;
+  };
+
+  const root = mount();
+  const told = [];
+  const view = mountStoryboards(root, { api, initial: 'witness', initialView: 'editor', mountEditor, onOpen: (id, where) => told.push([id, where]) });
+  await view.ready;
+  await flush();
+  assert.deepEqual(told, [['witness', 'editor']], 'opening straight into the editor names only the editor, one address');
+  assert.equal(editors.length, 1);
+  assert.equal(editors[0].options.board.id, 'witness');
+  assert.equal(root.all().filter((node) => node.className === 'svs-card').length, 0, 'the cards are not drawn behind the editor');
+
+  // A refresh while the editor is open gives the editor the fresh board and keeps the address.
+  await view.refresh();
+  assert.equal(editors[0].updated.length, 1);
+  assert.equal(told.length, 1);
+
+  // "← Cards" (the editor's onClose) draws the cards and names them.
+  editors[0].options.onClose();
+  await flush();
+  assert.ok(editors[0].destroyed);
+  assert.deepEqual(told.at(-1), ['witness', 'cards']);
+  assert.equal(root.all().filter((node) => node.className === 'svs-card').length, 2);
+
+  // "Script and timeline" opens the editor again and names it.
+  await findText(root, 'Script and timeline').click();
+  assert.equal(editors.length, 2);
+  assert.deepEqual(told.at(-1), ['witness', 'editor']);
+
+  // Leaving the page (the runtime redraws on Back) does not rewrite the address.
+  const before = told.length;
+  view.destroy();
+  assert.equal(told.length, before);
+});
+
+test('a plain board address still opens the cards, and an unknown view is the cards', async () => {
+  const blobs = studioBlobs();
+  const store = createBoardStore({ blobs });
+  const board = await store.put(APP_ID, { ...BOARD, id: 'witness' }, { owner: 'mike' });
+  const { api } = fakeApi(board);
+  for (const initialView of [undefined, 'cards', 'nonsense']) {
+    const root = mount();
+    const told = [];
+    let mounted = 0;
+    const view = mountStoryboards(root, { api, initial: 'witness', initialView, mountEditor: () => { mounted += 1; return { destroy() {} }; }, onOpen: (id, where) => told.push([id, where]) });
+    await view.ready;
+    await flush();
+    assert.deepEqual(told, [['witness', 'cards']]);
+    assert.equal(mounted, 0);
+    view.destroy();
+  }
+});

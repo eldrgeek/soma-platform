@@ -170,12 +170,17 @@ const storyboardApi = {
   },
 };
 
-function writeBoard(id) {
+// The address names the open storyboard and whether its editor is open (&board=<id>&view=editor), so a
+// video's editor has a link of its own to keep and come back to, and Back goes from the editor to the
+// cards and from a board to the list.
+function writeBoard(id, view) {
   const params = new URLSearchParams(location.search);
   if (id) params.set('board', id);
   else params.delete('board');
+  if (id && view === 'editor') params.set('view', 'editor');
+  else params.delete('view');
   const next = `${location.pathname}?${params}`;
-  if (next !== `${location.pathname}${location.search}`) history.replaceState(null, '', next);
+  if (next !== `${location.pathname}${location.search}`) history.pushState(null, '', next);
 }
 
 // The shared components come from the builds the live description pins (`uses soma-video@<hash>`),
@@ -198,6 +203,7 @@ const components = {
       api: storyboardApi,
       host,
       initial: new URLSearchParams(location.search).get('board'),
+      initialView: new URLSearchParams(location.search).get('view') === 'editor' ? 'editor' : 'cards',
       onOpen: writeBoard,
     }),
   'video-assets': (node, { text, data, rowId }) => {

@@ -1,7 +1,7 @@
 /* soma-video video-storyboard.js: the storyboards a reader may open, and one open board to change (Puppet v0.7).
  *
  *   import { mountStoryboards } from './video-storyboard.js';
- *   const view = mountStoryboards(container, { api, host, initial, onOpen });
+ *   const view = mountStoryboards(container, { api, host, initial, initialView, onOpen });
  *
  * A storyboard (storyboard.js) is a video's plan as scene cards: each card has its picture (9:16 or 16:9,
  * one switch for the board), the lyric line and its time in the song with a button that plays that
@@ -21,7 +21,11 @@
  *        sendNotes(id, { text }) }
  * fetchFile returns a Blob; pictures, the song and renders play from object URLs, never the API address.
  * host: whether the reader is the app's host (starts boards, lets held jobs run).
- * initial: a board id to open; onOpen(id or null) is told when the reader opens or leaves a board.
+ * initial: a board id to open; onOpen(id or null, view) is told when the reader opens or leaves a board,
+ * and when they go between its cards and its editor (view is 'cards' or 'editor').
+ * initialView: 'editor' opens the initial board straight in the editor, so the page's address
+ * (?board=<id>&view=editor) is a link to that video's editor that a reader can keep and come back to.
+ * mountEditor: the editor's mount, video-editor.js's mountVideoEditor unless a test gives its own.
  *
  * v4 (2026-10-23): "Script and timeline" opens the board in the editor (video-editor.js), the same board as a
  * script, a preview, the song's waveform and a timeline across the full width. "← Cards" comes back here.
@@ -123,7 +127,7 @@ const STEP_LABEL = Object.fromEntries(BOARD_STEPS.map((s) => [s.step, s.label]))
 const isOpen = (job) => ['held', 'queued', 'running'].includes(job.status);
 const JOB_WORDS = { held: 'waiting for the host', queued: 'queued', running: 'working', done: 'done', failed: 'failed' };
 
-export function mountStoryboards(container, { api, host = false, initial = null, onOpen = () => {}, document = container.ownerDocument, window = document.defaultView, every = 10_000 }) {
+export function mountStoryboards(container, { api, host = false, initial = null, initialView = 'cards', onOpen = () => {}, mountEditor = mountVideoEditor, document = container.ownerDocument, window = document.defaultView, every = 10_000 }) {
   installStyle(document);
   const root = el(document, 'section', 'svs');
   container.append(root);
@@ -291,24 +295,31 @@ export function mountStoryboards(container, { api, host = false, initial = null,
   }
 
   // ---------- one board ----------
-  async function open(id) {
+  // view 'editor' opens the board straight in its editor (Script and timeline).
+  async function open(id, view = 'cards') {
     say('Opening…');
     board = await api.getBoard(id);
     aspect = board.cuts.find((c) => !c.all)?.aspect ?? aspect;
-    onOpen(id);
     say('');
-    draw();
+    if (editor) editor.update(board);
+    else if (view === 'editor') openEditor();
+    else {
+      onOpen(id, 'cards');
+      draw();
+    }
     await loadJobs();
   }
 
   function openEditor() {
+    if (!board || editor) return;
     stop();
     body.hidden = true;
-    editor = mountVideoEditor(editorHost, {
+    editor = mountEditor(editorHost, {
       board, api, host, objectUrl, document, window,
       onBoard: (next) => { board = next; },
-      onClose: () => closeEditor(true),
+      onClose: () => { closeEditor(true); onOpen(board.id, 'cards'); },
     });
+    onOpen(board.id, 'editor');
   }
 
   function closeEditor(redraw) {
@@ -318,6 +329,17 @@ export function mountStoryboards(container, { api, host = false, initial = null,
     editor = null;
     body.hidden = false;
     if (redraw) draw();
+  }
+
+  // Open the initial board, in its editor when the address asked for it.
+  async function start() {
+    if (!initial) return showList();
+    try {
+      await open(initial, initialView);
+    } catch (error) {
+      fail(error);
+      return showList();
+    }
   }
 
   function draw() {
@@ -750,13 +772,14 @@ export function mountStoryboards(container, { api, host = false, initial = null,
     if (!gone) timer = window?.setTimeout?.(poll, every);
   }
 
-  const ready = (initial ? open(initial).catch((error) => { fail(error); return showList(); }) : showList()).then(() => {
+  const ready = start().then(() => {
     timer = window?.setTimeout?.(poll, every);
   });
 
   return {
     ready,
     open,
+    openEditor,
     refresh: () => (board ? open(board.id) : showList()),
     get board() { return board; },
     update() {},

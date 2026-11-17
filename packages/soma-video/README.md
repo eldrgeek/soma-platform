@@ -147,6 +147,15 @@ key, is held until the host presses "Let it run", because it runs with Claude Co
 of the screen, with a Full screen button. "← Cards" goes back. Nothing about the board, its routes, its jobs or
 the "Let it run" gate changed, and there is no new Puppet word: it is a second view inside `video-storyboards`.
 
+The editor has its own address (2026-11-17, Mike: "the editor should be a route, and there should be a query
+for whatever particular video you're using, so you can come back to it"). Opening a board adds `&board=<id>`,
+and opening its editor adds `&view=editor`, so
+`https://soma-forge.netlify.app/?app=videomaker&screen=Storyboards&board=<id>&view=editor` opens that video
+straight in the editor: a link to bookmark, send to an artist, or reload. Back goes from the editor to the cards
+and from a board to the list. `mountStoryboards` takes `initialView: 'editor'` for this and tells
+`onOpen(id, view)` each move; an app pinned to a soma-video build older than `f9dc3225b66a` ignores the
+`view` and opens the cards, as before.
+
 - **Script** (left): the board as Fountain (below). It saves itself a moment after typing stops; a problem names
   its line and nothing saves until it is fixed; gaps and overlaps are named but saved. The playing scene's lines
   are lit, and clicking a line moves the playhead there (a lyric line to its own moment).
