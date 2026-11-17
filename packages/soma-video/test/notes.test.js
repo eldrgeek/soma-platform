@@ -113,3 +113,13 @@ test('the brief for a batch names every scene, its note or a reroll, and the res
   assert.match(brief, /one generator session/);
   assert.match(jobBrief(b, { id: 'j', step: 'batch', scenes: ['gone'] }), /None of the scenes gone is still on the board/);
 });
+
+test('a quote held by several lyrics goes to the closest match, and a repeated chorus to every card', () => {
+  const b = board();
+  b.scenes.push({ ...b.scenes[2], id: 'e40', lyric: 'Back under the bridge at nineteen, the coffee cold again' });
+  b.scenes.push({ ...b.scenes[2], id: 'e41', lyric: 'So this is how it ends?' });
+  // "Under the bridge at nineteen" starts e03's lyric and only sits inside e40's.
+  assert.deepEqual(parseNotes(b, '"Under the bridge at nineteen" is perfect, keep it.').notes.map((n) => n.scene), ['e03']);
+  // The same line sung twice (e02, e41) gets the note on both cards.
+  assert.deepEqual(parseNotes(b, '"So this is how it ends" too dark').notes.map((n) => n.scene), ['e02', 'e41']);
+});

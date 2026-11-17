@@ -134,6 +134,9 @@ const CSS = `
 .sve-title { font-weight: 700; font-size: 16px; }
 .sve-grow { flex: 1; }
 .sve-msg { color: var(--sve-muted); font-size: 12px; }
+/* The status line takes the free space in the top bar and never makes it wrap: a long message ends in an ellipsis,
+   and its whole text is in the tooltip. */
+.sve-say { flex: 3 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sve-btn { border: 1px solid var(--sve-line); background: var(--sve-panel-2); border-radius: 6px; padding: 5px 11px; font-size: 13px; line-height: 1.3; }
 .sve-btn:hover { border-color: var(--sve-muted); }
 .sve-btn:disabled { opacity: .5; cursor: default; }
@@ -209,9 +212,10 @@ const CSS = `
 .sve-seam { position: absolute; top: 0; bottom: 0; width: 12px; margin-left: -6px; cursor: col-resize; z-index: 3; touch-action: none; }
 .sve-seam::before { content: ""; position: absolute; left: 5px; top: 8px; bottom: 8px; width: 2px; background: rgb(255 255 255 / .25); border-radius: 1px; }
 .sve-seam:hover::before { background: var(--sve-accent); }
-.sve-chip { position: absolute; top: 50%; transform: translate(-50%, -50%); z-index: 4; border: 1px solid var(--sve-fx); background: #12302a; color: #c9f0e5; border-radius: 4px; font: 10px ui-monospace, Menlo, monospace; padding: 2px 5px; white-space: nowrap; }
-.sve-chip.sve-auto { width: 10px; height: 10px; padding: 0; border-radius: 50%; font-size: 0; border-color: var(--sve-muted); background: var(--sve-panel-2); }
-.sve-chip.sve-auto:hover { width: auto; height: auto; padding: 2px 5px; border-radius: 4px; font-size: 10px; }
+.sve-chip { position: absolute; top: 3px; transform: translateX(-50%); z-index: 4; border: 1px solid var(--sve-fx); background: #12302a; color: #c9f0e5; border-radius: 4px; font: 10px ui-monospace, Menlo, monospace; padding: 2px 5px; white-space: nowrap; }
+/* A seam between narrow pictures shows its chip as a dot, so it never covers the picture a person means to click. */
+.sve-chip.sve-auto, .sve-chip.sve-tight { width: 10px; height: 10px; padding: 0; border-radius: 50%; font-size: 0; border-color: var(--sve-muted); background: var(--sve-panel-2); }
+.sve-chip.sve-auto:hover, .sve-chip.sve-tight:hover { width: auto; height: auto; padding: 2px 5px; border-radius: 4px; font-size: 10px; }
 .sve-wave { position: absolute; left: 0; top: 0; height: 70px; }
 .sve-wave-msg { position: absolute; left: 12px; top: 26px; font-size: 12px; color: var(--sve-muted); }
 .sve-marker { position: absolute; top: 4px; display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: var(--sve-note); white-space: nowrap; cursor: pointer; background: none; border: 0; padding: 0; max-width: 360px; overflow: hidden; text-overflow: ellipsis; }
@@ -289,7 +293,7 @@ export function mountVideoEditor(container, { board: initial, api, host = false,
       <span class="sve-title" data-r="title"></span>
       <button type="button" class="sve-btn" data-r="undo" title="Undo (⌘Z)" aria-label="Undo" disabled>↶ Undo</button>
       <button type="button" class="sve-btn" data-r="redo" title="Redo (⇧⌘Z)" aria-label="Redo" disabled>↷ Redo</button>
-      <span class="sve-msg" data-r="msg" role="status"></span>
+      <span class="sve-msg sve-say" data-r="msg" role="status"></span>
       <span class="sve-grow"></span>
       <label class="sve-msg">Cut <select data-r="cut" aria-label="Cut"></select></label>
       <span class="sve-pill" data-r="state"></span>
@@ -339,7 +343,7 @@ export function mountVideoEditor(container, { board: initial, api, host = false,
   const screen = $('screen');
   const ctx = screen.getContext?.('2d') ?? null;
   const off = document.createElement('canvas');
-  const say = (text) => { $('msg').textContent = text; };
+  const say = (text) => { const m = $('msg'); m.textContent = text; m.title = text; };
   const fail = (error) => say(error?.message ?? String(error));
 
   const cut = () => board.cuts.find((c) => c.id === cutId) ?? null;
@@ -864,7 +868,8 @@ export function mountVideoEditor(container, { board: initial, api, host = false,
         pic.append(seam);
         const chip = document.createElement('button');
         chip.type = 'button';
-        chip.className = `sve-chip${scene.transition ? '' : ' sve-auto'}`;
+        const tight = Math.min(X(p.end) - left, X(placed[i - 1].end) - X(placed[i - 1].start)) < 60;
+        chip.className = `sve-chip${scene.transition ? '' : ' sve-auto'}${tight ? ' sve-tight' : ''}`;
         chip.style.left = `${left}px`;
         chip.textContent = scene.transition || 'auto';
         chip.title = `How ${scene.id} comes in${scene.transition ? '' : ' (auto: the renderer\'s default)'}. Click to change.`;
